@@ -51,6 +51,9 @@ test.describe("excluir com lixeira", () => {
     await dialog.getByRole("button", { name: "Mover para a lixeira" }).click();
     await page.waitForURL(new RegExp(`${ORG}/clients$`));
     await expect(page.locator("[data-sonner-toast]").filter({ hasText: "movido para a lixeira" })).toBeVisible();
+    // Busca pelo nome: a lista tem páginas, e a busca prova que o cliente sumiu de verdade.
+    const search = `${ORG}/clients?q=${encodeURIComponent(name)}`;
+    await page.goto(search);
     await expect(page.getByText(name)).toHaveCount(0);
     await page.reload();
     await expect(page.getByText(name)).toHaveCount(0);
@@ -65,7 +68,7 @@ test.describe("excluir com lixeira", () => {
     await expectNoHorizontalScroll(page);
     await row.getByRole("button", { name: "Restaurar" }).click();
     await expect(page.locator("[data-sonner-toast]").filter({ hasText: "restaurado" })).toBeVisible();
-    await page.goto(`${ORG}/clients`);
+    await page.goto(search);
     await expect(page.getByText(name)).toBeVisible();
 
     // Excluir de novo e apagar definitivamente.

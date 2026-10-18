@@ -64,6 +64,13 @@
       "when": 1792332680599,
       "tag": "0008_nuvem",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792333595017,
+      "tag": "0009_tarefas",
+      "breakpoints": true
     }
   ]
 }
