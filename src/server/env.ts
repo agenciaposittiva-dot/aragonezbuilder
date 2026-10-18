@@ -37,13 +37,34 @@ const schema = z.object({
 
 export type Env = z.infer<typeof schema>;
 
+/**
+ * Durante o `next build` nenhuma conexão é aberta, então as variáveis
+ * obrigatórias podem não existir no ambiente de build (ex.: Vercel sem
+ * variáveis de build). Nesse caso usamos valores provisórios; em execução a
+ * validação é obrigatória e falha com uma mensagem clara.
+ */
+const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
+
+const BUILD_PLACEHOLDERS = {
+  DATABASE_URL: "postgres://build:build@127.0.0.1:5432/build",
+  BETTER_AUTH_SECRET: "build-placeholder-secret-not-used-at-runtime",
+};
+
 function load(): Env {
   const parsed = schema.safeParse(process.env);
-  if (!parsed.success) {
-    const issues = parsed.error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`).join("\n");
-    throw new Error(`Variáveis de ambiente inválidas:\n${issues}`);
+  if (parsed.success) return parsed.data;
+  if (isBuildPhase) {
+    return schema.parse({
+      ...process.env,
+      DATABASE_URL: process.env.DATABASE_URL || BUILD_PLACEHOLDERS.DATABASE_URL,
+      BETTER_AUTH_SECRET:
+        process.env.BETTER_AUTH_SECRET && process.env.BETTER_AUTH_SECRET.length >= 32
+          ? process.env.BETTER_AUTH_SECRET
+          : BUILD_PLACEHOLDERS.BETTER_AUTH_SECRET,
+    });
   }
-  return parsed.data;
+  const issues = parsed.error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`).join("\n");
+  throw new Error(`Variáveis de ambiente inválidas:\n${issues}\nConfigure-as no servidor (veja .env.example).`);
 }
 
 export const env = load();
