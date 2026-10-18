@@ -70,6 +70,13 @@ export const orgSettingsSchema = z.object({
       versionCheckpointMinutes: z.number().int().min(1).max(240).default(10),
     })
     .prefault({}),
+  /** Radar de Marca: limite da bio e pesos da pontuação (vazio = pesos padrão da metodologia). */
+  brandRadar: z
+    .object({
+      bioLimit: z.number().int().min(30).max(1000).default(150),
+      weights: z.record(z.string(), z.number().int().min(0).max(100)).default({}),
+    })
+    .prefault({}),
   locale: z
     .object({
       currency: z.string().default("BRL"),

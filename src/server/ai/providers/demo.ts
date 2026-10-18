@@ -1,6 +1,7 @@
 import sharp from "sharp";
 import { demoDesignEditJson } from "../demo-design";
 import { demoPreviewJson } from "../demo-preview";
+import { demoBrandJson } from "../demo-brand";
 import { demoTaskJson } from "../demo-tasks";
 import type { AiProvider, GenerateRequest, GenerateResult, ImageEditRequest, ImageResult } from "../types";
 
@@ -10,7 +11,7 @@ import type { AiProvider, GenerateRequest, GenerateResult, ImageEditRequest, Ima
  */
 export function createDemoProvider(): AiProvider {
   async function generate(req: GenerateRequest): Promise<GenerateResult> {
-    // Formatos identificados no pedido (Radar de Tendências) têm prioridade sobre os do assistente de tarefas.
+    // Formatos identificados no pedido (Radar de Tendências e Radar de Marca) têm prioridade sobre os do assistente de tarefas.
     const text = req.jsonSchema
       ? (demoDesignEditJson(req.prompt) ??
         demoFormatJson(req.prompt) ??
@@ -132,7 +133,9 @@ function demoTrendJson(format: string, prompt: string): string | null {
 
 function demoFormatJson(prompt: string) {
   const format = prompt.match(/^Formato da resposta: (\w+)/m)?.[1];
-  return format ? (demoTrendJson(format, prompt) ?? demoPreviewJson(format, prompt)) : null;
+  return format
+    ? (demoTrendJson(format, prompt) ?? demoPreviewJson(format, prompt) ?? demoBrandJson(format, prompt))
+    : null;
 }
 
 function demoJson(prompt: string) {

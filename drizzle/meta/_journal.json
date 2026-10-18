@@ -106,6 +106,13 @@
       "when": 1792357780453,
       "tag": "0014_previa_redes",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1792358331322,
+      "tag": "0015_radar_marca",
+      "breakpoints": true
     }
   ]
 }
