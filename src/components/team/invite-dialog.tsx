@@ -17,7 +17,32 @@ import {
 import { Field } from "@/components/ui/field";
 import { Input, NativeSelect } from "@/components/ui/input";
 import { useOrgAction } from "@/hooks/use-action";
+import { INVITE_VALIDITY } from "@/lib/validators/team";
 import { createInvitationAction } from "@/server/actions/team";
+import type { EmailDeliveryState } from "@/server/mail";
+import { InviteResult } from "./invite-result";
+
+export const VALIDITY_OPTIONS = [1, 3, 7, 14, 30];
+
+/** Campos comuns de convite: nome e validade do link. */
+export function InviteExtraFields({ errors }: { errors: Record<string, string[] | undefined> }) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <Field label="Nome" htmlFor="inv-name" error={errors.name}>
+        <Input id="inv-name" name="name" maxLength={120} placeholder="Opcional" />
+      </Field>
+      <Field label="Validade do convite" htmlFor="inv-validity" error={errors.validityDays}>
+        <NativeSelect id="inv-validity" name="validityDays" defaultValue={String(INVITE_VALIDITY.default)}>
+          {VALIDITY_OPTIONS.map((d) => (
+            <option key={d} value={d}>
+              {d} {d === 1 ? "dia" : "dias"}
+            </option>
+          ))}
+        </NativeSelect>
+      </Field>
+    </div>
+  );
+}
 
 export type RoleOption = {
   id: string;
@@ -60,10 +85,11 @@ export function InviteDialog({
   const [open, setOpen] = useState(false);
   const [roleId, setRoleId] = useState("");
   const [clientIds, setClientIds] = useState<string[]>([]);
-  const [link, setLink] = useState<string | null>(null);
+  const [result, setResult] = useState<{ url: string; email: EmailDeliveryState; days: number } | null>(null);
+  const [days, setDays] = useState<number>(INVITE_VALIDITY.default);
   const create = useOrgAction(createInvitationAction, {
-    success: "Convite enviado",
-    onSuccess: (d) => setLink(d.url),
+    success: "Convite criado",
+    onSuccess: (d) => setResult({ url: d.url, email: d.email, days }),
   });
   const role = roles.find((r) => r.id === roleId);
   const internalRoles = roles.filter((r) => r.kind === "internal" && (r.key !== "owner" || canInviteOwner));
@@ -72,7 +98,7 @@ export function InviteDialog({
   function reset() {
     setRoleId("");
     setClientIds([]);
-    setLink(null);
+    setResult(null);
   }
 
   return (
@@ -89,16 +115,14 @@ export function InviteDialog({
         </Button>
       </DialogTrigger>
       <DialogContent size="md">
-        {link ? (
+        {result ? (
           <>
             <DialogHeader>
-              <DialogTitle>Convite enviado</DialogTitle>
-              <DialogDescription>
-                Enviamos o link por e-mail. Você também pode copiá-lo e enviar por outro canal. Ele vale por 7 dias.
-              </DialogDescription>
+              <DialogTitle>Convite criado</DialogTitle>
+              <DialogDescription>O convite só vale depois que a pessoa entrar com este e-mail.</DialogDescription>
             </DialogHeader>
             <DialogBody>
-              <CopyLink url={link} />
+              <InviteResult url={result.url} email={result.email} validityDays={result.days} />
             </DialogBody>
             <DialogFooter>
               <Button variant="secondary" onClick={reset}>
@@ -115,10 +139,14 @@ export function InviteDialog({
             onSubmit={(e) => {
               e.preventDefault();
               const f = new FormData(e.currentTarget);
+              const validityDays = Number(f.get("validityDays") ?? INVITE_VALIDITY.default);
+              setDays(validityDays);
               create.run({
                 email: String(f.get("email") ?? ""),
+                name: String(f.get("name") ?? ""),
                 roleId,
                 clientIds: role?.kind === "client" ? clientIds : [],
+                validityDays,
               });
             }}
           >
@@ -132,6 +160,7 @@ export function InviteDialog({
               <Field label="E-mail" htmlFor="inv-email" required error={create.fieldErrors.email}>
                 <Input id="inv-email" name="email" type="email" required autoFocus placeholder="nome@empresa.com.br" />
               </Field>
+              <InviteExtraFields errors={create.fieldErrors} />
               <Field
                 label="Papel"
                 htmlFor="inv-role"

@@ -51,6 +51,8 @@ export function Comments({
   const add = useOrgAction(addCommentAction, { onSuccess: () => setBody("") });
   const remove = useOrgAction(deleteCommentAction);
   const isAdmin = ws.permissions.includes("org.manage");
+  // Convidados só comentam com a permissão explícita (o servidor também confere).
+  const canWrite = ws.kind === "internal" || ws.permissions.includes("portal.comment");
 
   return (
     <div className="grid gap-4">
@@ -96,40 +98,42 @@ export function Comments({
           ))}
         </ul>
       )}
-      <form
-        className="grid gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (body.trim()) add.run({ target, body, internal });
-        }}
-      >
-        <Textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder={placeholder}
-          rows={3}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && body.trim()) {
-              e.preventDefault();
-              add.run({ target, body, internal });
-            }
+      {canWrite ? (
+        <form
+          className="grid gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (body.trim()) add.run({ target, body, internal });
           }}
-          aria-label="Novo comentário"
-        />
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          {allowInternal && !lockInternal ? (
-            <label className="flex items-center gap-2 text-xs text-fg-muted">
-              <Switch checked={internal} onCheckedChange={setInternal} aria-label="Comentário interno" />
-              {internal ? "Interno: só a equipe vê" : "Visível para o cliente"}
-            </label>
-          ) : (
-            <span />
-          )}
-          <Button type="submit" size="sm" variant="primary" loading={add.pending} disabled={!body.trim()}>
-            Comentar
-          </Button>
-        </div>
-      </form>
+        >
+          <Textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder={placeholder}
+            rows={3}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && body.trim()) {
+                e.preventDefault();
+                add.run({ target, body, internal });
+              }
+            }}
+            aria-label="Novo comentário"
+          />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {allowInternal && !lockInternal ? (
+              <label className="flex items-center gap-2 text-xs text-fg-muted">
+                <Switch checked={internal} onCheckedChange={setInternal} aria-label="Comentário interno" />
+                {internal ? "Interno: só a equipe vê" : "Visível para o cliente"}
+              </label>
+            ) : (
+              <span />
+            )}
+            <Button type="submit" size="sm" variant="primary" loading={add.pending} disabled={!body.trim()}>
+              Comentar
+            </Button>
+          </div>
+        </form>
+      ) : null}
     </div>
   );
 }

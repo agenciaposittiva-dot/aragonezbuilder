@@ -18,11 +18,14 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { useOrgAction } from "@/hooks/use-action";
 import { formatDate } from "@/lib/format";
 import { resendInvitationAction, revokeInvitationAction } from "@/server/actions/team";
-import { CopyLink } from "./invite-dialog";
+import type { EmailDeliveryState } from "@/server/mail";
+import { EmailStateBadge, InviteResult } from "./invite-result";
 
 type Invitation = {
   id: string;
   email: string;
+  name: string | null;
+  emailState: EmailDeliveryState;
   roleName: string;
   roleKind: "internal" | "client";
   expiresAt: Date;
@@ -32,10 +35,10 @@ type Invitation = {
 };
 
 export function InvitationsList({ invitations, canManage }: { invitations: Invitation[]; canManage: boolean }) {
-  const [link, setLink] = useState<string | null>(null);
+  const [result, setResult] = useState<{ url: string; email: EmailDeliveryState } | null>(null);
   const resend = useOrgAction(resendInvitationAction, {
-    success: "Novo convite enviado",
-    onSuccess: (d) => setLink(d.url),
+    success: "Novo link gerado",
+    onSuccess: (d) => setResult({ url: d.url, email: d.email }),
   });
   const revoke = useOrgAction(revokeInvitationAction, { success: "Convite cancelado" });
 
@@ -65,7 +68,13 @@ export function InvitationsList({ invitations, canManage }: { invitations: Invit
         <TBody>
           {invitations.map((inv) => (
             <TR key={inv.id}>
-              <TD className="font-medium">{inv.email}</TD>
+              <TD>
+                <span className="block font-medium">{inv.name ?? inv.email}</span>
+                {inv.name ? <span className="block text-xs text-fg-muted">{inv.email}</span> : null}
+                <span className="mt-1 block">
+                  <EmailStateBadge state={inv.emailState} />
+                </span>
+              </TD>
               <TD>
                 <Badge tone={inv.roleKind === "client" ? "info" : "neutral"}>{inv.roleName}</Badge>
               </TD>
@@ -105,15 +114,15 @@ export function InvitationsList({ invitations, canManage }: { invitations: Invit
           ))}
         </TBody>
       </Table>
-      <Dialog open={!!link} onOpenChange={(o) => !o && setLink(null)}>
+      <Dialog open={!!result} onOpenChange={(o) => !o && setResult(null)}>
         <DialogContent size="md">
           <DialogHeader>
             <DialogTitle>Novo link gerado</DialogTitle>
-            <DialogDescription>
-              O link anterior deixou de funcionar. O novo também foi enviado por e-mail.
-            </DialogDescription>
+            <DialogDescription>O link anterior deixou de funcionar.</DialogDescription>
           </DialogHeader>
-          <DialogBody>{link ? <CopyLink url={link} /> : null}</DialogBody>
+          <DialogBody>
+            {result ? <InviteResult url={result.url} email={result.email} validityDays={7} /> : null}
+          </DialogBody>
         </DialogContent>
       </Dialog>
     </Card>

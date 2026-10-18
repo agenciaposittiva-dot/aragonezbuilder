@@ -23,9 +23,26 @@ export const clientAccessInput = z.object({
   clientIds: z.array(uuid).min(1, "Selecione pelo menos um cliente").max(50),
 });
 
+export const INVITE_VALIDITY = { min: 1, max: 30, default: 7 } as const;
+
 export const invitationInput = z.object({
   email: z.email("E-mail inválido").trim().toLowerCase(),
+  /** Nome do convidado (opcional; aparece na lista de convites). */
+  name: z
+    .string()
+    .trim()
+    .max(120)
+    .optional()
+    .nullable()
+    .transform((v) => (v ? v : null)),
   roleId: uuid,
   clientIds: z.array(uuid).max(50).default([]),
+  /** Validade do link, em dias. */
+  validityDays: z.coerce
+    .number()
+    .int()
+    .min(INVITE_VALIDITY.min)
+    .max(INVITE_VALIDITY.max)
+    .default(INVITE_VALIDITY.default),
 });
 export type InvitationInput = z.input<typeof invitationInput>;

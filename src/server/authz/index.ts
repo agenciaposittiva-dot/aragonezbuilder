@@ -85,12 +85,37 @@ export function taskScope(actor: Actor): SQL | undefined {
   return sql`exists (select 1 from ${projects} where ${projects.id} = ${tasks.projectId} and ${visibleProjects ?? sql`true`})`;
 }
 
+/**
+ * Filtro extra sobre `requests` para usuários de cliente: rascunhos só de quem
+ * os criou e, sem `requests.read` (ex.: papel Solicitante), apenas as
+ * solicitações abertas pela própria pessoa. Para a equipe, sem restrição extra.
+ */
+export function clientRequestFilter(actor: Actor): SQL | undefined {
+  if (actor.kind !== "client") return undefined;
+  const own = eq(requests.createdByUserId, actor.userId);
+  if (!actor.permissions.has("requests.read")) return own;
+  return or(sql`${requests.status} <> 'draft'`, own);
+}
+
+/** Consulta solicitações: todas (requests.read) ou, para clientes que só criam, as próprias. */
+export function canReadRequests(actor: Actor): boolean {
+  return can(actor, "requests.read") || (actor.kind === "client" && can(actor, "requests.write"));
+}
+
 /** Condição SQL sobre `files`. Clientes veem apenas o que foi compartilhado explicitamente. */
 export function fileScope(actor: Actor): SQL | undefined {
   const notDeleted = isNull(files.deletedAt);
   if (actor.kind === "client") {
     if (!actor.clientIds.length) return FALSE;
-    return and(notDeleted, eq(files.sharedWithClient, true), inArray(files.clientId, [...actor.clientIds]));
+    return and(
+      notDeleted,
+      eq(files.sharedWithClient, true),
+      inArray(files.clientId, [...actor.clientIds]),
+      // Quem só vê as próprias solicitações não vê anexos das solicitações dos colegas.
+      actor.permissions.has("requests.read")
+        ? undefined
+        : sql`(${files.requestId} is null or exists (select 1 from ${requests} where ${requests.id} = ${files.requestId} and ${requests.createdByUserId} = ${actor.userId}))`,
+    );
   }
   if (actor.dataAll) return notDeleted;
   const visibleProjects = projectScope(actor);
@@ -154,7 +179,7 @@ export async function assertRequestAccess(s: Scope, requestId: string) {
     .select({ id: requests.id, clientId: requests.clientId, projectId: requests.projectId })
     .from(requests)
     .innerJoin(clients, eq(clients.id, requests.clientId))
-    .where(and(eq(requests.id, requestId), clientScope(s.actor)))
+    .where(and(eq(requests.id, requestId), clientScope(s.actor), clientRequestFilter(s.actor)))
     .limit(1);
   if (!row) throw new NotFoundError("Solicitação não encontrada.");
   return row;

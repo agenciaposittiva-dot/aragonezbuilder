@@ -3,6 +3,7 @@ import nodemailer, { type Transporter } from "nodemailer";
 import { db } from "@/server/db";
 import { emailOutbox } from "@/server/db/schema";
 import { env } from "@/server/env";
+import { SMTP_MISSING } from "./index";
 
 export const MAX_EMAIL_ATTEMPTS = 8;
 
@@ -20,11 +21,13 @@ function getTransport(): Transporter | null {
 }
 
 /**
- * Envia e-mails pendentes da fila. Sem SMTP configurado, o conteúdo é exibido
- * no log (útil em desenvolvimento: os links de convite e senha aparecem ali).
+ * Envia e-mails pendentes da fila. Sem SMTP configurado, nada é enviado nem
+ * marcado como enviado: o registro fica com o erro "SMTP não configurado" (e
+ * não é tentado de novo), e o conteúdo — que pode ter links de convite ou de
+ * senha — nunca vai para o log.
  */
-export async function sendPendingEmails(limit = 20): Promise<{ sent: number; failed: number }> {
-  const result = { sent: 0, failed: 0 };
+export async function sendPendingEmails(limit = 20): Promise<{ sent: number; failed: number; skipped: number }> {
+  const result = { sent: 0, failed: 0, skipped: 0 };
   const pending = await db
     .select({ id: emailOutbox.id })
     .from(emailOutbox)
@@ -51,17 +54,21 @@ export async function sendPendingEmails(limit = 20): Promise<{ sent: number; fai
           .for("update", { skipLocked: true });
         if (!mail) return;
         const transport = getTransport();
-        if (transport) {
-          await transport.sendMail({
-            from: env.SMTP_FROM,
-            to: mail.to,
-            subject: mail.subject,
-            html: mail.html,
-            text: mail.text,
-          });
-        } else {
-          console.log(`\n✉️  [e-mail sem SMTP] Para: ${mail.to}\nAssunto: ${mail.subject}\n${mail.text}\n`);
+        if (!transport) {
+          await tx
+            .update(emailOutbox)
+            .set({ attempts: MAX_EMAIL_ATTEMPTS, lastError: SMTP_MISSING })
+            .where(eq(emailOutbox.id, id));
+          result.skipped++;
+          return;
         }
+        await transport.sendMail({
+          from: env.SMTP_FROM,
+          to: mail.to,
+          subject: mail.subject,
+          html: mail.html,
+          text: mail.text,
+        });
         await tx
           .update(emailOutbox)
           .set({ sentAt: new Date(), attempts: mail.attempts + 1, lastError: null })

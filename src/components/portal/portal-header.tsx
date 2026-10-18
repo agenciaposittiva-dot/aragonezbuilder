@@ -17,18 +17,21 @@ export function PortalHeader({
   badges,
   brand,
   switchHref,
+  hideNav = [],
 }: {
   unread: number;
   badges: Record<string, number>;
   brand: { name: string; logoUrl: string | null; orgName: string };
   switchHref: string | null;
+  /** Itens desligados para este cliente (ex.: Equipe sem convites habilitados). */
+  hideNav?: string[];
 }) {
   const ws = useWorkspace();
   const pathname = usePathname();
   const base = workspaceBase(ws);
   const items = getNav("portal")
     .flatMap((g) => g.items)
-    .filter((i) => navAllowed(i, ws.permissions));
+    .filter((i) => navAllowed(i, ws.permissions) && !hideNav.includes(i.key));
   return (
     <header className="sticky top-0 z-[var(--z-sticky)] border-b border-border bg-surface/90 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4 sm:px-6">

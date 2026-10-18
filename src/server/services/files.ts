@@ -188,8 +188,9 @@ export async function storeUpload(s: Scope, input: UploadInput, rawMeta: z.input
         id: fileId,
         organizationId: s.actor.orgId,
         name: originalName,
-        category: meta.category,
-        tags: meta.tags,
+        // Envios do cliente são referências fornecidas por ele (separadas das entregas da agência).
+        category: isClient ? "reference" : meta.category,
+        tags: isClient ? [] : meta.tags,
         status: "draft",
         sharedWithClient: isClient,
         createdByUserId: s.actor.userId,
@@ -461,7 +462,20 @@ export async function updateFile(s: Scope, raw: z.input<typeof fileUpdateInput>)
     summary: changes.status ? `Status do arquivo: ${String(changes.status.to)}` : "Arquivo atualizado",
     changes,
     clientVisible: before.sharedWithClient && !!changes.status,
-    event: false,
+    event: changes.status
+      ? {
+          type: "file.status_changed",
+          payload: {
+            fileId: data.id,
+            clientId: before.clientId,
+            projectId: before.projectId,
+            name: data.name,
+            fromStatus: before.status,
+            toStatus: data.status,
+            shared: before.sharedWithClient,
+          },
+        }
+      : false,
   });
 }
 

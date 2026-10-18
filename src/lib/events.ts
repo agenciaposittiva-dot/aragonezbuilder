@@ -164,6 +164,14 @@ export const EVENT_CATALOG = {
     label: "Arquivo compartilhado com o cliente",
     fields: [{ key: "clientId", label: "Cliente", type: "uuid" }],
   },
+  "file.status_changed": {
+    label: "Status do arquivo alterado",
+    fields: [
+      { key: "clientId", label: "Cliente", type: "uuid" },
+      { key: "projectId", label: "Projeto", type: "uuid" },
+      { key: "toStatus", label: "Novo status", type: "text" },
+    ],
+  },
   "approval.requested": {
     label: "Aprovação solicitada",
     fields: [

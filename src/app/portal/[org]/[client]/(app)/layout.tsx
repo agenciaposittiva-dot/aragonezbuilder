@@ -63,6 +63,7 @@ export default async function PortalLayout({ children, params }: LayoutProps<"/p
             orgName: actor.orgName,
           }}
           switchHref={portal.multiClient ? `/portal/${actor.orgSlug}?trocar=1` : null}
+          hideNav={data.published.allowGuestInvites ? [] : ["team"]}
         />
         <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">{children}</main>
       </div>
