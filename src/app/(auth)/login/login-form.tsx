@@ -13,14 +13,14 @@ export function LoginForm({
   reset,
   title = "Entrar",
   description = "Acesse o painel da sua agência ou a área do cliente.",
-  showSignup = true,
+  inviteNote = "Acesso somente por convite. Não recebeu o seu? Fale com o administrador da sua organização.",
 }: {
   next: string;
   reset?: boolean;
   title?: string;
   description?: string;
-  /** O portal do cliente não oferece cadastro: convidados entram por convite. */
-  showSignup?: boolean;
+  /** Plataforma privada: não há cadastro aberto, só convites. */
+  inviteNote?: string;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -83,18 +83,9 @@ export function LoginForm({
           Entrar
         </Button>
       </form>
-      {showSignup ? (
-        <p className="text-center text-sm text-fg-muted">
-          Ainda não tem conta?{" "}
-          <Link href="/signup" className="font-medium text-fg hover:underline">
-            Criar conta da agência
-          </Link>
-        </p>
-      ) : (
-        <p className="text-center text-xs text-fg-muted">
-          O acesso é feito por convite. Não recebeu o seu? Fale com a agência responsável.
-        </p>
-      )}
+      <p className="text-center text-xs text-fg-muted" data-testid="login-invite-note">
+        {inviteNote}
+      </p>
     </div>
   );
 }

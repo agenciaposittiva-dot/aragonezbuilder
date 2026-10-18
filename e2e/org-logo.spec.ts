@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import sharp from "sharp";
-import { DEMO, expectNoHorizontalScroll, login } from "./helpers";
+import { DEMO, expectNoHorizontalScroll, inviteAndSignUp, login } from "./helpers";
 
 /** Logo larga com transparência (formato comum de logotipo). */
 async function logoPng(color: string, width = 600, height = 200) {
@@ -37,15 +37,16 @@ async function switcherLogo(page: Page) {
 }
 
 test.describe("logo da agência", () => {
-  test("cria agência com logo enquadrada e ela persiste depois de recarregar", async ({ page }) => {
-    // Conta nova (não mexe nas agências das contas de demonstração).
+  test("cria agência com logo enquadrada e ela persiste depois de recarregar", async ({ page, browser }) => {
+    // Conta nova por convite (plataforma privada); como administradora ela pode criar agências.
     const tag = Date.now().toString(36);
-    await page.goto("/signup");
-    await page.fill("#name", "Pessoa Logo");
-    await page.fill("#email", `logo-${tag}@teste.dev`);
-    await page.fill("#password", "senha-logo-2026");
-    await page.click("button[type=submit]");
-    await page.waitForURL(/\/onboarding/, { timeout: 60_000 });
+    await inviteAndSignUp(page, browser, {
+      email: `logo-${tag}@teste.dev`,
+      name: `Pessoa ${tag} Logo`,
+      password: "senha-logo-2026",
+    });
+    await page.goto("/onboarding");
+    await page.waitForLoadState("networkidle");
 
     // Primeira agência, sem logo.
     const plain = `Agência Sem Logo ${tag}`;

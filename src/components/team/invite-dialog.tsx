@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, Copy, UserPlus } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -77,12 +78,20 @@ export function InviteDialog({
   roles,
   clients,
   canInviteOwner,
+  agencies,
+  currentSlug,
+  defaultOpen = false,
 }: {
   roles: RoleOption[];
   clients: { id: string; name: string }[];
   canInviteOwner: boolean;
+  /** Agências que a pessoa administra (o convite vale para a escolhida). */
+  agencies: { slug: string; name: string }[];
+  currentSlug: string;
+  defaultOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const router = useRouter();
+  const [open, setOpen] = useState(defaultOpen);
   const [roleId, setRoleId] = useState("");
   const [clientIds, setClientIds] = useState<string[]>([]);
   const [result, setResult] = useState<{ url: string; email: EmailDeliveryState; days: number } | null>(null);
@@ -111,7 +120,7 @@ export function InviteDialog({
     >
       <DialogTrigger asChild>
         <Button variant="primary">
-          <UserPlus /> Convidar
+          <UserPlus /> Convidar usuário
         </Button>
       </DialogTrigger>
       <DialogContent size="md">
@@ -151,12 +160,37 @@ export function InviteDialog({
             }}
           >
             <DialogHeader>
-              <DialogTitle>Convidar pessoa</DialogTitle>
+              <DialogTitle>Convidar usuário</DialogTitle>
               <DialogDescription>
-                Membros da equipe acessam o painel; usuários de cliente acessam só a área do cliente.
+                A plataforma é privada: a pessoa só cria a conta pelo link do convite, com este e-mail. Membros da
+                equipe acessam o painel; usuários de cliente acessam só a área do cliente.
               </DialogDescription>
             </DialogHeader>
             <DialogBody className="grid gap-4">
+              <Field
+                label="Agência"
+                htmlFor="inv-agency"
+                hint={
+                  agencies.length > 1
+                    ? "Ao trocar, os papéis e clientes passam a ser os da agência escolhida."
+                    : undefined
+                }
+              >
+                <NativeSelect
+                  id="inv-agency"
+                  value={currentSlug}
+                  disabled={agencies.length <= 1}
+                  onChange={(e) => {
+                    if (e.target.value !== currentSlug) router.push(`/w/${e.target.value}/team?tab=invites&convidar=1`);
+                  }}
+                >
+                  {agencies.map((a) => (
+                    <option key={a.slug} value={a.slug}>
+                      {a.name}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </Field>
               <Field label="E-mail" htmlFor="inv-email" required error={create.fieldErrors.email}>
                 <Input id="inv-email" name="email" type="email" required autoFocus placeholder="nome@empresa.com.br" />
               </Field>

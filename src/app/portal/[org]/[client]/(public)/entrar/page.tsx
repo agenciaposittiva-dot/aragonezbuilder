@@ -67,7 +67,7 @@ export default async function PortalLoginPage({ params, searchParams }: Props) {
         reset={sp.reset === "1"}
         title="Entrar no portal"
         description={`Use o e-mail do seu convite para acessar o espaço de ${name}.`}
-        showSignup={false}
+        inviteNote="O acesso é feito por convite. Não recebeu o seu? Fale com a agência responsável."
       />
     </PortalLoginView>
   );

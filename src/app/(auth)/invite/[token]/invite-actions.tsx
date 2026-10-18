@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
-import { acceptInvitationAction } from "./actions";
+import { acceptInvitationAction, signUpWithInvitationAction } from "./actions";
 
 export function AcceptButton({ token }: { token: string }) {
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +54,7 @@ export function SignOutButton() {
   );
 }
 
-/** Cria a conta com o e-mail do convite e, em seguida, aceita. */
+/** Cria a conta com o e-mail do convite e aceita (o servidor valida o convite e usa o e-mail dele). */
 export function SignupAndAccept({ token, email }: { token: string; email: string }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -70,16 +70,7 @@ export function SignupAndAccept({ token, email }: { token: string; email: string
         if (password.length < 8) return setError("A senha precisa ter pelo menos 8 caracteres.");
         setError(null);
         start(async () => {
-          const { error: signUpError } = await authClient.signUp.email({ name, email, password });
-          if (signUpError) {
-            setError(
-              signUpError.code === "USER_ALREADY_EXISTS" || signUpError.status === 422
-                ? "Já existe uma conta com este e-mail. Entre para aceitar o convite."
-                : (signUpError.message ?? "Não foi possível criar a conta."),
-            );
-            return;
-          }
-          const res = await acceptInvitationAction(token);
+          const res = await signUpWithInvitationAction({ token, name, password });
           if (res && !res.ok) setError(res.error);
         });
       }}

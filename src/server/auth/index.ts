@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { db } from "@/server/db";
 import { account, rateLimit, session, user, verification } from "@/server/db/schema";
@@ -8,6 +9,8 @@ import { processEventsInBackground } from "@/server/events/inline";
 import { enqueueEmail, renderEmail } from "@/server/mail";
 import { redisConfigured, redisRateLimitStorage } from "@/server/redis";
 import { APP_NAME } from "@/lib/constants";
+import { INVITE_ONLY_MESSAGE } from "@/lib/invite-only";
+import { signupAuthorized } from "./signup-gate";
 
 export const auth = betterAuth({
   appName: APP_NAME,
@@ -50,7 +53,8 @@ export const auth = betterAuth({
     },
   },
   emailVerification: {
-    sendOnSignUp: true,
+    // Contas nascem de convites (o link já comprova o e-mail): sem e-mail extra de confirmação.
+    sendOnSignUp: false,
     autoSignInAfterVerification: true,
     async sendVerificationEmail({ user: u, url }) {
       const { html, text } = renderEmail({
@@ -83,6 +87,22 @@ export const auth = betterAuth({
   },
   advanced: {
     useSecureCookies: env.APP_URL.startsWith("https://"),
+  },
+  // Plataforma privada: cadastro só pelo fluxo de convite (ver signup-gate.ts).
+  hooks: {
+    before: createAuthMiddleware(async (ctx) => {
+      if (ctx.path === "/sign-up/email" && !signupAuthorized((ctx.body as { email?: unknown } | undefined)?.email)) {
+        throw new APIError("FORBIDDEN", { message: INVITE_ONLY_MESSAGE, code: "INVITE_ONLY" });
+      }
+    }),
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        // Segunda barreira: nenhum caminho do Better Auth cria usuário fora de um convite validado.
+        before: async (u) => (signupAuthorized(u.email) ? undefined : false),
+      },
+    },
   },
   plugins: [nextCookies()],
 });

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { DEMO, expectNoHorizontalScroll, login } from "./helpers";
+import { DEMO, expectNoHorizontalScroll, inviteAndSignUp, login } from "./helpers";
 
 /*
  * Exclusão com lixeira (clientes, projetos, artes e agência). Cada teste cria o
@@ -119,16 +119,17 @@ test.describe("excluir com lixeira", () => {
     await expect(page.getByRole("heading", { name: "Página não encontrada" })).toBeVisible();
   });
 
-  test("agência: proprietário exclui digitando o nome e restaura", async ({ page }) => {
-    // Conta nova: não cria agências extras nas contas de demonstração.
+  test("agência: proprietário exclui digitando o nome e restaura", async ({ page, browser }) => {
+    // Conta nova por convite: não cria agências extras nas contas de demonstração.
     const tag = Date.now().toString(36);
     const name = `Agência E2E ${tag}`;
-    await page.goto("/signup");
-    await page.fill("#name", "Pessoa Lixeira");
-    await page.fill("#email", `lixeira-${tag}@teste.dev`);
-    await page.fill("#password", "senha-lixeira-2026");
-    await page.click("button[type=submit]");
-    await page.waitForURL(/\/onboarding/, { timeout: 60_000 });
+    await inviteAndSignUp(page, browser, {
+      email: `lixeira-${tag}@teste.dev`,
+      name: `Pessoa ${tag} Lixeira`,
+      password: "senha-lixeira-2026",
+    });
+    await page.goto("/onboarding");
+    await page.waitForLoadState("networkidle");
     await page.fill("#name", name);
     await page.getByRole("button", { name: "Criar agência" }).click();
     await page.waitForURL(/\/w\/agencia-e2e/, { timeout: 60_000 });

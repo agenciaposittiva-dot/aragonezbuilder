@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { and, asc, desc, eq, gt, inArray, isNull, like, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, like, lte, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { APP_NAME } from "@/lib/constants";
 import { INVITE_VALIDITY, invitationInput } from "@/lib/validators/team";
@@ -178,9 +178,26 @@ export async function inviteEmailStates(s: Scope, invites: { email: string; crea
 
 export const inviteKey = (i: { email: string; createdAt: Date }) => `${i.email}|${i.createdAt.getTime()}`;
 
-export async function listInvitations(s: Scope) {
+export const INVITATION_STATUSES = ["pending", "accepted", "expired", "revoked"] as const;
+export type InvitationStatus = (typeof INVITATION_STATUSES)[number];
+
+/**
+ * Convites da agência por situação: pendentes (válidos), aceitos, expirados
+ * (não usados dentro da validade) ou revogados. Mostra agência, papel e, para
+ * usuários de cliente, os clientes liberados.
+ */
+export async function listInvitations(s: Scope, status: InvitationStatus = "pending") {
   assertInternal(s.actor);
   assertCan(s.actor, "members.read");
+  const now = new Date();
+  const where =
+    status === "accepted"
+      ? isNotNull(invitations.acceptedAt)
+      : status === "revoked"
+        ? and(isNull(invitations.acceptedAt), isNotNull(invitations.revokedAt))
+        : status === "expired"
+          ? and(isNull(invitations.acceptedAt), isNull(invitations.revokedAt), lte(invitations.expiresAt, now))
+          : and(isNull(invitations.acceptedAt), isNull(invitations.revokedAt), gt(invitations.expiresAt, now));
   const rows = await s.db
     .select({
       id: invitations.id,
@@ -191,20 +208,54 @@ export async function listInvitations(s: Scope) {
       clientIds: invitations.clientIds,
       expiresAt: invitations.expiresAt,
       createdAt: invitations.createdAt,
+      acceptedAt: invitations.acceptedAt,
+      revokedAt: invitations.revokedAt,
       invitedBy: user.name,
     })
     .from(invitations)
     .innerJoin(roles, eq(roles.id, invitations.roleId))
     .leftJoin(user, eq(user.id, invitations.invitedByUserId))
-    .where(and(isNull(invitations.acceptedAt), isNull(invitations.revokedAt)))
-    .orderBy(asc(invitations.createdAt));
-  const now = Date.now();
-  const states = await inviteEmailStates(s, rows);
+    .where(where)
+    .orderBy(status === "pending" ? asc(invitations.createdAt) : desc(invitations.createdAt))
+    .limit(200);
+  const clientIds = [...new Set(rows.flatMap((r) => r.clientIds))];
+  const clientNames = new Map(
+    clientIds.length
+      ? (
+          await s.db.select({ id: clients.id, name: clients.name }).from(clients).where(inArray(clients.id, clientIds))
+        ).map((c) => [c.id, c.name])
+      : [],
+  );
+  const states = status === "pending" || status === "expired" ? await inviteEmailStates(s, rows) : new Map();
   return rows.map((r) => ({
     ...r,
-    expired: r.expiresAt.getTime() < now,
+    status,
+    orgName: s.actor.orgName,
+    clientNames: r.clientIds.map((id) => clientNames.get(id) ?? "Cliente removido"),
+    expired: status === "expired",
     emailState: states.get(inviteKey(r)) ?? ("not_configured" as const),
   }));
+}
+
+/** Quantidade de convites por situação (abas da área de convites). */
+export async function invitationCounts(s: Scope): Promise<Record<InvitationStatus, number>> {
+  assertInternal(s.actor);
+  assertCan(s.actor, "members.read");
+  const now = new Date();
+  const [row] = await s.db
+    .select({
+      pending: sql<number>`count(*) filter (where ${invitations.acceptedAt} is null and ${invitations.revokedAt} is null and ${invitations.expiresAt} > ${now})::int`,
+      accepted: sql<number>`count(*) filter (where ${invitations.acceptedAt} is not null)::int`,
+      expired: sql<number>`count(*) filter (where ${invitations.acceptedAt} is null and ${invitations.revokedAt} is null and ${invitations.expiresAt} <= ${now})::int`,
+      revoked: sql<number>`count(*) filter (where ${invitations.acceptedAt} is null and ${invitations.revokedAt} is not null)::int`,
+    })
+    .from(invitations);
+  return {
+    pending: row?.pending ?? 0,
+    accepted: row?.accepted ?? 0,
+    expired: row?.expired ?? 0,
+    revoked: row?.revoked ?? 0,
+  };
 }
 
 export async function revokeInvitation(s: Scope, id: string) {

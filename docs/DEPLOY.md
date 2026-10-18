@@ -19,8 +19,8 @@ banco Postgres da Neon conectado pelo próprio painel.
    | `ANTHROPIC_API_KEY` | não | Claude no assistente de IA. |
    | `GEMINI_API_KEY` | não | Google Gemini no assistente de IA. |
    | `OPENAI_API_KEY` | não | ChatGPT (OpenAI) no assistente de IA, inclusive geração de imagens (modelos gpt-image). |
-   | `ARAGONEZ_ADMIN` / `ARAGONEZ_ADMIN_PASS` | não | Conta administradora criada no deploy (e-mail e senha de 8+ caracteres). |
-   | `ACCESS_KEY` (ou `ACESS_KEY`) | não | Exige uma chave para criar novas agências. |
+   | `ARAGONEZ_ADMIN` / `ARAGONEZ_ADMIN_PASS` | recomendada | Conta administradora criada no deploy (e-mail e senha de 8+ caracteres). Como a plataforma é privada, é assim que nasce a primeira conta. |
+   | `ACCESS_KEY` (ou `ACESS_KEY`) | não | Chave para criar novas agências (veja "Acesso somente por convite"). |
    | `CRON_SECRET` | recomendada | Protege `/api/cron/tick` (a Vercel envia o cabeçalho sozinha). |
    | `UPSTASH_REDIS_REST_URL` / `_TOKEN` | não | Limite de tentativas do login no Redis em vez do banco. |
    | `BLOB_STORE_ID` ou `BLOB_READ_WRITE_TOKEN` | não | Arquivos no Vercel Blob (privado). |
@@ -33,7 +33,29 @@ banco Postgres da Neon conectado pelo próprio painel.
    migrações no banco (se houver um configurado) e depois compila o Next.js.
 5. **Conferência**: abra `/setup` no endereço publicado. A página mostra o que
    está configurado e o que falta, sem expor valores. Depois, entre com a conta
-   administradora (ou crie uma conta) e crie a primeira agência.
+   administradora e crie a primeira agência.
+
+### Acesso somente por convite
+
+A plataforma é privada: não existe cadastro aberto.
+
+- **Contas** nascem só de convites. O administrador abre **Equipe → Convidar
+  usuário**, escolhe a agência, o e-mail e o papel (e, para usuários de cliente,
+  quais clientes). O link é de uso único, vale de 1 a 30 dias e pode ser
+  reenviado ou cancelado em **Equipe → Convites** (abas Pendentes, Aceitos,
+  Expirados e Revogados).
+- **No servidor**, o Better Auth recusa qualquer criação de conta (inclusive
+  pedidos diretos a `/api/auth/sign-up/email`) que não venha do fluxo de
+  convite. Esse fluxo confere o token (no banco fica só o hash), usa o e-mail
+  do convite, aplica o papel e os clientes definidos por quem convidou e limita
+  tentativas por IP e por convite. O endereço `/signup` só mostra o aviso.
+- **Novas agências** podem ser criadas pela conta `ARAGONEZ_ADMIN` e por quem já
+  administra uma agência. Com `ACCESS_KEY` definida, criar agência exige a chave
+  (exceto para a conta administradora). Convidados sem administração não criam
+  agências por conta própria.
+- **E-mail**: sem SMTP, os convites e a recuperação de senha não chegam por
+  e-mail. A tela de convite mostra o link para o administrador copiar e enviar;
+  configure `SMTP_*` para o envio automático.
 
 ### O que acontece sozinho na Vercel
 

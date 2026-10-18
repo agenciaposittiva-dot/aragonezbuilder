@@ -74,18 +74,19 @@ export default async function InvitePage({ params }: PageProps<"/invite/[token]"
             <SignOutButton />
           </div>
         )
-      ) : invite.userExists ? (
-        <div className="grid gap-3">
-          <p className="text-sm text-fg-muted">Já existe uma conta com {invite.email}. Entre para aceitar o convite.</p>
-          <Link
-            href={`/login?next=${encodeURIComponent(`/invite/${token}`)}`}
-            className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-fg hover:bg-primary-hover"
-          >
-            Entrar e aceitar
-          </Link>
-        </div>
       ) : (
-        <SignupAndAccept token={token} email={invite.email} />
+        <div className="grid gap-4">
+          <SignupAndAccept token={token} email={invite.email} />
+          <p className="text-center text-sm text-fg-muted">
+            Já tem uma conta com este e-mail?{" "}
+            <Link
+              href={`/login?next=${encodeURIComponent(`/invite/${token}`)}`}
+              className="font-medium text-fg hover:underline"
+            >
+              Entrar e aceitar
+            </Link>
+          </p>
+        </div>
       )}
     </div>
   );

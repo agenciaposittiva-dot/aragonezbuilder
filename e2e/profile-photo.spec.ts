@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import sharp from "sharp";
-import { DEMO, expectNoHorizontalScroll, login } from "./helpers";
+import { DEMO, expectNoHorizontalScroll, inviteAndSignUp, login, removeFromDemo } from "./helpers";
 
 /*
  * Foto de perfil com conta nova (não mexe nas contas de demonstração):
@@ -49,12 +49,11 @@ test.describe("foto de perfil", () => {
     const email = `foto-${tag}@teste.dev`;
     let password = "senha-foto-2026";
 
-    await page.goto("/signup");
-    await page.fill("#name", "Pessoa Foto");
-    await page.fill("#email", email);
-    await page.fill("#password", password);
-    await page.click("button[type=submit]");
-    await page.waitForURL(/\/onboarding/, { timeout: 60_000 });
+    // Conta nova por convite (plataforma privada); como administradora ela cria a própria agência.
+    const personName = `Pessoa ${tag} Foto`;
+    await inviteAndSignUp(page, browser, { email, name: personName, password });
+    await page.goto("/onboarding");
+    await page.waitForLoadState("networkidle");
     await page.fill("#name", `Agência Foto ${tag}`);
     await page.getByRole("button", { name: "Criar agência" }).click();
     await page.waitForURL(/\/w\/agencia-foto-/, { timeout: 60_000 });
@@ -180,10 +179,13 @@ test.describe("foto de perfil", () => {
     expect((await anon.request.get(second)).status()).toBe(404);
     expect((await anon.request.delete("/api/user-avatar")).status()).toBe(401);
     await anon.close();
+    // Enquanto a pessoa é da agência de demonstração, a Helena (colega) vê a foto; depois de removida, não.
     const outsider = await browser.newContext({ baseURL: info.project.use.baseURL });
     const other = await outsider.newPage();
     await login(other, DEMO.owner);
     await other.waitForURL((u) => u.pathname === "/" || u.pathname.startsWith("/w/"), { timeout: 60_000 });
+    expect((await other.request.get(second)).status()).toBe(200);
+    await removeFromDemo(browser, personName);
     expect((await other.request.get(second)).status()).toBe(404);
     await outsider.close();
 
