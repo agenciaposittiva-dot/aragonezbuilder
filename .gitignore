@@ -47,7 +47,7 @@ next-env.d.ts
 
 # local storage & test output
 /.storage/
-/.storage-test/
+/.storage-test*/
 /test-results/
 /playwright-report/
 /blob-report/

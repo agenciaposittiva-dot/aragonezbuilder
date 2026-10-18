@@ -36,6 +36,8 @@ const schema = z.object({
   SMTP_FROM: z.string().default("Aragonez <nao-responda@localhost>"),
   ANTHROPIC_API_KEY: optional,
   OPENAI_API_KEY: optional,
+  /** Protege /api/cron/tick (processamento em lotes sem worker contínuo). */
+  CRON_SECRET: optional,
   AI_DEFAULT_PROVIDER: z.enum(["anthropic", "openai", "demo"]).default("anthropic"),
 });
 

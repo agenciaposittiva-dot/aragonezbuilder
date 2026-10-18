@@ -150,6 +150,65 @@ function dataUrlToBlob(dataUrl: string): Blob {
   return new Blob([bytes], { type: mime });
 }
 
+function NumberField({
+  label,
+  value,
+  onChange,
+  min,
+  max,
+  step = 1,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  min?: number;
+  max?: number;
+  step?: number;
+}) {
+  return (
+    <label className="grid gap-1 text-[11px] text-fg-subtle">
+      {label}
+      <input
+        type="number"
+        value={Number.isFinite(value) ? Math.round(value * 100) / 100 : 0}
+        min={min}
+        max={max}
+        step={step}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className={cn(fieldBase, "h-8 px-2 text-sm")}
+      />
+    </label>
+  );
+}
+
+function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <label className="grid gap-1 text-[11px] text-fg-subtle">
+      {label}
+      <span className="flex items-center gap-2">
+        <input
+          type="color"
+          value={/^#[0-9a-f]{6}$/i.test(value) ? value : "#000000"}
+          onChange={(e) => onChange(e.target.value)}
+          className="size-8 cursor-pointer rounded-md border border-border bg-surface p-0.5"
+        />
+        <span className="flex flex-wrap gap-1">
+          {SWATCHES.map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => onChange(c)}
+              className="size-5 rounded border border-border"
+              style={{ background: c }}
+              aria-label={c}
+            />
+          ))}
+        </span>
+      </span>
+    </label>
+  );
+}
+
 export function DesignEditor({ design, brand, canWrite }: { design: EditorDesign; brand: Brand; canWrite: boolean }) {
   const ws = useWorkspace();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -175,6 +234,7 @@ export function DesignEditor({ design, brand, canWrite }: { design: EditorDesign
   const [name, setName] = useState(design.name);
   const [exporting, setExporting] = useState(false);
   const [historyInfo, setHistoryInfo] = useState({ canUndo: false, canRedo: false });
+  const [background, setBackgroundState] = useState("#ffffff");
 
   const fonts = useMemo(() => {
     const brandFonts = brand?.fonts.map((f) => f.name).filter(Boolean) ?? [];
@@ -313,6 +373,7 @@ export function DesignEditor({ design, brand, canWrite }: { design: EditorDesign
         });
       }
       fit();
+      setBackgroundState(String(canvas.backgroundColor ?? "#ffffff"));
       canvas.requestRenderAll();
 
       const onSelect = () => setSelected((canvas!.getActiveObject() as FObj) ?? null);
@@ -512,6 +573,7 @@ export function DesignEditor({ design, brand, canWrite }: { design: EditorDesign
     await canvas.loadFromJSON(JSON.parse(snap));
     historyRef.current.muted = false;
     canvas.requestRenderAll();
+    setBackgroundState(String(canvas.backgroundColor ?? "#ffffff"));
     setSelected(null);
     refreshLayers();
     updateHistoryInfo();
@@ -538,6 +600,7 @@ export function DesignEditor({ design, brand, canWrite }: { design: EditorDesign
   const setBackground = (color: string) => {
     const canvas = canvasRef.current!;
     canvas.backgroundColor = color;
+    setBackgroundState(color);
     canvas.requestRenderAll();
     markDirty();
   };
@@ -834,52 +897,6 @@ export function DesignEditor({ design, brand, canWrite }: { design: EditorDesign
     </ul>
   );
 
-  const numberInput = (
-    label: string,
-    value: number,
-    onChange: (v: number) => void,
-    opts: { min?: number; max?: number; step?: number } = {},
-  ) => (
-    <label className="grid gap-1 text-[11px] text-fg-subtle">
-      {label}
-      <input
-        type="number"
-        value={Number.isFinite(value) ? Math.round(value * 100) / 100 : 0}
-        min={opts.min}
-        max={opts.max}
-        step={opts.step ?? 1}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className={cn(fieldBase, "h-8 px-2 text-sm")}
-      />
-    </label>
-  );
-
-  const colorInput = (label: string, value: string, onChange: (v: string) => void) => (
-    <label className="grid gap-1 text-[11px] text-fg-subtle">
-      {label}
-      <span className="flex items-center gap-2">
-        <input
-          type="color"
-          value={/^#[0-9a-f]{6}$/i.test(value) ? value : "#000000"}
-          onChange={(e) => onChange(e.target.value)}
-          className="size-8 cursor-pointer rounded-md border border-border bg-surface p-0.5"
-        />
-        <span className="flex flex-wrap gap-1">
-          {SWATCHES.map((c) => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => onChange(c)}
-              className="size-5 rounded border border-border"
-              style={{ background: c }}
-              aria-label={c}
-            />
-          ))}
-        </span>
-      </span>
-    </label>
-  );
-
   const PropsPanel = selected ? (
     <div className="grid gap-4">
       <div className="flex flex-wrap gap-1">
@@ -942,15 +959,21 @@ export function DesignEditor({ design, brand, canWrite }: { design: EditorDesign
             </select>
           </label>
           <div className="grid grid-cols-2 gap-2">
-            {numberInput("Tamanho", Number(selected.get("fontSize")), (v) => setProp("fontSize", Math.max(4, v)), {
-              min: 4,
-              max: 1000,
-            })}
-            {numberInput("Entrelinha", Number(selected.get("lineHeight")), (v) => setProp("lineHeight", v), {
-              min: 0.5,
-              max: 3,
-              step: 0.05,
-            })}
+            <NumberField
+              label="Tamanho"
+              value={Number(selected.get("fontSize"))}
+              onChange={(v) => setProp("fontSize", Math.max(4, v))}
+              min={4}
+              max={1000}
+            />
+            <NumberField
+              label="Entrelinha"
+              value={Number(selected.get("lineHeight"))}
+              onChange={(v) => setProp("lineHeight", v)}
+              min={0.5}
+              max={3}
+              step={0.05}
+            />
           </div>
           <div className="flex flex-wrap gap-1">
             <Button
@@ -999,39 +1022,55 @@ export function DesignEditor({ design, brand, canWrite }: { design: EditorDesign
               </Button>
             ))}
           </div>
-          {numberInput(
-            "Espaçamento entre letras",
-            Number(selected.get("charSpacing") ?? 0),
-            (v) => setProp("charSpacing", v),
-            { min: -200, max: 2000, step: 10 },
-          )}
+          <NumberField
+            label="Espaçamento entre letras"
+            value={Number(selected.get("charSpacing") ?? 0)}
+            onChange={(v) => setProp("charSpacing", v)}
+            min={-200}
+            max={2000}
+            step={10}
+          />
         </section>
       ) : null}
 
-      {selected.type !== "image"
-        ? selected.type === "line"
-          ? colorInput("Cor da linha", String(selected.get("stroke") ?? "#000000"), (v) => setProp("stroke", v))
-          : colorInput(isText ? "Cor do texto" : "Preenchimento", String(selected.get("fill") ?? "#000000"), (v) =>
-              setProp("fill", v),
-            )
-        : null}
-      {selected.type === "rect"
-        ? numberInput(
-            "Arredondamento",
-            Number(selected.get("rx") ?? 0),
-            (v) => withActive((o) => o.set({ rx: v, ry: v } as never)),
-            { min: 0, max: 2000 },
-          )
-        : null}
+      {selected.type !== "image" ? (
+        selected.type === "line" ? (
+          <ColorField
+            label="Cor da linha"
+            value={String(selected.get("stroke") ?? "#000000")}
+            onChange={(v) => setProp("stroke", v)}
+          />
+        ) : (
+          <ColorField
+            label={isText ? "Cor do texto" : "Preenchimento"}
+            value={String(selected.get("fill") ?? "#000000")}
+            onChange={(v) => setProp("fill", v)}
+          />
+        )
+      ) : null}
+      {selected.type === "rect" ? (
+        <NumberField
+          label="Arredondamento"
+          value={Number(selected.get("rx") ?? 0)}
+          onChange={(v) => withActive((o) => o.set({ rx: v, ry: v } as never))}
+          min={0}
+          max={2000}
+        />
+      ) : null}
       {selected.type !== "line" && !isText && selected.type !== "image" ? (
         <div className="grid grid-cols-2 gap-2">
-          {colorInput("Contorno", String(selected.get("stroke") ?? "#000000"), (v) => setProp("stroke", v))}
-          {numberInput(
-            "Espessura",
-            Number(selected.get("strokeWidth") ?? 0),
-            (v) => setProp("strokeWidth", Math.max(0, v)),
-            { min: 0, max: 200 },
-          )}
+          <ColorField
+            label="Contorno"
+            value={String(selected.get("stroke") ?? "#000000")}
+            onChange={(v) => setProp("stroke", v)}
+          />
+          <NumberField
+            label="Espessura"
+            value={Number(selected.get("strokeWidth") ?? 0)}
+            onChange={(v) => setProp("strokeWidth", Math.max(0, v))}
+            min={0}
+            max={200}
+          />
         </div>
       ) : null}
       <label className="grid gap-1 text-[11px] text-fg-subtle">
@@ -1047,17 +1086,21 @@ export function DesignEditor({ design, brand, canWrite }: { design: EditorDesign
         />
       </label>
       <div className="grid grid-cols-3 gap-2">
-        {numberInput("X", Number(selected.left), (v) => setProp("left", v))}
-        {numberInput("Y", Number(selected.top), (v) => setProp("top", v))}
-        {numberInput("Rotação", Number(selected.angle), (v) => setProp("angle", v), { min: -360, max: 360 })}
+        <NumberField label="X" value={Number(selected.left)} onChange={(v) => setProp("left", v)} />
+        <NumberField label="Y" value={Number(selected.top)} onChange={(v) => setProp("top", v)} />
+        <NumberField
+          label="Rotação"
+          value={Number(selected.angle)}
+          onChange={(v) => setProp("angle", v)}
+          min={-360}
+          max={360}
+        />
       </div>
     </div>
   ) : (
     <div className="grid gap-4">
       <p className="text-sm text-fg-muted">Selecione um elemento para editar. Sem seleção, ajuste o fundo da arte.</p>
-      {canvasRef.current
-        ? colorInput("Fundo", String(canvasRef.current.backgroundColor ?? "#ffffff"), setBackground)
-        : null}
+      {ready ? <ColorField label="Fundo" value={background} onChange={setBackground} /> : null}
       <p className="text-xs text-fg-subtle">
         Tamanho final: {design.width}×{design.height}px
       </p>
