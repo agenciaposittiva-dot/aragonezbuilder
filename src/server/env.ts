@@ -60,7 +60,12 @@ const schema = z.object({
   META_APP_ID: optional,
   META_APP_SECRET: optional,
   /** Versão da Graph API do Instagram (padrão v23.0). */
-  META_GRAPH_VERSION: z.string().default("v23.0"),
+  META_GRAPH_VERSION: blankAsUndefined(
+    z
+      .string()
+      .regex(/^v\d+\.\d+$/, "Use o formato v23.0")
+      .default("v23.0"),
+  ),
   SMTP_HOST: optional,
   SMTP_PORT: z.coerce.number().int().default(587),
   SMTP_USER: optional,
