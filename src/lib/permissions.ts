@@ -456,6 +456,10 @@ export const PERMISSION_GROUPS: { label: string; permissions: Permission[] }[] =
     ],
   },
   { label: "Inteligência artificial", permissions: ["ai.use", "ai.settings"] },
+  {
+    label: "Estratégia e conteúdo",
+    permissions: ["trends.read", "trends.manage", "content.read", "content.write", "brand.read", "brand.manage"],
+  },
   { label: "Chat da Equipe", permissions: ["chat.use", "chat.manage_channels"] },
   {
     label: "Gestão",

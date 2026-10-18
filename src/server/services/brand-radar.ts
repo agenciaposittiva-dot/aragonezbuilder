@@ -45,6 +45,7 @@ import {
   fileVersions,
   memberships,
   projects,
+  roles,
   tasks,
   user,
 } from "@/server/db/schema";
@@ -681,7 +682,14 @@ export async function updateRecommendation(s: Scope, raw: z.input<typeof recomme
     const [m] = await s.db
       .select({ id: memberships.id })
       .from(memberships)
-      .where(and(eq(memberships.id, data.assigneeMembershipId), eq(memberships.status, "active")));
+      .innerJoin(roles, eq(roles.id, memberships.roleId))
+      .where(
+        and(
+          eq(memberships.id, data.assigneeMembershipId),
+          eq(memberships.status, "active"),
+          eq(roles.kind, "internal"),
+        ),
+      );
     if (!m) throw new ValidationError("Responsável inválido.");
   }
   await s.db
@@ -1200,7 +1208,8 @@ export async function radarFormOptions(s: Scope, clientId?: string) {
     .select({ id: memberships.id, name: user.name })
     .from(memberships)
     .innerJoin(user, eq(user.id, memberships.userId))
-    .where(eq(memberships.status, "active"))
+    .innerJoin(roles, eq(roles.id, memberships.roleId))
+    .where(and(eq(memberships.status, "active"), eq(roles.kind, "internal")))
     .orderBy(user.name)
     .limit(300);
   return { clients: clientRows, projects: projectRows, members };
