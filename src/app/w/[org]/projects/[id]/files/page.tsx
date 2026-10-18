@@ -26,6 +26,7 @@ export default async function ProjectFilesPage({ params, searchParams }: PagePro
       folders={data.folders}
       scope={{ clientId: data.clientId, projectId: id }}
       canWrite={data.canWrite}
+      canDelete={data.canDelete}
       maxBytes={data.maxBytes}
     />
   );

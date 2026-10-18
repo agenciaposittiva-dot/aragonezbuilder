@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { fileUpdateInput, folderInput } from "@/lib/validators/files";
+import { filePatchInput, fileUpdateInput, folderInput } from "@/lib/validators/files";
 import * as files from "@/server/services/files";
 import { orgAction } from "./safe-action";
 
@@ -16,8 +16,20 @@ export const toggleFavoriteAction = orgAction(z.object({ fileId: z.uuid() }), (s
   files.toggleFavorite(s, fileId),
 );
 
-export const deleteFileAction = orgAction(z.object({ fileId: z.uuid() }), (s, { fileId }) =>
-  files.deleteFile(s, fileId),
+export const deleteFileAction = orgAction(
+  z.object({ fileId: z.uuid(), force: z.boolean().optional() }),
+  (s, { fileId, force }) => files.deleteFile(s, fileId, { force }),
+);
+
+export const patchFileAction = orgAction(filePatchInput, files.patchFile);
+
+export const duplicateFileAction = orgAction(z.object({ fileId: z.uuid() }), (s, { fileId }) =>
+  files.duplicateFile(s, fileId),
+);
+
+export const setFileArchivedAction = orgAction(
+  z.object({ fileId: z.uuid(), archived: z.boolean() }),
+  (s, { fileId, archived }) => files.setFileArchived(s, fileId, archived),
 );
 
 export const saveFolderAction = orgAction(folderInput, files.saveFolder);

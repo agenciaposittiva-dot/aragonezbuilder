@@ -7,6 +7,7 @@ import { useWorkspace, workspaceBase } from "@/components/shell/workspace-contex
 import { formatBytes, formatDate } from "@/lib/format";
 import { FILE_CATEGORY_LABEL, type FileCategory, type FileStatus } from "@/lib/validators/files";
 import { FavoriteButton } from "./favorite-button";
+import { FileActionsMenu, type FileActionsPermissions } from "./file-actions";
 import { FileThumb } from "./file-thumb";
 import { FileStatusBadge } from "./file-status";
 
@@ -25,6 +26,7 @@ export type FileCardData = {
   sizeBytes: number | null;
   hasThumbnail: boolean;
   favorite: boolean;
+  folderId?: string | null;
 };
 
 /** Grade ou lista de arquivos. `basePath` define para onde o clique leva. */
@@ -32,14 +34,31 @@ export function FileCollection({
   files,
   view,
   basePath,
+  actions,
 }: {
   files: FileCardData[];
   view: "grid" | "list";
   basePath?: string;
+  /** Mostra o menu ⋮ (baixar, renomear, mover, duplicar, arquivar, excluir). */
+  actions?: FileActionsPermissions;
 }) {
   const ws = useWorkspace();
   const base = basePath ?? `${workspaceBase(ws)}/files`;
   const internal = ws.kind === "internal";
+  const menu = (f: FileCardData, className?: string) =>
+    actions ? (
+      <FileActionsMenu
+        file={{
+          id: f.id,
+          name: f.name,
+          versionId: f.versionId,
+          archived: f.status === "archived",
+          folderId: f.folderId ?? null,
+        }}
+        permissions={actions}
+        className={className}
+      />
+    ) : null;
 
   if (view === "list") {
     return (
@@ -94,7 +113,10 @@ export function FileCollection({
               </TD>
               <TD className="hidden text-fg-muted lg:table-cell">{formatDate(f.updatedAt)}</TD>
               <TD className="relative z-10">
-                <FavoriteButton fileId={f.id} initial={f.favorite} />
+                <div className="flex items-center gap-1">
+                  <FavoriteButton fileId={f.id} initial={f.favorite} />
+                  {menu(f)}
+                </div>
               </TD>
             </TR>
           ))}
@@ -140,6 +162,11 @@ export function FileCollection({
             initial={f.favorite}
             className="absolute top-2 right-2 bg-surface/90 opacity-100 shadow-xs backdrop-blur aria-pressed:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
           />
+          {actions ? (
+            <div className="absolute top-2 left-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
+              {menu(f, "shadow-sm")}
+            </div>
+          ) : null}
         </li>
       ))}
     </ul>

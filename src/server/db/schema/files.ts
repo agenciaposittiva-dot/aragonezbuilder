@@ -97,7 +97,9 @@ export const files = pgTable(
     sharedWithClient: boolean().notNull().default(false),
     currentVersionId: uuid().references((): AnyPgColumn => fileVersions.id, { onDelete: "set null" }),
     createdByUserId: text().references(() => user.id, { onDelete: "set null" }),
+    /** Lixeira: arquivo excluído (restaurável por 30 dias, depois apagado do armazenamento). */
     deletedAt: tstz(),
+    deletedByUserId: text().references(() => user.id, { onDelete: "set null" }),
     ...timestamps,
   },
   (t) => [

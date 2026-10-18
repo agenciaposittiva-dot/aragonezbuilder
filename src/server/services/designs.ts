@@ -1,7 +1,7 @@
 import { and, desc, eq, ilike, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { optionalText, optionalUuid, uuid } from "@/lib/validators/common";
-import { clients, designs, files, projects, user } from "@/server/db/schema";
+import { clients, designs, designVersions, files, projects, user } from "@/server/db/schema";
 import {
   assertCan,
   assertClientAccess,
@@ -210,10 +210,94 @@ export async function saveDesign(s: Scope, raw: z.input<typeof designSaveInput>)
     .returning({ revision: designs.revision, updatedAt: designs.updatedAt });
   if (!res.length) {
     throw new ConflictError(
-      "Esta arte foi salva por outra pessoa depois que você a abriu. Recarregue para ver a versão mais recente.",
+      "Esta arte foi salva em outra sessão depois que você a abriu. Revise as alterações para não perder nada.",
     );
   }
-  return res[0]!;
+  const saved = res[0]!;
+  await maybeCheckpoint(s, {
+    id: data.id,
+    revision: saved.revision,
+    document: data.document,
+    width: current.design.width,
+    height: current.design.height,
+    thumbnail: data.thumbnail ?? current.design.thumbnail,
+  });
+  return saved;
+}
+
+/* ------------------------------------------------------------------ */
+/* Versões (pontos de controle)                                        */
+/* ------------------------------------------------------------------ */
+
+export type DesignSnapshot = {
+  id: string;
+  revision: number;
+  document: Record<string, unknown>;
+  width: number;
+  height: number;
+  thumbnail: string | null;
+};
+
+/** Grava uma versão da arte e poda as automáticas além da retenção da organização. */
+export async function insertDesignVersion(
+  s: Scope,
+  d: DesignSnapshot,
+  opts: { kind: "auto" | "named" | "restore" | "conflict"; label?: string | null },
+) {
+  const [{ next } = { next: 1 }] = await s.db
+    .select({ next: sql<number>`coalesce(max(${designVersions.versionNumber}), 0)::int + 1` })
+    .from(designVersions)
+    .where(eq(designVersions.designId, d.id));
+  const [row] = await s.db
+    .insert(designVersions)
+    .values({
+      organizationId: s.actor.orgId,
+      designId: d.id,
+      versionNumber: next,
+      kind: opts.kind,
+      label: opts.label ?? null,
+      revision: d.revision,
+      document: d.document,
+      width: d.width,
+      height: d.height,
+      thumbnail: d.thumbnail,
+      sizeBytes: Buffer.byteLength(JSON.stringify(d.document)),
+      createdByUserId: s.actor.userId,
+    })
+    .returning({ id: designVersions.id, versionNumber: designVersions.versionNumber });
+  const keep = s.actor.settings.storage.designVersionRetention;
+  await s.db.execute(sql`
+    delete from ${designVersions}
+    where ${designVersions.designId} = ${d.id} and ${designVersions.kind} = 'auto'
+      and ${designVersions.id} not in (
+        select id from ${designVersions}
+        where ${designVersions.designId} = ${d.id} and ${designVersions.kind} = 'auto'
+        order by ${designVersions.versionNumber} desc limit ${keep}
+      )`);
+  return row!;
+}
+
+/** Revisões entre pontos de controle automáticos (além do intervalo de tempo da organização). */
+const CHECKPOINT_EVERY_REVISIONS = 40;
+
+/**
+ * Ponto de controle automático: no máximo um a cada N minutos (ou a cada
+ * CHECKPOINT_EVERY_REVISIONS salvamentos), nunca a cada movimento.
+ */
+export async function maybeCheckpoint(s: Scope, d: DesignSnapshot) {
+  const [last] = await s.db
+    .select({ createdAt: designVersions.createdAt, revision: designVersions.revision })
+    .from(designVersions)
+    .where(eq(designVersions.designId, d.id))
+    .orderBy(desc(designVersions.versionNumber))
+    .limit(1);
+  const minutes = s.actor.settings.storage.versionCheckpointMinutes;
+  const due =
+    !last ||
+    Date.now() - last.createdAt.getTime() >= minutes * 60_000 ||
+    d.revision - last.revision >= CHECKPOINT_EVERY_REVISIONS;
+  if (due) await insertDesignVersion(s, d, { kind: "auto", label: null });
+  return due;
 }
 
 export async function updateDesignMeta(s: Scope, raw: z.input<typeof designMetaInput>) {

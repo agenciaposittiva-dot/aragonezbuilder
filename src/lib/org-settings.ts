@@ -56,6 +56,18 @@ export const orgSettingsSchema = z.object({
     })
     .prefault({}),
   time: z.object({ trackingEnabled: z.boolean().default(true) }).prefault({}),
+  storage: z
+    .object({
+      /** Limite de armazenamento definido pela agência (bytes); null = sem limite próprio (vale o do provedor). */
+      quotaBytes: z.number().int().positive().nullable().default(null),
+      /** Avisa quando o uso passa deste percentual da cota. */
+      alertPercent: z.number().int().min(50).max(99).default(80),
+      /** Quantas versões automáticas manter por arte (versões nomeadas não são podadas). */
+      designVersionRetention: z.number().int().min(5).max(500).default(50),
+      /** Intervalo mínimo entre pontos de controle automáticos de uma arte (minutos). */
+      versionCheckpointMinutes: z.number().int().min(1).max(240).default(10),
+    })
+    .prefault({}),
   locale: z
     .object({
       currency: z.string().default("BRL"),

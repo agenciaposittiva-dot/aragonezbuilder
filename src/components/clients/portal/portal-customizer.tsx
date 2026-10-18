@@ -1,9 +1,10 @@
 "use client";
 
 import { Copy, ExternalLink, Eye, History, PencilLine, RotateCcw, Save, Send, Undo2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
+import { SaveIndicator } from "@/components/app/save-indicator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +13,8 @@ import { Field } from "@/components/ui/field";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOrgAction } from "@/hooks/use-action";
+import { outcomeFromAction, useAutosave } from "@/hooks/use-autosave";
+import { clearLocalDraft, loadLocalDraft, type LocalDraft } from "@/lib/autosave/local-draft";
 import { formatDateTime } from "@/lib/format";
 import { portalAssetUrl } from "@/lib/portal-assets";
 import {
@@ -89,22 +92,59 @@ export function PortalCustomizer({
   const [savedAccess, setSavedAccess] = useState<Access>(access);
   const [mobileTab, setMobileTab] = useState<"edit" | "preview">("edit");
 
-  const save = useOrgAction(savePortalDraftAction, {
-    onSuccess: (d) => {
-      setSaved(d);
-      setSettings(d);
-      setSavedStamp((n) => n + 1);
+  const draftKey = `portal:${clientId}`;
+  const [recovery, setRecovery] = useState<LocalDraft<PortalSettings> | null>(null);
+  /** Último rascunho confirmado pelo servidor (lido ao publicar, depois do flush). */
+  const confirmedRef = useRef<PortalSettings>(view.draft);
+  const [errors, setErrors] = useState<Record<string, string[]>>({});
+  const autosave = useAutosave({
+    enabled: canWrite,
+    save: async () => {
+      if (!valid) return { ok: false, kind: "rejected", message: "Revise os campos destacados para salvar." };
+      const sent = settings;
+      const res = await savePortalDraftAction(orgSlug, {
+        clientId,
+        settings: sent as unknown as Record<string, unknown>,
+      }).catch(() => null);
+      if (res && !res.ok) setErrors(res.fieldErrors ?? {});
+      if (res?.ok) {
+        setErrors({});
+        confirmedRef.current = res.data;
+        setSaved(res.data);
+        // Edições feitas durante o envio continuam na tela (e serão salvas em seguida).
+        setSettings((cur) => (cur === sent ? res.data : cur));
+        setSavedStamp((n) => n + 1);
+      }
+      return outcomeFromAction(res);
     },
+    draft: { key: draftKey, snapshot: () => settings, baseRevision: () => version },
   });
+
+  // Alterações deste rascunho que ficaram só neste aparelho (aba fechada sem conexão).
+  useEffect(() => {
+    if (!canWrite) return;
+    let alive = true;
+    void loadLocalDraft<PortalSettings>(draftKey).then((d) => {
+      if (!alive || !d) return;
+      if (same(d.data, view.draft)) void clearLocalDraft(draftKey);
+      else setRecovery(d);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [canWrite, draftKey, view.draft]);
+
   const publish = useOrgAction(publishPortalAction, {
     success: (d) => `Portal publicado (versão ${d.version})`,
   });
   const restore = useOrgAction(restorePortalDraftAction, {
     success: "Rascunho restaurado. Revise e publique quando estiver pronto.",
     onSuccess: (d) => {
+      confirmedRef.current = d;
       setSaved(d);
       setSettings(d);
       setSavedStamp((n) => n + 1);
+      autosave.markSaved();
     },
   });
   const saveAccess = useOrgAction(updatePortalAccessAction, {
@@ -115,7 +155,6 @@ export function PortalCustomizer({
   const dirty = !same(settings, saved);
   const draftDiffers = !same(saved, published ?? DEFAULT_PORTAL_SETTINGS) || version === 0;
   const accessDirty = !same(access, savedAccess);
-  const errors = save.fieldErrors;
 
   const bg = settings.colors.background ?? DEFAULT_LIGHT.background;
   const fg = settings.colors.text ?? (settings.colors.background ? readableOn(bg) : DEFAULT_LIGHT.text);
@@ -127,17 +166,19 @@ export function PortalCustomizer({
   ].filter(Boolean);
   const valid = contrastOk && linkErrors.length === 0;
 
-  const patch = (p: Partial<PortalSettings>) => setSettings((s) => ({ ...s, ...p }));
-  const patchColors = (p: Partial<PortalSettings["colors"]>) =>
-    setSettings((s) => ({ ...s, colors: { ...s.colors, ...p } }));
-  const patchLogin = (p: Partial<PortalSettings["login"]>) =>
-    setSettings((s) => ({ ...s, login: { ...s.login, ...p } }));
-  const patchBanner = (p: Partial<PortalSettings["banner"]>) =>
-    setSettings((s) => ({ ...s, banner: { ...s.banner, ...p } }));
+  /** Toda alteração do rascunho passa por aqui: vai para o salvamento automático. */
+  const edit = (fn: (s: PortalSettings) => PortalSettings) => {
+    setSettings(fn);
+    autosave.markDirty();
+  };
+  const patch = (p: Partial<PortalSettings>) => edit((s) => ({ ...s, ...p }));
+  const patchColors = (p: Partial<PortalSettings["colors"]>) => edit((s) => ({ ...s, colors: { ...s.colors, ...p } }));
+  const patchLogin = (p: Partial<PortalSettings["login"]>) => edit((s) => ({ ...s, login: { ...s.login, ...p } }));
+  const patchBanner = (p: Partial<PortalSettings["banner"]>) => edit((s) => ({ ...s, banner: { ...s.banner, ...p } }));
   const patchContact = (p: Partial<PortalSettings["contact"]>) =>
-    setSettings((s) => ({ ...s, contact: { ...s.contact, ...p } }));
+    edit((s) => ({ ...s, contact: { ...s.contact, ...p } }));
   const patchSections = (p: Partial<PortalSettings["sections"]>) =>
-    setSettings((s) => ({ ...s, sections: { ...s.sections, ...p } }));
+    edit((s) => ({ ...s, sections: { ...s.sections, ...p } }));
 
   /** Imagem para a prévia: versão atual na biblioteca ou, se já salva no rascunho, a rota do portal. */
   const imageUrl = (fileId: string | null) => {
@@ -161,21 +202,25 @@ export function PortalCustomizer({
     canUpload: canWrite && canUpload,
   };
 
-  async function saveDraft() {
+  /** Envia já o que estiver pendente; true só com a confirmação do servidor. */
+  async function saveNow() {
     if (!valid) {
       toast.error("Revise os campos destacados antes de salvar.");
       return false;
     }
-    const res = await save.run({ clientId, settings: settings as unknown as Record<string, unknown> });
-    if (res.ok) toast.success("Rascunho salvo");
-    return res.ok;
+    const st = await autosave.flush();
+    if (autosave.isPending() || st.status !== "saved") {
+      toast.error(st.message ?? "O rascunho ainda não foi salvo no servidor. Tente de novo.");
+      return false;
+    }
+    return true;
   }
 
   async function doPublish() {
-    if (dirty && !(await saveDraft())) return;
+    if (!(await saveNow())) return;
     const res = await publish.run({ clientId });
     if (res.ok) {
-      setPublished(dirty ? settings : saved);
+      setPublished(confirmedRef.current);
       setVersion(res.data.version);
       setPublishedAt(new Date());
     }
@@ -196,20 +241,32 @@ export function PortalCustomizer({
             ) : (
               <span>Ainda não publicado: o portal usa o padrão da agência.</span>
             )}
-            {dirty ? <Badge tone="warning">Alterações não salvas</Badge> : null}
+            {canWrite ? <SaveIndicator state={autosave.state} onRetry={() => void saveNow()} /> : null}
             {!dirty && draftDiffers && version > 0 ? <Badge tone="info">Rascunho diferente do publicado</Badge> : null}
             {!canWrite ? <Badge tone="outline">Somente leitura</Badge> : null}
           </p>
         </div>
         {canWrite ? (
           <div className="flex flex-wrap gap-2">
-            {dirty ? (
-              <Button variant="ghost" size="sm" onClick={() => setSettings(saved)}>
+            {dirty && !valid ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSettings(saved);
+                  autosave.markSaved();
+                }}
+              >
                 <Undo2 /> Descartar
               </Button>
             ) : null}
-            <Button size="sm" loading={save.pending} disabled={!dirty} onClick={() => void saveDraft()}>
-              <Save /> Salvar rascunho
+            <Button
+              size="sm"
+              loading={autosave.state.status === "saving"}
+              disabled={!dirty}
+              onClick={() => void saveNow()}
+            >
+              <Save /> Salvar agora
             </Button>
             <ConfirmDialog
               tone="primary"
@@ -231,6 +288,41 @@ export function PortalCustomizer({
           </div>
         ) : null}
       </div>
+
+      {recovery ? (
+        <div
+          role="alert"
+          className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between"
+        >
+          <span>
+            Há alterações deste rascunho que não chegaram ao servidor (guardadas neste aparelho às{" "}
+            {new Date(recovery.savedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}).
+          </span>
+          <span className="flex shrink-0 gap-2">
+            <Button
+              size="xs"
+              variant="secondary"
+              onClick={() => {
+                void clearLocalDraft(draftKey);
+                setRecovery(null);
+              }}
+            >
+              Descartar
+            </Button>
+            <Button
+              size="xs"
+              variant="primary"
+              onClick={() => {
+                const draft = recovery;
+                setRecovery(null);
+                edit(() => draft.data);
+              }}
+            >
+              Recuperar alterações
+            </Button>
+          </span>
+        </div>
+      ) : null}
 
       <Tabs value={mobileTab} onValueChange={(v) => setMobileTab(v as "edit" | "preview")} className="xl:hidden">
         <TabsList aria-label="Modo">
