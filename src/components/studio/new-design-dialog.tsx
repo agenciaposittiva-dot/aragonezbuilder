@@ -18,7 +18,7 @@ import { Field } from "@/components/ui/field";
 import { Input, NativeSelect } from "@/components/ui/input";
 import { useWorkspace } from "@/components/shell/workspace-context";
 import { useOrgAction } from "@/hooks/use-action";
-import { DESIGN_PRESETS } from "@/lib/design-presets";
+import { FORMAT_PRESETS, PRESET_GROUPS } from "@/lib/design-doc/presets";
 import { cn } from "@/lib/utils";
 import { createDesignAction } from "@/server/actions/designs";
 
@@ -40,8 +40,9 @@ export function NewDesignDialog({
   const router = useRouter();
   const { orgSlug } = useWorkspace();
   const [open, setOpen] = useState(false);
-  const [preset, setPreset] = useState<string>(DESIGN_PRESETS[0].key);
+  const [preset, setPreset] = useState<string>(FORMAT_PRESETS[0]!.key);
   const [custom, setCustom] = useState({ width: 1080, height: 1080 });
+  const [pages, setPages] = useState(3);
   const [templateId, setTemplateId] = useState(defaultTemplateId ?? "");
   const [clientId, setClientId] = useState("");
   const [projectId, setProjectId] = useState("");
@@ -53,7 +54,9 @@ export function NewDesignDialog({
       router.push(`/w/${orgSlug}/studio/${d.id}`);
     },
   });
-  const size = preset === "custom" ? custom : (DESIGN_PRESETS.find((p) => p.key === preset) ?? DESIGN_PRESETS[0]);
+  const chosen = FORMAT_PRESETS.find((p) => p.key === preset);
+  const size = preset === "custom" ? custom : (chosen ?? FORMAT_PRESETS[0]!);
+  const carousel = !!chosen?.carousel;
   const visibleProjects = clientId ? projects.filter((p) => p.clientId === clientId) : projects;
 
   return (
@@ -78,6 +81,9 @@ export function NewDesignDialog({
               projectId,
               templateId,
               isTemplate,
+              ...(templateId
+                ? {}
+                : { preset: preset === "custom" ? null : preset, carousel, pages: carousel ? pages : 1 }),
             });
           }}
         >
@@ -141,14 +147,35 @@ export function NewDesignDialog({
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Formato" htmlFor="d-preset" className="sm:col-span-2">
                   <NativeSelect id="d-preset" value={preset} onChange={(e) => setPreset(e.target.value)}>
-                    {DESIGN_PRESETS.map((p) => (
-                      <option key={p.key} value={p.key}>
-                        {p.label} — {p.width}×{p.height}
-                      </option>
+                    {PRESET_GROUPS.map((g) => (
+                      <optgroup key={g} label={g}>
+                        {FORMAT_PRESETS.filter((p) => p.group === g).map((p) => (
+                          <option key={p.key} value={p.key}>
+                            {p.label} — {p.width}×{p.height}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
                     <option value="custom">Personalizado</option>
                   </NativeSelect>
                 </Field>
+                {carousel ? (
+                  <Field
+                    label="Páginas do carrossel"
+                    htmlFor="d-pages"
+                    hint="Páginas conectadas, do mesmo tamanho. Dá para incluir, duplicar e reordenar depois."
+                    className="sm:col-span-2"
+                  >
+                    <Input
+                      id="d-pages"
+                      type="number"
+                      min={2}
+                      max={20}
+                      value={pages}
+                      onChange={(e) => setPages(Math.max(2, Math.min(20, Number(e.target.value) || 2)))}
+                    />
+                  </Field>
+                ) : null}
                 {preset === "custom" ? (
                   <>
                     <Field label="Largura (px)" htmlFor="d-w">

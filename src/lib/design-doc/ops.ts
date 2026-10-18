@@ -32,8 +32,6 @@ import {
   type InstanceObject,
   type InstanceOverride,
   type Paint,
-  type TextStyle,
-  type ColorStyle,
 } from "./schema";
 
 /*
