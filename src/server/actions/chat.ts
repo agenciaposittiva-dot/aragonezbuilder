@@ -32,7 +32,7 @@ import {
   setParticipantPrefs,
   updateConversation,
 } from "@/server/services/chat";
-import { createTask, listTasks } from "@/server/services/tasks";
+import { createTask, getTask, listTasks } from "@/server/services/tasks";
 import { orgAction } from "./safe-action";
 
 // O chat mantém o próprio estado (sincronização), então nenhuma ação re-renderiza a página.
@@ -218,6 +218,32 @@ export const shareToConversationAction = orgAction(
       return { id: msg.id, linked: false };
     }
     return { id: msg.id, linked: true };
+  },
+  quiet,
+);
+
+/** Resumo da tarefa para ver sem sair da conversa (o acesso é o da própria tarefa). */
+export const taskSummaryAction = orgAction(
+  z.object({ taskId: z.uuid() }),
+  async (s, i) => {
+    const t = await getTask(s, i.taskId);
+    return {
+      id: t.task.id,
+      title: t.task.title,
+      description: t.task.description,
+      dueDate: t.task.dueDate,
+      priority: t.task.priority,
+      completedAt: t.task.completedAt?.toISOString() ?? null,
+      statusName: t.status.name,
+      statusColor: t.status.color,
+      projectId: t.task.projectId,
+      projectName: t.projectName,
+      clientName: t.clientName,
+      assigneeName: t.assigneeName,
+      assigneeImage: t.assigneeImage,
+      checklistDone: t.checklist.filter((c) => c.done).length,
+      checklistTotal: t.checklist.length,
+    };
   },
   quiet,
 );

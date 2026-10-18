@@ -8,6 +8,7 @@ import {
   Brush,
   Inbox,
   ListChecks,
+  MessagesSquare,
   Palette,
   Settings,
   Trash2,
@@ -26,7 +27,7 @@ export type NavItem = {
   icon: LucideIcon;
   /** Exige a permissão (ou qualquer uma da lista). */
   permission?: Permission | Permission[];
-  badgeKey?: "requests" | "approvals";
+  badgeKey?: "requests" | "approvals" | "chat";
 };
 
 export function navAllowed(item: NavItem, permissions: readonly Permission[]) {
@@ -57,6 +58,14 @@ export const WORKSPACE_NAV: NavGroup[] = [
         icon: CheckCheck,
         permission: "files.read",
         badgeKey: "approvals",
+      },
+      {
+        key: "chat",
+        label: "Chat da Equipe",
+        path: "/chat",
+        icon: MessagesSquare,
+        permission: "chat.use",
+        badgeKey: "chat",
       },
     ],
   },

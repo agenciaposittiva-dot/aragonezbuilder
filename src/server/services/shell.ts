@@ -1,6 +1,7 @@
 import { and, count, eq, inArray } from "drizzle-orm";
 import { approvals, clients, files, requests } from "@/server/db/schema";
 import { can, clientScope, type Scope } from "@/server/authz";
+import { unreadTotal } from "./chat";
 import { unreadCount } from "./notifications";
 
 /** Contadores exibidos na navegação. */
@@ -35,8 +36,10 @@ export async function getShellCounts(s: Scope) {
     pendingApprovals = r?.n ?? 0;
   }
 
+  const chat = await unreadTotal(s);
+
   return {
     unread,
-    badges: { requests: pendingRequests, approvals: pendingApprovals },
+    badges: { requests: pendingRequests, approvals: pendingApprovals, chat },
   };
 }
