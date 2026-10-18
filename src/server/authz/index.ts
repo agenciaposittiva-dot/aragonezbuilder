@@ -1,7 +1,16 @@
 import { and, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
 import type { Permission } from "@/lib/permissions";
 import { withOrg, type Tx } from "@/server/db";
-import { clientMembers, clients, files, projectMembers, projects, taskCollaborators, tasks } from "@/server/db/schema";
+import {
+  clientMembers,
+  clients,
+  files,
+  projectMembers,
+  projects,
+  requests,
+  taskCollaborators,
+  tasks,
+} from "@/server/db/schema";
 import { ForbiddenError, NotFoundError } from "@/server/errors";
 import type { Actor } from "./actor";
 
@@ -136,5 +145,17 @@ export async function assertFileAccess(s: Scope, fileId: string) {
     .where(and(eq(files.id, fileId), fileScope(s.actor)))
     .limit(1);
   if (!row) throw new NotFoundError("Arquivo não encontrado.");
+  return row;
+}
+
+/** Solicitações seguem o escopo do cliente a que pertencem. */
+export async function assertRequestAccess(s: Scope, requestId: string) {
+  const [row] = await s.db
+    .select({ id: requests.id, clientId: requests.clientId, projectId: requests.projectId })
+    .from(requests)
+    .innerJoin(clients, eq(clients.id, requests.clientId))
+    .where(and(eq(requests.id, requestId), clientScope(s.actor)))
+    .limit(1);
+  if (!row) throw new NotFoundError("Solicitação não encontrada.");
   return row;
 }
