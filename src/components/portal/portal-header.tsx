@@ -8,6 +8,7 @@ import { navAllowed } from "@/components/shell/nav-config";
 import { getNav } from "@/components/shell/nav-registry";
 import { UserMenu } from "@/components/shell/user-menu";
 import { useWorkspace, workspaceBase } from "@/components/shell/workspace-context";
+import { OrgAvatar } from "@/components/brand/org-avatar";
 import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
@@ -20,7 +21,8 @@ export function PortalHeader({
 }: {
   unread: number;
   badges: Record<string, number>;
-  brand: { name: string; logoUrl: string | null; orgName: string };
+  /** `orgLogoUrl` só é informado quando a agência ativou a exibição da logo dela no portal. */
+  brand: { name: string; logoUrl: string | null; orgName: string; orgLogoUrl?: string | null };
   switchHref: string | null;
 }) {
   const ws = useWorkspace();
@@ -42,8 +44,14 @@ export function PortalHeader({
           />
           <span className="min-w-0">
             <span className="block truncate text-sm leading-tight font-semibold">{brand.name}</span>
-            <span className="block truncate text-[11px] leading-tight text-fg-muted">
-              Área do cliente · {brand.orgName}
+            <span className="flex min-w-0 items-center gap-1 text-[11px] leading-tight text-fg-muted">
+              <span className="truncate">Área do cliente · {brand.orgLogoUrl ? "por" : brand.orgName}</span>
+              {brand.orgLogoUrl ? (
+                <>
+                  <OrgAvatar name={brand.orgName} src={brand.orgLogoUrl} size="xs" className="size-4" />
+                  <span className="truncate">{brand.orgName}</span>
+                </>
+              ) : null}
             </span>
           </span>
         </Link>

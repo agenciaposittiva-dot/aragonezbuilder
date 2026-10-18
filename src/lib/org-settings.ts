@@ -32,6 +32,8 @@ export const orgSettingsSchema = z.object({
       showInvoices: z.boolean().default(false),
       showProjectProgress: z.boolean().default(true),
       allowRequestCreation: z.boolean().default(true),
+      /** Logo da agência discreta no portal ("por Agência"); a marca do cliente continua em destaque. */
+      showAgencyLogo: z.boolean().default(false),
     })
     .prefault({}),
   ai: z

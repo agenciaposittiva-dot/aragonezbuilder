@@ -31,7 +31,7 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps<
       value={{
         orgSlug: actor.orgSlug,
         orgName: actor.orgName,
-        orgLogoUrl: actor.orgLogoUrl,
+        orgLogoUrl: actor.orgLogoSrc,
         userId: actor.userId,
         userName: actor.name,
         userEmail: actor.email,
@@ -48,7 +48,7 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps<
           nav="workspace"
           base={base}
           badges={counts.badges}
-          orgs={orgs.map((o) => ({ slug: o.slug, name: o.name, logoUrl: o.logoUrl, kind: o.kind }))}
+          orgs={orgs.map((o) => ({ slug: o.slug, name: o.name, logoUrl: o.logoSrc, kind: o.kind }))}
           defaultCollapsed={collapsed}
         />
         <div className="flex min-w-0 flex-1 flex-col">
@@ -56,7 +56,7 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps<
             nav="workspace"
             base={base}
             badges={counts.badges}
-            orgs={orgs.map((o) => ({ slug: o.slug, name: o.name, logoUrl: o.logoUrl, kind: o.kind }))}
+            orgs={orgs.map((o) => ({ slug: o.slug, name: o.name, logoUrl: o.logoSrc, kind: o.kind }))}
             unread={counts.unread}
             accountHref={`${base}/account`}
           />

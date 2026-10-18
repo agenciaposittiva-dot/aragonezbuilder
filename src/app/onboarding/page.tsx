@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Logo } from "@/components/brand/logo";
 import { accessKeyRequired } from "@/server/access-key";
 import { requireSession } from "@/server/auth/session";
+import { env } from "@/server/env";
 import { OnboardingForm } from "./onboarding-form";
 
 export const metadata: Metadata = { title: "Criar agência" };
@@ -17,7 +18,7 @@ export default async function OnboardingPage() {
         </h1>
         <p className="mt-1 text-sm text-fg-muted">Você será o proprietário. Depois, convide a equipe e os clientes.</p>
       </div>
-      <OnboardingForm needsAccessKey={accessKeyRequired(session.user.email)} />
+      <OnboardingForm needsAccessKey={accessKeyRequired(session.user.email)} logoMaxBytes={env.LOGO_MAX_BYTES} />
     </main>
   );
 }

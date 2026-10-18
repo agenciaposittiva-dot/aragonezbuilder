@@ -7,6 +7,7 @@ import type { Permission, RoleKind } from "@/lib/permissions";
 export type WorkspaceInfo = {
   orgSlug: string;
   orgName: string;
+  /** Logo exibida da agência (enviada ou link externo); null mostra a marca da plataforma. */
   orgLogoUrl: string | null;
   userId: string;
   userName: string;

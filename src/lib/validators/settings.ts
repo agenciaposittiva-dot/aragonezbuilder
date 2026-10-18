@@ -18,6 +18,7 @@ export const portalSettingsInput = z.object({
   showInvoices: z.boolean(),
   showProjectProgress: z.boolean(),
   allowRequestCreation: z.boolean(),
+  showAgencyLogo: z.boolean().optional(),
 });
 
 export const timeSettingsInput = z.object({ trackingEnabled: z.boolean() });

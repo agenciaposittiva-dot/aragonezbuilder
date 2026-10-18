@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { Logo, LogoMark } from "@/components/brand/logo";
-import { Avatar } from "@/components/ui/avatar";
+import { OrgAvatar } from "@/components/brand/org-avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +20,7 @@ import { navAllowed } from "./nav-config";
 import { getNav, type NavKey } from "./nav-registry";
 import { useWorkspace } from "./workspace-context";
 
+/** Organização no seletor; `logoUrl` é a logo exibida (enviada ou link externo). */
 export type OrgOption = { slug: string; name: string; logoUrl: string | null; kind: string };
 
 function setCollapsedCookie(collapsed: boolean) {
@@ -115,7 +116,7 @@ export function OrgSwitcher({ orgs, collapsed }: { orgs: OrgOption[]; collapsed?
         )}
         aria-label="Trocar de organização"
       >
-        {ws.orgLogoUrl ? <Avatar name={ws.orgName} src={ws.orgLogoUrl} square size="md" /> : <LogoMark />}
+        {ws.orgLogoUrl ? <OrgAvatar name={ws.orgName} src={ws.orgLogoUrl} size="md" /> : <LogoMark />}
         {collapsed ? null : (
           <>
             <span className="min-w-0 flex-1">
@@ -131,7 +132,7 @@ export function OrgSwitcher({ orgs, collapsed }: { orgs: OrgOption[]; collapsed?
         {orgs.map((o) => (
           <DropdownMenuItem key={o.slug} asChild>
             <Link href={o.kind === "client" ? `/portal/${o.slug}` : `/w/${o.slug}`}>
-              <Avatar name={o.name} src={o.logoUrl} square size="xs" />
+              <OrgAvatar name={o.name} src={o.logoUrl} size="xs" />
               <span className="flex-1 truncate">{o.name}</span>
               {o.slug === ws.orgSlug ? <Check /> : null}
             </Link>

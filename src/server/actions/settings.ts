@@ -8,7 +8,7 @@ import {
   timeSettingsInput,
   uploadSettingsInput,
 } from "@/lib/validators/settings";
-import { updateOrganization, updateSettings } from "@/server/services/organizations";
+import { getSettings, updateOrganization, updateSettings } from "@/server/services/organizations";
 import { deleteRole, resetRole, saveRole } from "@/server/services/roles";
 import {
   deleteStatus,
@@ -28,7 +28,9 @@ export const updateUploadSettingsAction = orgAction(uploadSettingsInput, async (
 });
 
 export const updatePortalSettingsAction = orgAction(portalSettingsInput, async (s, raw) => {
-  await updateSettings(s, "portal", portalSettingsInput.parse(raw));
+  // Campos ausentes mantêm o valor atual (ex.: telas que não exibem todas as opções).
+  const current = await getSettings(s);
+  await updateSettings(s, "portal", { ...current.portal, ...portalSettingsInput.parse(raw) });
 });
 
 export const updateTimeSettingsAction = orgAction(timeSettingsInput, async (s, raw) => {

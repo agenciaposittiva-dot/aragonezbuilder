@@ -35,7 +35,7 @@ export default async function PortalLayout({ children, params }: LayoutProps<"/p
       value={{
         orgSlug: actor.orgSlug,
         orgName: actor.orgName,
-        orgLogoUrl: actor.orgLogoUrl,
+        orgLogoUrl: actor.orgLogoSrc,
         userId: actor.userId,
         userName: actor.name,
         userEmail: actor.email,
@@ -61,6 +61,7 @@ export default async function PortalLayout({ children, params }: LayoutProps<"/p
                 ? portalAssetUrl(portal.client.id, "logo", { v: version })
                 : null,
             orgName: actor.orgName,
+            orgLogoUrl: actor.settings.portal.showAgencyLogo ? actor.orgLogoSrc : null,
           }}
           switchHref={portal.multiClient ? `/portal/${actor.orgSlug}?trocar=1` : null}
         />
