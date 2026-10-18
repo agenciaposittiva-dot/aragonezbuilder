@@ -74,6 +74,21 @@ async function draftsFor(tx: Tx, ev: DomainEvent): Promise<Draft[]> {
       ];
     }
 
+    case "task.due_changed": {
+      const task = await taskInfo(tx, org, str(p.taskId) || ev.entityId);
+      const fmt = (v: unknown) => (typeof v === "string" && v ? v.split("-").reverse().join("/") : null);
+      const from = fmt(p.fromDueDate);
+      const to = fmt(p.toDueDate);
+      return [
+        {
+          recipients: await membersByIds(tx, org, [str(p.assigneeMembershipId), ...(task?.collaboratorIds ?? [])]),
+          title: to ? `Prazo alterado: ${str(p.title)}` : `Prazo removido: ${str(p.title)}`,
+          body: to ? (from ? `De ${from} para ${to}.` : `Novo prazo: ${to}.`) : from ? `O prazo era ${from}.` : null,
+          internalPath: `/tasks/${str(p.taskId) || ev.entityId}`,
+        },
+      ];
+    }
+
     case "task.overdue": {
       return [
         {
@@ -309,6 +324,16 @@ async function commentDrafts(tx: Tx, ev: DomainEvent, p: Record<string, unknown>
     const task = await taskInfo(tx, org, target.id);
     if (!task) return [];
     const project = await projectInfo(tx, org, task.projectId);
+    // Quem foi mencionado recebe primeiro o aviso específico (o despachante não repete a pessoa).
+    const mentioned = Array.isArray(p.mentionedMembershipIds) ? p.mentionedMembershipIds.map(String) : [];
+    if (mentioned.length) {
+      drafts.push({
+        recipients: (await membersByIds(tx, org, mentioned)).filter((r) => r.kind === "internal"),
+        title: `${str(p.authorName) || "Alguém"} mencionou você em "${task.title}"`,
+        body: excerpt,
+        internalPath: `/tasks/${task.id}`,
+      });
+    }
     drafts.push({
       recipients: await membersByIds(tx, org, [
         task.assigneeMembershipId,

@@ -97,7 +97,7 @@ export function TaskTime({
 
       {canTrack ? (
         <form
-          className="grid gap-2 sm:grid-cols-[110px_130px_minmax(0,1fr)_auto]"
+          className="grid grid-cols-2 gap-2"
           onSubmit={(e) => {
             e.preventDefault();
             const minutes = parseDuration(duration);
@@ -130,12 +130,18 @@ export function TaskTime({
             onChange={(e) => setNote(e.target.value)}
             placeholder="O que foi feito (opcional)"
             aria-label="Observação"
-            className="h-8"
+            className="col-span-2 h-8"
           />
-          <Button type="submit" size="sm" variant="secondary" loading={add.pending}>
+          <Button
+            type="submit"
+            size="sm"
+            variant="secondary"
+            loading={add.pending}
+            className="col-span-2 justify-self-start"
+          >
             Lançar
           </Button>
-          {error ? <p className="text-xs text-danger sm:col-span-4">{error}</p> : null}
+          {error ? <p className="col-span-2 text-xs text-danger">{error}</p> : null}
         </form>
       ) : null}
 

@@ -43,6 +43,13 @@ export const tasks = pgTable(
     position: doublePrecision().notNull().default(0),
     completedAt: tstz(),
     archivedAt: tstz(),
+    /**
+     * Lixeira: ao excluir, `deleted_at` e `archived_at` recebem a mesma data (a
+     * tarefa some de todas as listas que já ignoram arquivadas). Restaurar limpa
+     * os dois — `archived_at` só quando foi a exclusão que o preencheu.
+     */
+    deletedAt: tstz(),
+    deletedByUserId: text().references(() => user.id, { onDelete: "set null" }),
     createdByUserId: text().references(() => user.id, { onDelete: "set null" }),
     ...timestamps,
   },
@@ -72,6 +79,7 @@ export const tasks = pgTable(
     index().on(t.organizationId, t.assigneeMembershipId, t.dueDate),
     index().on(t.parentTaskId),
     index("tasks_title_trgm").using("gin", sql`${t.title} gin_trgm_ops`),
+    index("tasks_trash_idx").on(t.organizationId, t.deletedAt).where(sql`${t.deletedAt} is not null`),
   ],
 );
 

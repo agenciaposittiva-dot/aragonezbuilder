@@ -28,6 +28,11 @@ export const comments = pgTable(
     fileId: uuid(),
     /** Para comentários em arquivos: a versão comentada. */
     fileVersionId: uuid(),
+    /** Pessoas da equipe mencionadas com @ (vínculos), notificadas ao publicar. */
+    mentionedMembershipIds: uuid()
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
     editedAt: tstz(),
     deletedAt: tstz(),
     ...timestamps,

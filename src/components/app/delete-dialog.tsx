@@ -230,5 +230,5 @@ function capitalize(s: string) {
 }
 
 function feminine(kindLabel: string) {
-  return ["arte", "agência"].includes(kindLabel);
+  return ["arte", "agência", "tarefa", "subtarefa"].includes(kindLabel);
 }

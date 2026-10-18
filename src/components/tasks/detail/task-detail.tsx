@@ -17,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { can, inOrg } from "@/server/authz";
 import type { Actor } from "@/server/authz/actor";
 import { NotFoundError } from "@/server/errors";
-import { listComments } from "@/server/services/comments";
+import { listComments, taskMentionables } from "@/server/services/comments";
 import { listInternalMembers } from "@/server/services/members";
 import { getTask, projectTaskOptions, taskHistory } from "@/server/services/tasks";
 import { getRunningTimer, listTimeEntries } from "@/server/services/time-entries";
@@ -39,6 +39,7 @@ export async function TaskDetail({ actor, id, variant }: { actor: Actor; id: str
         members: await listInternalMembers(s),
         options: await projectTaskOptions(s, detail.task.projectId, id),
         comments: await listComments(s, { taskId: id }),
+        mentionables: await taskMentionables(s, id),
         history: await taskHistory(s, id),
         entries: await listTimeEntries(s, id),
         running: await getRunningTimer(s),
@@ -103,6 +104,8 @@ export async function TaskDetail({ actor, id, variant }: { actor: Actor; id: str
             projectId={task.projectId}
             canWrite={canWrite}
             canDelete={can(actor, "tasks.delete")}
+            isSubtask={!!task.parentTaskId}
+            hasSubtasks={detail.subtasks.length > 0}
           />
         </div>
       </div>
@@ -137,7 +140,16 @@ export async function TaskDetail({ actor, id, variant }: { actor: Actor; id: str
                 <CardTitle>Subtarefas</CardTitle>
               </CardHeader>
               <CardContent>
-                <TaskSubtasks taskId={id} projectId={task.projectId} subtasks={detail.subtasks} canWrite={canWrite} />
+                <TaskSubtasks
+                  taskId={id}
+                  projectId={task.projectId}
+                  subtasks={detail.subtasks}
+                  canWrite={canWrite}
+                  canAssign={can(actor, "tasks.assign")}
+                  statuses={data.statuses.map((st) => ({ id: st.id, name: st.name, color: st.color }))}
+                  transitions={data.transitions}
+                  members={memberLite}
+                />
               </CardContent>
             </Card>
           )}
@@ -161,10 +173,22 @@ export async function TaskDetail({ actor, id, variant }: { actor: Actor; id: str
 
           <Card>
             <CardHeader>
-              <CardTitle>Comentários</CardTitle>
+              <div>
+                <CardTitle>Comentários internos</CardTitle>
+                <p className="mt-0.5 text-xs text-fg-muted">
+                  Só a equipe vê. Tarefas nunca aparecem para o cliente; mensagens ao cliente ficam na solicitação ou no
+                  projeto.
+                </p>
+              </div>
             </CardHeader>
             <CardContent>
-              <Comments target={{ taskId: id }} comments={data.comments} allowInternal lockInternal />
+              <Comments
+                target={{ taskId: id }}
+                comments={data.comments}
+                allowInternal
+                lockInternal
+                mentionables={data.mentionables.filter((m) => m.membershipId !== actor.membershipId)}
+              />
             </CardContent>
           </Card>
 

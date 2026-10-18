@@ -35,6 +35,7 @@ import {
 import { ForbiddenError, NotFoundError, ValidationError } from "@/server/errors";
 import { getStorage } from "@/server/storage";
 import { recordActivity } from "./activity";
+import { hardDeleteTask } from "./tasks";
 
 /*
  * Lixeira. Excluir um cliente, projeto, arte ou a própria agência não apaga
@@ -266,7 +267,7 @@ export async function trashDesign(s: Scope, designId: string) {
 /* Lixeira: listar, restaurar, excluir definitivamente                 */
 /* ------------------------------------------------------------------ */
 
-export type TrashKind = "client" | "project" | "design";
+export type TrashKind = "client" | "project" | "design" | "task";
 
 export type TrashItem = {
   kind: TrashKind;
@@ -285,7 +286,11 @@ export type TrashItem = {
 /** Quem pode ver/agir sobre um item da lixeira: acesso total aos dados ou quem excluiu. */
 function trashOwnerFilter(
   actor: Actor,
-  column: typeof clients.deletedByUserId | typeof projects.deletedByUserId | typeof designs.deletedByUserId,
+  column:
+    | typeof clients.deletedByUserId
+    | typeof projects.deletedByUserId
+    | typeof designs.deletedByUserId
+    | typeof tasks.deletedByUserId,
 ) {
   return actor.dataAll ? undefined : eq(column, actor.userId);
 }
@@ -380,13 +385,59 @@ export async function listTrash(s: Scope): Promise<TrashItem[]> {
       })),
     );
   }
+  if (can(s.actor, "tasks.delete")) out.push(...(await trashedTasks(s)));
   return out.sort((a, b) => b.deletedAt.getTime() - a.deletedAt.getTime());
+}
+
+/** Tarefas na lixeira (subtarefas excluídas junto com a principal aparecem dentro dela). */
+async function trashedTasks(s: Scope): Promise<TrashItem[]> {
+  // A tabela de tarefas referencia a si mesma: a tarefa principal vem por subconsulta.
+  const rows = await s.db
+    .select({
+      id: tasks.id,
+      title: tasks.title,
+      deletedAt: tasks.deletedAt,
+      projectName: projects.name,
+      projectDeletedAt: projects.deletedAt,
+      clientName: clients.name,
+      parentTitle: sql<string | null>`(select p.title from ${tasks} p where p.id = ${tasks.parentTaskId})`,
+      parentDeleted: sql<boolean>`exists (select 1 from ${tasks} p where p.id = ${tasks.parentTaskId} and p.deleted_at is not null)`,
+      by: user.name,
+    })
+    .from(tasks)
+    .innerJoin(projects, eq(projects.id, tasks.projectId))
+    .innerJoin(clients, eq(clients.id, projects.clientId))
+    .leftJoin(user, eq(user.id, tasks.deletedByUserId))
+    .where(
+      and(
+        isNotNull(tasks.deletedAt),
+        sql`not exists (select 1 from ${tasks} p where p.id = ${tasks.parentTaskId} and p.deleted_at = ${tasks.deletedAt})`,
+        trashOwnerFilter(s.actor, tasks.deletedByUserId),
+      ),
+    )
+    .orderBy(desc(tasks.deletedAt));
+  return rows.map((r) => ({
+    kind: "task" as const,
+    id: r.id,
+    name: r.title,
+    detail: `${r.parentTitle ? `Subtarefa de "${r.parentTitle}" · ` : "Tarefa · "}${r.clientName} · ${r.projectName}`,
+    deletedAt: r.deletedAt!,
+    purgeAt: purgeDate(r.deletedAt!),
+    daysLeft: daysUntil(purgeDate(r.deletedAt!)),
+    deletedByName: r.by,
+    blockedBy: r.projectDeletedAt
+      ? `O projeto ${r.projectName} está na lixeira. Restaure-o primeiro.`
+      : r.parentDeleted
+        ? `A tarefa principal "${r.parentTitle}" está na lixeira. Restaure-a primeiro.`
+        : null,
+  }));
 }
 
 const KIND_PERMISSION = {
   client: "clients.delete",
   project: "projects.delete",
   design: "designs.delete",
+  task: "tasks.delete",
 } as const;
 
 /** Localiza um item na lixeira respeitando permissão e dono da exclusão. */
@@ -404,6 +455,14 @@ async function trashedItem(s: Scope, kind: TrashKind, id: string) {
       .where(and(eq(projects.id, id), isNotNull(projects.deletedAt)));
     if (row) throw new ValidationError("Este projeto foi excluído junto com o cliente. Restaure o cliente.");
   }
+  if (kind === "task") {
+    const [row] = await s.db
+      .select({ id: tasks.id })
+      .from(tasks)
+      .where(and(eq(tasks.id, id), isNotNull(tasks.deletedAt), isNotNull(tasks.parentTaskId)));
+    if (row)
+      throw new ValidationError("Esta subtarefa foi excluída junto com a tarefa principal. Restaure a principal.");
+  }
   throw new NotFoundError("Item não encontrado na lixeira.");
 }
 
@@ -418,6 +477,16 @@ export async function restoreFromTrash(s: Scope, kind: TrashKind, id: string) {
     await s.db.update(clients).set({ deletedAt: null, deletedByUserId: null }).where(eq(clients.id, id));
   } else if (kind === "project") {
     await s.db.update(projects).set({ deletedAt: null, deletedByUserId: null }).where(eq(projects.id, id));
+  } else if (kind === "task") {
+    // A tarefa e as subtarefas excluídas junto (mesma data); arquivamento anterior é mantido.
+    await s.db
+      .update(tasks)
+      .set({
+        deletedAt: null,
+        deletedByUserId: null,
+        archivedAt: sql`case when ${tasks.archivedAt} = ${tasks.deletedAt} then null else ${tasks.archivedAt} end`,
+      })
+      .where(and(or(eq(tasks.id, id), eq(tasks.parentTaskId, id)), eq(tasks.deletedAt, item.deletedAt)));
   } else {
     await s.db.update(designs).set({ deletedAt: null, deletedByUserId: null }).where(eq(designs.id, id));
   }
@@ -438,7 +507,9 @@ export async function purgeFromTrash(s: Scope, kind: TrashKind, id: string) {
       ? await hardDeleteClient(s.db, id)
       : kind === "project"
         ? await hardDeleteProject(s.db, id)
-        : await hardDeleteDesign(s.db, id);
+        : kind === "task"
+          ? (await hardDeleteTask(s.db, id), [])
+          : await hardDeleteDesign(s.db, id);
   await queueStoragePurge(s.db, s.actor.orgId, keys);
   await recordActivity(s, {
     action: "purged",
@@ -673,7 +744,7 @@ export async function restoreOrganization(userId: string, orgId: string) {
 
 export async function purgeExpiredTrash(now = new Date()) {
   const cutoff = new Date(now.getTime() - TRASH_DAYS * DAY);
-  const result = { organizations: 0, clients: 0, projects: 0, designs: 0, storageErrors: 0 };
+  const result = { organizations: 0, clients: 0, projects: 0, designs: 0, tasks: 0, storageErrors: 0 };
 
   const expiredOrgs = await withSystem((tx) =>
     tx
@@ -724,6 +795,24 @@ export async function purgeExpiredTrash(now = new Date()) {
   for (const p of expiredProjects) {
     await withOrg(p.orgId, (tx) => hardDeleteProject(tx, p.id));
     result.projects++;
+  }
+
+  // Tarefas: só as principais (as subtarefas vão junto em cascata).
+  const expiredTasks = await withSystem((tx) =>
+    tx
+      .select({ id: tasks.id, orgId: tasks.organizationId })
+      .from(tasks)
+      .where(
+        and(
+          isNotNull(tasks.deletedAt),
+          lt(tasks.deletedAt, cutoff),
+          sql`not exists (select 1 from ${tasks} p where p.id = ${tasks.parentTaskId} and p.deleted_at < ${cutoff})`,
+        ),
+      ),
+  );
+  for (const t of expiredTasks) {
+    await withOrg(t.orgId, (tx) => hardDeleteTask(tx, t.id));
+    result.tasks++;
   }
 
   result.designs = await withSystem(async (tx) => {

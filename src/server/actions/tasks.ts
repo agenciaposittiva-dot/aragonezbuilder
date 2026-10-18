@@ -27,7 +27,13 @@ export const archiveTaskAction = orgAction(z.object({ id: z.uuid(), archived: z.
   tasks.setTaskArchived(s, i.id, i.archived),
 );
 
-export const deleteTaskAction = orgAction(idInput, (s, i) => tasks.deleteTask(s, i.id));
+/** "Excluir" move para a Lixeira (30 dias). A página da tarefa deixa de existir: a interface navega. */
+export const deleteTaskAction = orgAction(idInput, (s, i) => tasks.deleteTask(s, i.id), { refresh: false });
+
+export const duplicateTaskAction = orgAction(
+  z.object({ id: z.uuid(), withSubtasks: z.boolean().optional() }),
+  (s, i) => tasks.duplicateTask(s, i.id, { withSubtasks: i.withSubtasks }),
+);
 
 export const setTaskCollaboratorsAction = orgAction(
   z.object({ taskId: z.uuid(), membershipIds: z.array(z.uuid()).max(30) }),
