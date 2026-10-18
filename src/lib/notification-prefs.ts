@@ -17,6 +17,11 @@ export const NOTIFICATION_CATEGORIES = {
   invites: { label: "Convites", description: "Convites aceitos por quem você convidou.", internalOnly: false },
   finance: { label: "Financeiro", description: "Faturas vencidas.", internalOnly: true },
   automations: { label: "Automações", description: "Avisos enviados por regras de automação.", internalOnly: false },
+  chat: {
+    label: "Chat da Equipe",
+    description: "Mensagens diretas e menções (cada conversa também pode ser silenciada).",
+    internalOnly: true,
+  },
 } as const;
 
 export type NotificationCategory = keyof typeof NOTIFICATION_CATEGORIES;
@@ -47,6 +52,8 @@ export function categoryOf(eventType: string): NotificationCategory | null {
       return "invites";
     case "invoice":
       return "finance";
+    case "chat":
+      return "chat";
     default:
       return null;
   }

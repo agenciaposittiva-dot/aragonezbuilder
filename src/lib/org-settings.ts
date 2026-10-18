@@ -43,6 +43,8 @@ export const orgSettingsSchema = z.object({
       model: z.string().default(""),
       /** Autoriza o envio de dados de clientes (tom de voz, briefings...) ao provedor externo. */
       allowClientContext: z.boolean().default(false),
+      /** Autoriza a IA a ler conversas do Chat da Equipe (resumos, tarefas sugeridas, busca). */
+      allowChatContext: z.boolean().default(false),
       monthlyTokenLimit: z.number().int().nonnegative().default(2_000_000),
       userDailyRequestLimit: z.number().int().nonnegative().default(100),
       /** Limite mensal de custo estimado (micro-dólares; 0 = sem limite). Só conta gerações com custo conhecido. */

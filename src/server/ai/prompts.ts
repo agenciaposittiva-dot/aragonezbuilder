@@ -31,6 +31,20 @@ const INSTRUCTIONS: Record<string, string> = {
     "Sugira direções criativas: conceito visual, paleta (use as cores da marca se houver), tipografia, composição, referências de estilo e formatos recomendados por canal.",
   summary:
     "Resuma em tópicos objetivos: pontos principais, decisões, pendências e próximos passos (com responsáveis, se mencionados).",
+  chat_summary:
+    "A conversa abaixo é de uma equipe interna (formato [data hora] Pessoa: mensagem). Resuma em tópicos: assunto, pontos principais, decisões, pendências e próximos passos (com responsáveis quando citados). Não invente nada que não esteja nas mensagens.",
+  chat_catch_up:
+    "A conversa abaixo reúne as mensagens que a pessoa ainda não leu. Faça um resumo curto do que aconteceu, destacando perguntas dirigidas a ela, decisões e o que ficou pendente. Não invente nada que não esteja nas mensagens.",
+  chat_decisions:
+    "Com base apenas na conversa abaixo, organize em duas listas: 1) Decisões tomadas (quem decidiu, quando); 2) Pendências (o que falta, responsável e prazo se citados; marque [sem responsável] ou [sem prazo] quando não houver).",
+  chat_tasks:
+    'Extraia da conversa abaixo as tarefas de trabalho combinadas ou pedidas. Não crie tarefas que não foram discutidas e não invente prazos. Responda SOMENTE com JSON no formato {"tasks":[{"title":string,"description":string,"estimateMinutes":number}]} com 0 a 10 tarefas; use estimateMinutes 0 quando não houver estimativa.',
+  chat_reply:
+    "Escreva uma sugestão de resposta curta e cordial para a última mensagem da conversa abaixo, no tom da equipe. Se 'O que você quer dizer' foi informado, use como base. Entregue só o texto da resposta, sem aspas nem explicações.",
+  chat_rewrite:
+    "Reescreva a mensagem para ficar mais clara, objetiva e cordial, mantendo o sentido, os nomes e os números. Entregue só a mensagem reescrita, sem aspas nem explicações.",
+  chat_ask:
+    "Responda à pergunta usando apenas as mensagens da conversa abaixo. Cite quem disse e quando (data) quando ajudar. Se a resposta não estiver nas mensagens, diga claramente que não encontrou.",
   task_suggestions:
     'Sugira as tarefas de produção do projeto, em ordem, cobrindo planejamento, criação, revisão interna, aprovação do cliente e entrega. Responda SOMENTE com JSON no formato {"tasks":[{"title":string,"description":string,"estimateMinutes":number}]} com 3 a 12 tarefas.',
 };

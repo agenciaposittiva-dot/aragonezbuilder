@@ -104,6 +104,13 @@ const OPERATION_TASK: Record<string, AiTask> = {
   summary: "summary",
   task_suggestions: "structured",
   image: "image_generation",
+  chat_summary: "summary",
+  chat_catch_up: "summary",
+  chat_decisions: "summary",
+  chat_tasks: "structured",
+  chat_reply: "chat",
+  chat_rewrite: "chat",
+  chat_ask: "chat",
 };
 
 export function operationTask(operation: string): AiTask {

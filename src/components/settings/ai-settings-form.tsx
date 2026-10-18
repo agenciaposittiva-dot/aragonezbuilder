@@ -55,6 +55,7 @@ type Provider = {
 type View = {
   enabled: boolean;
   allowClientContext: boolean;
+  allowChatContext: boolean;
   monthlyTokenLimit: number;
   userDailyRequestLimit: number;
   monthlyCostLimitUsd: number;
@@ -524,6 +525,25 @@ function PolicyCard({ view }: { view: View }) {
                 checked={state.allowClientContext}
                 onCheckedChange={(v) => setState({ ...state, allowClientContext: v })}
                 aria-label="Enviar contexto dos clientes"
+              />
+            </label>
+          </div>
+          <div className="rounded-lg border border-border bg-surface-2/50 p-4 sm:col-span-2">
+            <label className="flex items-start justify-between gap-4">
+              <span>
+                <span className="flex items-center gap-2 text-sm font-medium">
+                  <ShieldCheck className="size-4 text-accent-text" /> Permitir que a IA leia conversas do Chat da Equipe
+                </span>
+                <span className="mt-1 block text-xs text-fg-muted">
+                  Necessário para resumir conversas, organizar decisões, sugerir tarefas e buscar respostas no chat. Só
+                  as conversas que a própria pessoa pode ver são enviadas, e só quando ela pede. Desativado, a IA do
+                  chat apenas reescreve o texto que a pessoa digitou.
+                </span>
+              </span>
+              <Switch
+                checked={state.allowChatContext}
+                onCheckedChange={(v) => setState({ ...state, allowChatContext: v })}
+                aria-label="Permitir que a IA leia conversas do chat"
               />
             </label>
           </div>

@@ -459,6 +459,7 @@ const usd = z.coerce.number().min(0).max(1_000_000);
 export const aiSettingsInput = z.object({
   enabled: z.boolean(),
   allowClientContext: z.boolean(),
+  allowChatContext: z.boolean().optional(),
   monthlyTokenLimit: z.coerce.number().int().min(0).max(1_000_000_000),
   userDailyRequestLimit: z.coerce.number().int().min(0).max(100_000),
   /** Limites de custo em US$ (convertidos para micro-dólares). */
@@ -476,6 +477,7 @@ export async function getAiSettingsView(s: Scope) {
   return {
     enabled: settings.enabled,
     allowClientContext: settings.allowClientContext,
+    allowChatContext: settings.allowChatContext,
     monthlyTokenLimit: settings.monthlyTokenLimit,
     userDailyRequestLimit: settings.userDailyRequestLimit,
     monthlyCostLimitUsd: settings.monthlyCostLimitMicros / 1_000_000,
@@ -493,6 +495,7 @@ export async function updateAiSettings(s: Scope, raw: z.input<typeof aiSettingsI
       ...current.ai,
       enabled: data.enabled,
       allowClientContext: data.allowClientContext,
+      ...(data.allowChatContext !== undefined ? { allowChatContext: data.allowChatContext } : {}),
       monthlyTokenLimit: data.monthlyTokenLimit,
       userDailyRequestLimit: data.userDailyRequestLimit,
       ...(data.monthlyCostLimitUsd !== undefined
@@ -549,6 +552,7 @@ export async function updateAiSettings(s: Scope, raw: z.input<typeof aiSettingsI
     summary: "Configurações de IA atualizadas",
     metadata: {
       allowClientContext: data.allowClientContext,
+      allowChatContext: data.allowChatContext ?? null,
       provider: data.provider ?? null,
       keyChanged: data.apiKey !== undefined,
     },
