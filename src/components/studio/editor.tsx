@@ -18,6 +18,7 @@ import {
   Download,
   Eye,
   EyeOff,
+  History,
   ImagePlus,
   Italic,
   Layers,
@@ -41,13 +42,22 @@ import {
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { SaveIndicator } from "@/components/app/save-indicator";
 import { Button } from "@/components/ui/button";
 import { fieldBase } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useWorkspace } from "@/components/shell/workspace-context";
+import { outcomeFromAction, useAutosave } from "@/hooks/use-autosave";
+import { clearLocalDraft, loadLocalDraft, type LocalDraft } from "@/lib/autosave/local-draft";
 import { cn } from "@/lib/utils";
-import { linkDesignOutputAction, saveDesignAction, updateDesignMetaAction } from "@/server/actions/designs";
+import {
+  linkDesignOutputAction,
+  resolveDesignConflictAction,
+  saveDesignAction,
+  updateDesignMetaAction,
+} from "@/server/actions/designs";
+import { DesignConflictDialog, DesignHistory } from "./design-history";
 
 type Fabric = typeof FabricNS;
 type FObj = FabricNS.FabricObject & { uid?: string; name?: string };
@@ -98,9 +108,64 @@ export type EditorDesign = {
 };
 
 type Brand = { colors: { name: string; hex: string }[]; fonts: { name: string }[] } | null;
-type SaveState = "saved" | "dirty" | "saving" | "error" | "conflict";
+type SceneDoc = Record<string, unknown> & { objects?: Record<string, unknown>[] };
 
 const uid = () => Math.random().toString(36).slice(2, 10);
+
+/** Imagem no lugar de um arquivo que não está mais disponível (excluído ou sem acesso). */
+const MISSING_IMAGE =
+  "data:image/svg+xml;charset=utf-8," +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="100%" height="100%" fill="#f1f0ec"/><text x="50%" y="50%" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#8a877f">Imagem indisponível</text></svg>',
+  );
+
+/**
+ * Referências a arquivos da nuvem ficam relativas (/api/files/<versão>), não
+ * com o domínio em que a arte foi aberta.
+ */
+function normalizeDoc(doc: SceneDoc): SceneDoc {
+  if (typeof window === "undefined") return doc;
+  const origin = window.location.origin;
+  const objects = (doc.objects ?? []).map((o) =>
+    typeof o.src === "string" && o.src.startsWith(`${origin}/api/files/`)
+      ? { ...o, src: o.src.slice(origin.length) }
+      : o,
+  );
+  return { ...doc, objects };
+}
+
+function canLoad(src: string) {
+  return new Promise<boolean>((resolve) => {
+    const img = new Image();
+    const timer = setTimeout(() => resolve(false), 10_000);
+    img.onload = () => {
+      clearTimeout(timer);
+      resolve(true);
+    };
+    img.onerror = () => {
+      clearTimeout(timer);
+      resolve(false);
+    };
+    img.src = src;
+  });
+}
+
+/**
+ * Antes de montar a cena, troca imagens que não carregam por um aviso: uma
+ * imagem removida da nuvem não pode impedir a arte de abrir.
+ */
+async function withAvailableImages(doc: SceneDoc): Promise<{ doc: SceneDoc; missing: number }> {
+  let missing = 0;
+  const objects = await Promise.all(
+    (doc.objects ?? []).map(async (o) => {
+      if (typeof o.src !== "string" || o.src.startsWith("data:")) return o;
+      if (await canLoad(o.src)) return o;
+      missing++;
+      return { ...o, src: MISSING_IMAGE };
+    }),
+  );
+  return { doc: { ...doc, objects }, missing };
+}
 
 const loadedFonts = new Set<string>();
 async function ensureFont(family: string) {
@@ -217,15 +282,17 @@ export function DesignEditor({ design, brand, canWrite }: { design: EditorDesign
   const canvasRef = useRef<FabricNS.Canvas | null>(null);
   const revisionRef = useRef(design.revision);
   const historyRef = useRef<{ stack: string[]; index: number; muted: boolean }>({ stack: [], index: -1, muted: false });
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const historyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const outputFileIdRef = useRef<string | null>(design.outputFileId);
 
   const [ready, setReady] = useState(false);
   const [zoom, setZoom] = useState(1);
-  const [saveState, setSaveState] = useState<SaveState>("saved");
   const [selected, setSelected] = useState<FObj | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [conflictOpen, setConflictOpen] = useState(false);
+  const [conflictDismissed, setConflictDismissed] = useState(false);
+  const [recovery, setRecovery] = useState<LocalDraft<SceneDoc> | null>(null);
   const [, force] = useState(0);
   const rerender = useCallback(() => force((n) => n + 1), []);
   const [layers, setLayers] = useState<FObj[]>([]);
@@ -271,34 +338,45 @@ export function DesignEditor({ design, brand, canWrite }: { design: EditorDesign
     updateHistoryInfo();
   }, [snapshot, updateHistoryInfo]);
 
-  const save = useCallback(async () => {
-    const canvas = canvasRef.current;
-    if (!canvas || !canWrite) return;
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    setSaveState("saving");
-    const z = canvas.getZoom();
-    const thumbnail = canvas.toDataURL({
+  /** Cena atual pronta para guardar (referências de arquivos relativas). */
+  const serialize = useCallback(() => normalizeDoc(canvasRef.current!.toObject(SERIALIZE_PROPS) as SceneDoc), []);
+
+  const thumbnailOf = useCallback(() => {
+    const canvas = canvasRef.current!;
+    return canvas.toDataURL({
       format: "jpeg",
       quality: 0.72,
-      multiplier: 360 / (Math.max(design.width, design.height) * z),
+      multiplier: 360 / (Math.max(design.width, design.height) * canvas.getZoom()),
     });
+  }, [design.height, design.width]);
+
+  /**
+   * Um salvamento no servidor. O controle de revisão recusa gravar sobre uma
+   * versão mais nova (outra sessão): vira "conflito" e a pessoa decide.
+   */
+  const persist = useCallback(async () => {
+    const canvas = canvasRef.current;
+    if (!canvas || !canWrite) return { ok: true as const };
     const res = await saveDesignAction(ws.orgSlug, {
       id: design.id,
       revision: revisionRef.current,
-      document: canvas.toObject(SERIALIZE_PROPS),
-      thumbnail,
-    }).catch(() => ({ ok: false as const, error: "Falha de conexão ao salvar.", code: "internal" }));
-    if (res.ok) {
-      revisionRef.current = res.data.revision;
-      setSaveState((st) => (st === "saving" ? "saved" : st));
-    } else if (res.code === "conflict") {
-      setSaveState("conflict");
-      toast.error(res.error, { duration: 10000 });
-    } else {
-      setSaveState("error");
-      toast.error(res.error);
-    }
-  }, [canWrite, design.height, design.id, design.width, ws.orgSlug]);
+      document: serialize(),
+      thumbnail: thumbnailOf(),
+    }).catch(() => null);
+    if (res?.ok) revisionRef.current = res.data.revision;
+    return outcomeFromAction(res);
+  }, [canWrite, design.id, serialize, thumbnailOf, ws.orgSlug]);
+
+  const autosave = useAutosave({
+    save: persist,
+    enabled: canWrite,
+    draft: {
+      key: `design:${design.id}`,
+      snapshot: () => (canvasRef.current ? serialize() : null),
+      baseRevision: () => revisionRef.current,
+    },
+  });
+  const markAutosaveDirty = autosave.markDirty;
 
   const markDirty = useCallback(() => {
     if (historyRef.current.muted) return;
@@ -307,10 +385,32 @@ export function DesignEditor({ design, brand, canWrite }: { design: EditorDesign
     if (historyTimer.current) clearTimeout(historyTimer.current);
     historyTimer.current = setTimeout(pushHistory, 250);
     if (!canWrite) return;
-    setSaveState((st) => (st === "conflict" ? st : "dirty"));
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => void save(), 1500);
-  }, [canWrite, pushHistory, refreshLayers, rerender, save]);
+    markAutosaveDirty();
+  }, [canWrite, markAutosaveDirty, pushHistory, refreshLayers, rerender]);
+
+  /** Troca a cena inteira (restauração, conflito, recuperação) sem contar como edição. */
+  const replaceScene = useCallback(
+    async (doc: SceneDoc) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const { doc: safe, missing } = await withAvailableImages(doc);
+      await Promise.all(
+        (safe.objects ?? []).map((o) => (typeof o.fontFamily === "string" ? ensureFont(o.fontFamily) : null)),
+      );
+      historyRef.current.muted = true;
+      await canvas.loadFromJSON(safe);
+      historyRef.current.muted = false;
+      historyRef.current.stack = [];
+      historyRef.current.index = -1;
+      canvas.requestRenderAll();
+      setBackgroundState(String(canvas.backgroundColor ?? "#ffffff"));
+      setSelected(null);
+      pushHistory();
+      refreshLayers();
+      if (missing) toast.warning(`${missing} imagem(ns) desta arte não estão mais disponíveis na nuvem.`);
+    },
+    [pushHistory, refreshLayers],
+  );
 
   const fit = useCallback(() => {
     const canvas = canvasRef.current;
@@ -360,11 +460,15 @@ export function DesignEditor({ design, brand, canWrite }: { design: EditorDesign
       fabric.FabricObject.ownDefaults.transparentCorners = false;
       canvasRef.current = canvas;
 
-      const doc = design.document as { objects?: { fontFamily?: string }[] };
-      await Promise.all((doc.objects ?? []).map((o) => (o.fontFamily ? ensureFont(o.fontFamily) : null)));
+      const { doc, missing } = await withAvailableImages(design.document as SceneDoc);
+      await Promise.all(
+        (doc.objects ?? []).map((o) => (typeof o.fontFamily === "string" ? ensureFont(o.fontFamily) : null)),
+      );
+      if (disposed) return;
       historyRef.current.muted = true;
-      await canvas.loadFromJSON(design.document);
+      await canvas.loadFromJSON(doc);
       historyRef.current.muted = false;
+      if (missing) toast.warning(`${missing} imagem(ns) desta arte não estão mais disponíveis na nuvem.`);
       if (!canWrite) {
         canvas.selection = false;
         canvas.forEachObject((o) => {
@@ -388,6 +492,17 @@ export function DesignEditor({ design, brand, canWrite }: { design: EditorDesign
       pushHistory();
       refreshLayers();
       setReady(true);
+
+      // Alterações que ficaram só neste aparelho (aba fechada, queda de conexão): oferece recuperar.
+      if (canWrite) {
+        const draft = await loadLocalDraft<SceneDoc>(`design:${design.id}`);
+        if (draft?.data && !disposed) {
+          const differs =
+            JSON.stringify(draft.data) !== JSON.stringify(normalizeDoc(canvas.toObject(SERIALIZE_PROPS) as SceneDoc));
+          if (differs) setRecovery(draft);
+          else void clearLocalDraft(`design:${design.id}`);
+        }
+      }
     })();
     return () => {
       disposed = true;
@@ -403,13 +518,44 @@ export function DesignEditor({ design, brand, canWrite }: { design: EditorDesign
     return () => window.removeEventListener("resize", onResize);
   }, [fit]);
 
-  useEffect(() => {
-    const warn = (e: BeforeUnloadEvent) => {
-      if (saveState === "dirty" || saveState === "saving") e.preventDefault();
-    };
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [saveState]);
+  // Conflito detectado pelo salvamento automático: a revisão abre sozinha (até a pessoa fechar).
+  const showConflict = conflictOpen || (autosave.state.status === "conflict" && !conflictDismissed);
+
+  const resolveConflict = async (strategy: "mine" | "theirs") => {
+    const res = await resolveDesignConflictAction(ws.orgSlug, {
+      designId: design.id,
+      strategy,
+      document: serialize(),
+      thumbnail: thumbnailOf(),
+    }).catch(() => null);
+    if (!res?.ok) {
+      toast.error(res && !res.ok ? res.error : "Falha de conexão. Nada foi alterado; tente de novo.");
+      return;
+    }
+    revisionRef.current = res.data.revision;
+    if (strategy === "theirs") await replaceScene(res.data.document as SceneDoc);
+    autosave.conflictResolved({ pending: false });
+    setConflictOpen(false);
+    setConflictDismissed(false);
+    toast.success(
+      strategy === "mine"
+        ? `Suas alterações foram salvas. A outra versão ficou no histórico (versão ${res.data.keptVersion}).`
+        : `Versão salva carregada. Suas alterações ficaram no histórico (versão ${res.data.keptVersion}).`,
+    );
+  };
+
+  /** Antes de versionar ou restaurar: o servidor precisa ter o estado atual. */
+  const prepareForHistory = async () => {
+    if (!canWrite) return true;
+    const st = await autosave.flush();
+    if (st.status === "saved") return true;
+    toast.error(
+      st.status === "conflict"
+        ? "Resolva o conflito de edição antes."
+        : "As últimas alterações ainda não foram salvas. Verifique a conexão e tente de novo.",
+    );
+    return false;
+  };
 
   /* ---------------------------- ações ---------------------------- */
 
@@ -479,12 +625,51 @@ export function DesignEditor({ design, brand, canWrite }: { design: EditorDesign
     add(obj);
   };
 
+  /**
+   * A imagem vai para a nuvem (Arquivos, com o cliente e o projeto da arte) e a
+   * arte guarda só a referência /api/files/<versão> — o banco não carrega a
+   * imagem dentro do documento e o arquivo segue as permissões da central.
+   */
+  const uploadImage = async (file: File) => {
+    const form = new FormData();
+    form.set("orgSlug", ws.orgSlug);
+    form.set("file", file);
+    form.set("category", "general");
+    form.set("tags", "estudio");
+    form.set("source", "editor");
+    form.set("note", `Imagem usada na arte "${name}"`);
+    if (design.clientId) form.set("clientId", design.clientId);
+    if (design.projectId) form.set("projectId", design.projectId);
+    const res = await fetch("/api/uploads", { method: "POST", body: form }).catch(() => null);
+    if (!res) throw new Error("Sem conexão: a imagem não foi enviada.");
+    const data = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      results?: { ok: boolean; versionId?: string; error?: string }[];
+    };
+    const first = data.results?.[0];
+    if (!res.ok || !first?.ok || !first.versionId) {
+      throw new Error(first?.error ?? data.error ?? "Não foi possível enviar a imagem.");
+    }
+    return `/api/files/${first.versionId}`;
+  };
+
   const addImage = async (file: File) => {
     if (!file.type.startsWith("image/")) return toast.error("Escolha um arquivo de imagem.");
     if (file.size > 25 * 1024 * 1024) return toast.error("Imagem muito grande (máx. 25 MB).");
     const fabric = fabricRef.current!;
-    const dataUrl = await fileToDataUrl(file);
-    const img = (await fabric.FabricImage.fromURL(dataUrl)) as FObj;
+    let src: string;
+    const sending = toast.loading("Enviando imagem para a nuvem…");
+    try {
+      // Imagens muito grandes são reduzidas antes (lado máximo 2048 px), como antes.
+      const reduced = await fileToDataUrl(file);
+      const blob = dataUrlToBlob(reduced);
+      src = await uploadImage(new File([blob], file.name, { type: blob.type }));
+    } catch (err) {
+      toast.error((err as Error).message, { id: sending });
+      return;
+    }
+    toast.dismiss(sending);
+    const img = (await fabric.FabricImage.fromURL(src)) as FObj;
     const scale = Math.min((design.width * 0.6) / (img.width ?? 1), (design.height * 0.6) / (img.height ?? 1), 1);
     img.scale(scale);
     img.name = file.name.slice(0, 40);
@@ -577,11 +762,7 @@ export function DesignEditor({ design, brand, canWrite }: { design: EditorDesign
     setSelected(null);
     refreshLayers();
     updateHistoryInfo();
-    if (canWrite) {
-      setSaveState("dirty");
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => void save(), 1200);
-    }
+    if (canWrite) autosave.markDirty();
   };
 
   const undo = () => {
@@ -623,7 +804,8 @@ export function DesignEditor({ design, brand, canWrite }: { design: EditorDesign
   const exportToFiles = async () => {
     setExporting(true);
     try {
-      if (saveState !== "saved") await save();
+      const st = await autosave.flush();
+      if (st.status === "conflict") throw new Error("Resolva o conflito de edição antes de exportar.");
       const blob = dataUrlToBlob(renderFull("png"));
       const form = new FormData();
       form.set("orgSlug", ws.orgSlug);
@@ -688,7 +870,7 @@ export function DesignEditor({ design, brand, canWrite }: { design: EditorDesign
       const mod = e.metaKey || e.ctrlKey;
       if (mod && e.key.toLowerCase() === "s") {
         e.preventDefault();
-        void save();
+        void autosave.flush();
       } else if (mod && e.key.toLowerCase() === "z" && !e.shiftKey) {
         e.preventDefault();
         undo();
@@ -719,14 +901,6 @@ export function DesignEditor({ design, brand, canWrite }: { design: EditorDesign
   /* ---------------------------- interface ---------------------------- */
 
   const isText = selected && (selected.type === "textbox" || selected.type === "i-text" || selected.type === "text");
-  const saveLabel = {
-    saved: "Salvo",
-    dirty: "Alterações não salvas",
-    saving: "Salvando…",
-    error: "Erro ao salvar",
-    conflict: "Conflito: recarregue",
-  }[saveState];
-
   const AddPanel = (
     <div className="grid gap-5">
       <section>
@@ -1108,7 +1282,7 @@ export function DesignEditor({ design, brand, canWrite }: { design: EditorDesign
   );
 
   return (
-    <div className="fixed inset-0 z-[var(--z-overlay)] flex flex-col bg-bg">
+    <div className="fixed inset-0 z-[var(--z-overlay)] flex flex-col bg-bg" data-editor-ready={ready ? "true" : "false"}>
       <input
         ref={fileInputRef}
         type="file"
@@ -1134,25 +1308,22 @@ export function DesignEditor({ design, brand, canWrite }: { design: EditorDesign
           aria-label="Nome da arte"
           className="h-8 w-28 min-w-0 rounded-md border border-transparent bg-transparent px-2 text-sm font-medium hover:border-border focus:border-accent focus:outline-none sm:w-64"
         />
-        <span
-          className={cn(
-            "hidden text-xs sm:inline",
-            saveState === "error" || saveState === "conflict"
-              ? "text-danger"
-              : saveState === "dirty"
-                ? "text-warning"
-                : "text-fg-subtle",
-          )}
-          aria-live="polite"
-        >
-          {canWrite ? saveLabel : "Somente leitura"}
-        </span>
-        {saveState === "conflict" ? (
-          <Button size="xs" variant="secondary" onClick={() => window.location.reload()}>
-            Recarregar
-          </Button>
-        ) : null}
+        {canWrite ? (
+          <SaveIndicator
+            state={autosave.state}
+            onRetry={autosave.retry}
+            onReview={() => setConflictOpen(true)}
+            compact
+          />
+        ) : (
+          <span className="hidden text-xs text-fg-subtle sm:inline">Somente leitura</span>
+        )}
         <span className="flex-1" />
+        <Tooltip content="Histórico de versões">
+          <Button variant="ghost" size="icon-sm" onClick={() => setHistoryOpen(true)} aria-label="Histórico de versões">
+            <History />
+          </Button>
+        </Tooltip>
         {canWrite ? (
           <>
             <Tooltip content="Desfazer (Ctrl+Z)">
@@ -1226,6 +1397,44 @@ export function DesignEditor({ design, brand, canWrite }: { design: EditorDesign
           </Button>
         ) : null}
       </header>
+      {recovery ? (
+        <div
+          role="alert"
+          className="flex flex-col gap-2 border-b border-warning/40 bg-warning-soft px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between"
+        >
+          <span>
+            Há alterações desta arte que não chegaram ao servidor (guardadas neste aparelho às{" "}
+            {new Date(recovery.savedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}).
+          </span>
+          <span className="flex shrink-0 gap-2">
+            <Button
+              size="xs"
+              variant="secondary"
+              onClick={() => {
+                void clearLocalDraft(`design:${design.id}`);
+                setRecovery(null);
+              }}
+            >
+              Descartar
+            </Button>
+            <Button
+              size="xs"
+              variant="primary"
+              onClick={async () => {
+                const draft = recovery;
+                setRecovery(null);
+                await replaceScene(draft.data);
+                // Feitas sobre uma revisão antiga? O servidor acusa o conflito e a pessoa decide.
+                if (draft.baseRevision !== null) revisionRef.current = draft.baseRevision;
+                autosave.markDirty();
+                void autosave.flush();
+              }}
+            >
+              Recuperar alterações
+            </Button>
+          </span>
+        </div>
+      ) : null}
 
       <div className="flex min-h-0 flex-1">
         {canWrite ? (
@@ -1342,6 +1551,27 @@ export function DesignEditor({ design, brand, canWrite }: { design: EditorDesign
           </div>
         </SheetContent>
       </Sheet>
+
+      <DesignHistory
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        designId={design.id}
+        canWrite={canWrite}
+        prepare={prepareForHistory}
+        onRestored={async (r) => {
+          revisionRef.current = r.revision;
+          await replaceScene(r.document as SceneDoc);
+          autosave.markSaved();
+        }}
+      />
+      <DesignConflictDialog
+        open={showConflict}
+        onOpenChange={(v) => {
+          setConflictOpen(v);
+          if (!v) setConflictDismissed(true);
+        }}
+        onResolve={resolveConflict}
+      />
     </div>
   );
 }
