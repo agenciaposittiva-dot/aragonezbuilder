@@ -14,9 +14,11 @@ export function UnderlineTabs({
 }) {
   const pathname = usePathname();
   return (
-    <nav className={cn("-mb-px flex gap-5 overflow-x-auto scrollbar-thin", className)} aria-label="Seções">
+    <nav className={cn("-mb-px flex scrollbar-thin gap-5 overflow-x-auto", className)} aria-label="Seções">
       {items.map((item) => {
-        const active = item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(item.href + "/");
+        const active = item.exact
+          ? pathname === item.href
+          : pathname === item.href || pathname.startsWith(item.href + "/");
         return (
           <Link
             key={item.href}
@@ -29,7 +31,7 @@ export function UnderlineTabs({
           >
             {item.label}
             {item.count !== undefined ? (
-              <span className="rounded-full bg-surface-3 px-1.5 text-[11px] text-fg-muted tabular">{item.count}</span>
+              <span className="tabular rounded-full bg-surface-3 px-1.5 text-[11px] text-fg-muted">{item.count}</span>
             ) : null}
           </Link>
         );

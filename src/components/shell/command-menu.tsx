@@ -70,9 +70,7 @@ export function CommandMenu({ nav, base }: { nav: NavKey; base: string }) {
     router.push(href);
   }
 
-  const navItems = groups
-    .flatMap((g) => g.items)
-    .filter((i) => !i.permission || permissions.includes(i.permission));
+  const navItems = groups.flatMap((g) => g.items).filter((i) => !i.permission || permissions.includes(i.permission));
   const visibleHits = query.trim().length >= 2 ? hits : [];
   const grouped = visibleHits.reduce<Record<string, SearchHit[]>>((acc, h) => {
     (acc[h.type] ??= []).push(h);
@@ -99,7 +97,7 @@ export function CommandMenu({ nav, base }: { nav: NavKey; base: string }) {
               />
               <Kbd>Esc</Kbd>
             </div>
-            <Command.List className="max-h-[min(60vh,420px)] overflow-y-auto p-2 scrollbar-thin">
+            <Command.List className="max-h-[min(60vh,420px)] scrollbar-thin overflow-y-auto p-2">
               {query.trim().length >= 2 && !pending && visibleHits.length === 0 ? (
                 <Command.Empty className="px-3 py-8 text-center text-sm text-fg-muted">
                   Nada encontrado para “{query.trim()}”.
@@ -123,7 +121,9 @@ export function CommandMenu({ nav, base }: { nav: NavKey; base: string }) {
                         <Icon className="size-4 shrink-0 text-fg-subtle" />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-fg">{h.title}</span>
-                          {h.subtitle ? <span className="block truncate text-xs text-fg-muted">{h.subtitle}</span> : null}
+                          {h.subtitle ? (
+                            <span className="block truncate text-xs text-fg-muted">{h.subtitle}</span>
+                          ) : null}
                         </span>
                         <CornerDownLeft className="size-3.5 text-fg-subtle opacity-0 [[data-selected=true]_&]:opacity-100" />
                       </Command.Item>

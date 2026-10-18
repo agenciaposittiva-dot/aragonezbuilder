@@ -1,15 +1,7 @@
 import { and, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
 import type { Permission } from "@/lib/permissions";
 import { withOrg, type Tx } from "@/server/db";
-import {
-  clientMembers,
-  clients,
-  files,
-  projectMembers,
-  projects,
-  taskCollaborators,
-  tasks,
-} from "@/server/db/schema";
+import { clientMembers, clients, files, projectMembers, projects, taskCollaborators, tasks } from "@/server/db/schema";
 import { ForbiddenError, NotFoundError } from "@/server/errors";
 import type { Actor } from "./actor";
 

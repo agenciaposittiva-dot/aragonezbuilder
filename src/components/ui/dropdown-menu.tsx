@@ -40,7 +40,11 @@ export function DropdownMenuItem({
 }: React.ComponentProps<typeof Primitive.Item> & { variant?: "danger" }) {
   return (
     <Primitive.Item
-      className={cn(itemBase, variant === "danger" && "text-danger [&_svg]:text-danger data-[highlighted]:bg-danger-soft", className)}
+      className={cn(
+        itemBase,
+        variant === "danger" && "text-danger data-[highlighted]:bg-danger-soft [&_svg]:text-danger",
+        className,
+      )}
       {...props}
     />
   );

@@ -34,8 +34,22 @@ export const WORKSPACE_NAV: NavGroup[] = [
     items: [
       { key: "home", label: "Início", path: "", icon: Home },
       { key: "tasks", label: "Tarefas", path: "/tasks", icon: ListChecks, permission: "tasks.read" },
-      { key: "requests", label: "Solicitações", path: "/requests", icon: Inbox, permission: "requests.read", badgeKey: "requests" },
-      { key: "approvals", label: "Aprovações", path: "/approvals", icon: CheckCheck, permission: "files.read", badgeKey: "approvals" },
+      {
+        key: "requests",
+        label: "Solicitações",
+        path: "/requests",
+        icon: Inbox,
+        permission: "requests.read",
+        badgeKey: "requests",
+      },
+      {
+        key: "approvals",
+        label: "Aprovações",
+        path: "/approvals",
+        icon: CheckCheck,
+        permission: "files.read",
+        badgeKey: "approvals",
+      },
     ],
   },
   {
@@ -64,7 +78,14 @@ export const PORTAL_NAV: NavGroup[] = [
   {
     items: [
       { key: "home", label: "Início", path: "", icon: Home },
-      { key: "approvals", label: "Aprovações", path: "/approvals", icon: CheckCheck, permission: "approvals.decide_client", badgeKey: "approvals" },
+      {
+        key: "approvals",
+        label: "Aprovações",
+        path: "/approvals",
+        icon: CheckCheck,
+        permission: "approvals.decide_client",
+        badgeKey: "approvals",
+      },
       { key: "requests", label: "Solicitações", path: "/requests", icon: Inbox, permission: "requests.read" },
       { key: "projects", label: "Projetos", path: "/projects", icon: FolderKanban, permission: "projects.read" },
       { key: "files", label: "Materiais", path: "/files", icon: FolderOpen, permission: "files.read" },

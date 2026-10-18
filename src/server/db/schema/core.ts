@@ -44,7 +44,10 @@ export const roles = pgTable(
     name: text().notNull(),
     description: text(),
     kind: roleKind().notNull().default("internal"),
-    permissions: text().array().notNull().default(sql`'{}'::text[]`),
+    permissions: text()
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     isSystem: boolean().notNull().default(false),
     ...timestamps,
   },
@@ -66,7 +69,10 @@ export const memberships = pgTable(
     roleId: uuid().notNull(),
     status: membershipStatus().notNull().default("active"),
     jobTitle: text(),
-    specialties: text().array().notNull().default(sql`'{}'::text[]`),
+    specialties: text()
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     /** Capacidade semanal em minutos (para carga de trabalho). */
     weeklyCapacityMinutes: integer().notNull().default(2400),
     /** Custo interno por hora em centavos. Visível apenas com `costs.read`. */
@@ -94,7 +100,10 @@ export const invitations = pgTable(
     email: text().notNull(),
     roleId: uuid().notNull(),
     /** Para convites de clientes: os clientes que o usuário poderá acessar. */
-    clientIds: uuid().array().notNull().default(sql`'{}'::uuid[]`),
+    clientIds: uuid()
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
     tokenHash: text().notNull().unique(),
     invitedByUserId: text().references(() => user.id, { onDelete: "set null" }),
     expiresAt: tstz().notNull(),
@@ -238,7 +247,9 @@ export const domainEvents = pgTable(
     lastError: text(),
   },
   (t) => [
-    index("domain_events_pending").on(t.createdAt).where(sql`${t.processedAt} is null`),
+    index("domain_events_pending")
+      .on(t.createdAt)
+      .where(sql`${t.processedAt} is null`),
     index().on(t.organizationId, t.type, t.createdAt.desc()),
   ],
 );

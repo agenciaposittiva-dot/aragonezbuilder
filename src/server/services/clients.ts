@@ -21,6 +21,7 @@ import {
   user,
 } from "@/server/db/schema";
 import { assertCan, assertClientAccess, assertInternal, can, clientScope, type Scope } from "@/server/authz";
+import { inSequence } from "@/server/db/sequence";
 import { NotFoundError } from "@/server/errors";
 import { diff, recordActivity } from "./activity";
 import { assertActiveMembers } from "./members";
@@ -34,7 +35,9 @@ export async function listClients(s: Scope, raw: z.input<typeof clientListParams
     clientScope(s.actor),
     p.archived ? isNotNull(clients.archivedAt) : isNull(clients.archivedAt),
     p.status ? eq(clients.status, p.status) : undefined,
-    p.q ? or(ilike(clients.name, ESC(p.q)), ilike(clients.legalName, ESC(p.q)), ilike(clients.document, ESC(p.q))) : undefined,
+    p.q
+      ? or(ilike(clients.name, ESC(p.q)), ilike(clients.legalName, ESC(p.q)), ilike(clients.document, ESC(p.q)))
+      : undefined,
   );
 
   const lead = s.db
@@ -49,29 +52,30 @@ export async function listClients(s: Scope, raw: z.input<typeof clientListParams
     .where(eq(clientMembers.role, "lead"))
     .as("lead");
 
-  const [rows, [total]] = await Promise.all([
-    s.db
-      .select({
-        id: clients.id,
-        name: clients.name,
-        industry: clients.industry,
-        status: clients.status,
-        email: clients.email,
-        archivedAt: clients.archivedAt,
-        createdAt: clients.createdAt,
-        leadName: lead.name,
-        leadImage: lead.image,
-        activeProjects: sql<number>`(select count(*)::int from ${projects} where ${projects.clientId} = ${clients.id} and ${projects.archivedAt} is null and ${projects.completedAt} is null)`,
-        openRequests: sql<number>`(select count(*)::int from ${requests} where ${requests.clientId} = ${clients.id} and ${requests.status} in ('submitted','triage','in_progress'))`,
-      })
-      .from(clients)
-      .leftJoin(lead, eq(lead.clientId, clients.id))
-      .where(where)
-      .orderBy(asc(clients.name))
-      .limit(p.pageSize)
-      .offset((p.page - 1) * p.pageSize),
-    s.db.select({ n: count() }).from(clients).where(where),
-  ]);
+  const [rows, [total]] = await inSequence(
+    () =>
+      s.db
+        .select({
+          id: clients.id,
+          name: clients.name,
+          industry: clients.industry,
+          status: clients.status,
+          email: clients.email,
+          archivedAt: clients.archivedAt,
+          createdAt: clients.createdAt,
+          leadName: lead.name,
+          leadImage: lead.image,
+          activeProjects: sql<number>`(select count(*)::int from ${projects} where ${projects.clientId} = ${clients.id} and ${projects.archivedAt} is null and ${projects.completedAt} is null)`,
+          openRequests: sql<number>`(select count(*)::int from ${requests} where ${requests.clientId} = ${clients.id} and ${requests.status} in ('submitted','triage','in_progress'))`,
+        })
+        .from(clients)
+        .leftJoin(lead, eq(lead.clientId, clients.id))
+        .where(where)
+        .orderBy(asc(clients.name))
+        .limit(p.pageSize)
+        .offset((p.page - 1) * p.pageSize),
+    () => s.db.select({ n: count() }).from(clients).where(where),
+  );
   return { rows, total: total?.n ?? 0, page: p.page, pageSize: p.pageSize };
 }
 
@@ -92,34 +96,46 @@ export async function getClient(s: Scope, id: string) {
   if (!client) throw new NotFoundError("Cliente não encontrado.");
 
   const internal = s.actor.kind === "internal";
-  const [contacts, team, services, [brand]] = await Promise.all([
-    internal
-      ? s.db.select().from(clientContacts).where(eq(clientContacts.clientId, id)).orderBy(desc(clientContacts.isPrimary), asc(clientContacts.name))
-      : Promise.resolve([]),
-    s.db
-      .select({
-        membershipId: clientMembers.membershipId,
-        role: clientMembers.role,
-        name: user.name,
-        email: user.email,
-        image: user.image,
-        jobTitle: memberships.jobTitle,
-      })
-      .from(clientMembers)
-      .innerJoin(memberships, eq(memberships.id, clientMembers.membershipId))
-      .innerJoin(user, eq(user.id, memberships.userId))
-      .where(eq(clientMembers.clientId, id))
-      .orderBy(asc(clientMembers.role), asc(user.name)),
-    internal ? s.db.select().from(clientServices).where(eq(clientServices.clientId, id)).orderBy(asc(clientServices.name)) : Promise.resolve([]),
-    s.db.select().from(brandProfiles).where(eq(brandProfiles.clientId, id)),
-  ]);
+  const [contacts, team, services, [brand]] = await inSequence(
+    () =>
+      internal
+        ? s.db
+            .select()
+            .from(clientContacts)
+            .where(eq(clientContacts.clientId, id))
+            .orderBy(desc(clientContacts.isPrimary), asc(clientContacts.name))
+        : Promise.resolve([]),
+    () =>
+      s.db
+        .select({
+          membershipId: clientMembers.membershipId,
+          role: clientMembers.role,
+          name: user.name,
+          email: user.email,
+          image: user.image,
+          jobTitle: memberships.jobTitle,
+        })
+        .from(clientMembers)
+        .innerJoin(memberships, eq(memberships.id, clientMembers.membershipId))
+        .innerJoin(user, eq(user.id, memberships.userId))
+        .where(eq(clientMembers.clientId, id))
+        .orderBy(asc(clientMembers.role), asc(user.name)),
+    () =>
+      internal
+        ? s.db.select().from(clientServices).where(eq(clientServices.clientId, id)).orderBy(asc(clientServices.name))
+        : Promise.resolve([]),
+    () => s.db.select().from(brandProfiles).where(eq(brandProfiles.clientId, id)),
+  );
 
   const showMoney = can(s.actor, "finance.read");
   return {
     client: internal ? client : { ...client, notesInternal: null, document: null },
     contacts,
     team,
-    services: services.map((sv) => ({ ...sv, amountCents: showMoney ? sv.amountCents : null })),
+    services: services.map((sv) => ({
+      ...sv,
+      amountCents: showMoney ? sv.amountCents : null,
+    })),
     brand: brand ?? null,
   };
 }
@@ -151,7 +167,12 @@ export async function createClient(s: Scope, raw: z.input<typeof clientInput>) {
 
   await s.db.insert(brandProfiles).values({ clientId: id, organizationId: s.actor.orgId });
   const lead = data.leadMembershipId ?? s.actor.membershipId;
-  await s.db.insert(clientMembers).values({ organizationId: s.actor.orgId, clientId: id, membershipId: lead, role: "lead" });
+  await s.db.insert(clientMembers).values({
+    organizationId: s.actor.orgId,
+    clientId: id,
+    membershipId: lead,
+    role: "lead",
+  });
 
   await recordActivity(s, {
     action: "created",
@@ -194,8 +215,16 @@ export async function updateClient(s: Scope, id: string, raw: z.input<typeof cli
       .where(and(eq(clientMembers.clientId, id), eq(clientMembers.role, "lead")));
     await s.db
       .insert(clientMembers)
-      .values({ organizationId: s.actor.orgId, clientId: id, membershipId: data.leadMembershipId, role: "lead" })
-      .onConflictDoUpdate({ target: [clientMembers.clientId, clientMembers.membershipId], set: { role: "lead" } });
+      .values({
+        organizationId: s.actor.orgId,
+        clientId: id,
+        membershipId: data.leadMembershipId,
+        role: "lead",
+      })
+      .onConflictDoUpdate({
+        target: [clientMembers.clientId, clientMembers.membershipId],
+        set: { role: "lead" },
+      });
   }
 
   if (Object.keys(changes).length) {
@@ -254,7 +283,11 @@ export async function saveContact(s: Scope, raw: z.input<typeof contactInput>) {
   } else {
     const [row] = await s.db
       .insert(clientContacts)
-      .values({ ...values, organizationId: s.actor.orgId, clientId: data.clientId })
+      .values({
+        ...values,
+        organizationId: s.actor.orgId,
+        clientId: data.clientId,
+      })
       .returning({ id: clientContacts.id });
     id = row!.id;
   }
@@ -349,7 +382,11 @@ export async function saveService(s: Scope, raw: z.input<typeof serviceInput>) {
   } else {
     const [row] = await s.db
       .insert(clientServices)
-      .values({ ...values, organizationId: s.actor.orgId, clientId: data.clientId })
+      .values({
+        ...values,
+        organizationId: s.actor.orgId,
+        clientId: data.clientId,
+      })
       .returning({ id: clientServices.id });
     id = row!.id;
   }
@@ -442,4 +479,38 @@ export async function clientHistory(s: Scope, clientId: string, limit = 50) {
     )
     .orderBy(desc(auditLogs.createdAt))
     .limit(limit);
+}
+
+/* Indicadores -------------------------------------------------------- */
+
+export async function clientStats(s: Scope, clientId: string) {
+  assertCan(s.actor, "clients.read");
+  await assertClientAccess(s, clientId);
+  const [row] = await s.db
+    .execute<{
+      active_projects: number;
+      done_projects: number;
+      open_requests: number;
+      overdue_tasks: number;
+      pending_approvals: number;
+    }>(
+      sql`
+    select
+      (select count(*)::int from ${projects} p where p.client_id = ${clientId} and p.archived_at is null and p.completed_at is null) as active_projects,
+      (select count(*)::int from ${projects} p where p.client_id = ${clientId} and p.completed_at is not null) as done_projects,
+      (select count(*)::int from ${requests} r where r.client_id = ${clientId} and r.status in ('submitted','triage','in_progress')) as open_requests,
+      (select count(*)::int from tasks t join ${projects} p on p.id = t.project_id
+        where p.client_id = ${clientId} and t.completed_at is null and t.archived_at is null and t.due_date < current_date) as overdue_tasks,
+      (select count(*)::int from approvals a join files f on f.id = a.file_id
+        where f.client_id = ${clientId} and a.status = 'pending') as pending_approvals
+  `,
+    )
+    .then((r) => r.rows);
+  return {
+    activeProjects: row?.active_projects ?? 0,
+    doneProjects: row?.done_projects ?? 0,
+    openRequests: row?.open_requests ?? 0,
+    overdueTasks: row?.overdue_tasks ?? 0,
+    pendingApprovals: row?.pending_approvals ?? 0,
+  };
 }

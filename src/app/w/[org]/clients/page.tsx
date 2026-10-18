@@ -58,7 +58,11 @@ export default async function ClientsPage({ params, searchParams }: PageProps<"/
       >
         <FilterBar>
           <SearchFilter placeholder="Buscar por nome ou documento" />
-          <SelectFilter param="status" label="Status" options={CLIENT_STATUS.map((st) => ({ value: st, label: CLIENT_STATUS_LABEL[st] }))} />
+          <SelectFilter
+            param="status"
+            label="Status"
+            options={CLIENT_STATUS.map((st) => ({ value: st, label: CLIENT_STATUS_LABEL[st] }))}
+          />
           <SelectFilter param="archived" label="Ativos" options={[{ value: "1", label: "Arquivados" }]} />
           <ClearFilters keys={["q", "status", "archived"]} />
         </FilterBar>
@@ -69,10 +73,21 @@ export default async function ClientsPage({ params, searchParams }: PageProps<"/
           <EmptyState
             icon={Users2}
             title={filtered ? "Nenhum cliente encontrado" : "Nenhum cliente cadastrado"}
-            description={filtered ? "Ajuste a busca ou os filtros." : "Cadastre o primeiro cliente para organizar projetos, solicitações e materiais."}
+            description={
+              filtered
+                ? "Ajuste a busca ou os filtros."
+                : "Cadastre o primeiro cliente para organizar projetos, solicitações e materiais."
+            }
             action={
               !filtered && canWrite ? (
-                <ClientFormDialog members={members} trigger={<Button variant="primary"><Plus /> Novo cliente</Button>} />
+                <ClientFormDialog
+                  members={members}
+                  trigger={
+                    <Button variant="primary">
+                      <Plus /> Novo cliente
+                    </Button>
+                  }
+                />
               ) : null
             }
           />
@@ -92,7 +107,10 @@ export default async function ClientsPage({ params, searchParams }: PageProps<"/
                 {list.rows.map((c) => (
                   <TR key={c.id} className="relative">
                     <TD>
-                      <Link href={`${base}/clients/${c.id}`} className="flex items-center gap-3 after:absolute after:inset-0">
+                      <Link
+                        href={`${base}/clients/${c.id}`}
+                        className="flex items-center gap-3 after:absolute after:inset-0"
+                      >
                         <Avatar name={c.name} square size="md" />
                         <span className="min-w-0">
                           <span className="block truncate font-medium text-fg">{c.name}</span>
@@ -113,13 +131,19 @@ export default async function ClientsPage({ params, searchParams }: PageProps<"/
                     <TD>
                       <ClientStatusBadge status={c.status} />
                     </TD>
-                    <TD className="hidden text-right tabular sm:table-cell">{c.activeProjects}</TD>
-                    <TD className="hidden text-right tabular lg:table-cell">{c.openRequests}</TD>
+                    <TD className="tabular hidden text-right sm:table-cell">{c.activeProjects}</TD>
+                    <TD className="tabular hidden text-right lg:table-cell">{c.openRequests}</TD>
                   </TR>
                 ))}
               </TBody>
             </Table>
-            <Pagination page={list.page} pageSize={list.pageSize} total={list.total} searchParams={sp} basePath={`${base}/clients`} />
+            <Pagination
+              page={list.page}
+              pageSize={list.pageSize}
+              total={list.total}
+              searchParams={sp}
+              basePath={`${base}/clients`}
+            />
           </>
         )}
       </Card>

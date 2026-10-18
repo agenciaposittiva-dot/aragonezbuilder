@@ -26,9 +26,7 @@ export function LoginForm({ next, reset }: { next: string; reset?: boolean }) {
     setLoading(false);
     if (error) {
       setError(
-        error.status === 429
-          ? "Muitas tentativas. Aguarde um minuto e tente de novo."
-          : "E-mail ou senha incorretos.",
+        error.status === 429 ? "Muitas tentativas. Aguarde um minuto e tente de novo." : "E-mail ou senha incorretos.",
       );
       return;
     }

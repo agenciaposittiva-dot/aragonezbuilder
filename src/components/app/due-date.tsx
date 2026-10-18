@@ -3,7 +3,17 @@ import { formatShortDate, todayISO } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /** Prazo com destaque para atrasado / hoje. */
-export function DueDate({ date, done, className, icon = true }: { date: string | null; done?: boolean; className?: string; icon?: boolean }) {
+export function DueDate({
+  date,
+  done,
+  className,
+  icon = true,
+}: {
+  date: string | null;
+  done?: boolean;
+  className?: string;
+  icon?: boolean;
+}) {
   if (!date) return <span className={cn("text-xs text-fg-subtle", className)}>—</span>;
   const today = todayISO();
   const overdue = !done && date < today;
@@ -11,7 +21,7 @@ export function DueDate({ date, done, className, icon = true }: { date: string |
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 text-xs tabular",
+        "tabular inline-flex items-center gap-1 text-xs",
         overdue ? "font-medium text-danger" : isToday ? "font-medium text-warning" : "text-fg-muted",
         className,
       )}

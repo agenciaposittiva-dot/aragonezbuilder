@@ -28,7 +28,13 @@ export function Avatar({
   className?: string;
   square?: boolean;
 }) {
-  const dims = { xs: "size-5 text-[9px]", sm: "size-6 text-[10px]", md: "size-8 text-xs", lg: "size-10 text-sm", xl: "size-14 text-base" }[size];
+  const dims = {
+    xs: "size-5 text-[9px]",
+    sm: "size-6 text-[10px]",
+    md: "size-8 text-xs",
+    lg: "size-10 text-sm",
+    xl: "size-14 text-base",
+  }[size];
   const color = PALETTE[hash(name ?? "") % PALETTE.length];
   return (
     <span

@@ -88,7 +88,10 @@ export const files = pgTable(
     name: text().notNull(),
     description: text(),
     category: fileCategory().notNull().default("general"),
-    tags: text().array().notNull().default(sql`'{}'::text[]`),
+    tags: text()
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     status: fileStatus().notNull().default("draft"),
     /** Só arquivos compartilhados explicitamente aparecem para o cliente. */
     sharedWithClient: boolean().notNull().default(false),

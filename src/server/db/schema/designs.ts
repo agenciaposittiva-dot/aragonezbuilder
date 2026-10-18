@@ -1,15 +1,5 @@
 import { sql } from "drizzle-orm";
-import {
-  boolean,
-  foreignKey,
-  index,
-  integer,
-  jsonb,
-  pgTable,
-  text,
-  unique,
-  uuid,
-} from "drizzle-orm/pg-core";
+import { boolean, foreignKey, index, integer, jsonb, pgTable, text, unique, uuid } from "drizzle-orm/pg-core";
 import { id, timestamps, tstz } from "./_helpers";
 import { user } from "./auth";
 import { clients } from "./clients";

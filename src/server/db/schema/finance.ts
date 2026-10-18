@@ -1,16 +1,5 @@
 import { sql } from "drizzle-orm";
-import {
-  check,
-  date,
-  foreignKey,
-  index,
-  integer,
-  pgEnum,
-  pgTable,
-  text,
-  unique,
-  uuid,
-} from "drizzle-orm/pg-core";
+import { check, date, foreignKey, index, integer, pgEnum, pgTable, text, unique, uuid } from "drizzle-orm/pg-core";
 import { id, timestamps, tstz } from "./_helpers";
 import { user } from "./auth";
 import { clients, clientServices } from "./clients";

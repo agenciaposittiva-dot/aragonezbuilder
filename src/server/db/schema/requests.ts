@@ -29,15 +29,7 @@ export const briefingCategory = pgEnum("briefing_category", [
   "other",
 ]);
 
-export type BriefingFieldType =
-  | "text"
-  | "textarea"
-  | "number"
-  | "date"
-  | "url"
-  | "select"
-  | "multiselect"
-  | "checkbox";
+export type BriefingFieldType = "text" | "textarea" | "number" | "date" | "url" | "select" | "multiselect" | "checkbox";
 
 export type BriefingField = {
   key: string;

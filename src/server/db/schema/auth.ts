@@ -106,5 +106,9 @@ export const emailOutbox = pgTable(
     sentAt: timestamp({ withTimezone: true }),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("email_outbox_pending").on(t.createdAt).where(sql`${t.sentAt} is null`)],
+  (t) => [
+    index("email_outbox_pending")
+      .on(t.createdAt)
+      .where(sql`${t.sentAt} is null`),
+  ],
 );

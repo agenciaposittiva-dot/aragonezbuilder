@@ -26,7 +26,11 @@ export function Field({
       {label ? (
         <Label htmlFor={htmlFor}>
           {label}
-          {required ? <span className="ml-0.5 text-danger" aria-hidden="true">*</span> : null}
+          {required ? (
+            <span className="ml-0.5 text-danger" aria-hidden="true">
+              *
+            </span>
+          ) : null}
         </Label>
       ) : null}
       {children}

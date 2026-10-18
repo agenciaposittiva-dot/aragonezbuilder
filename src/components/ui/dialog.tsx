@@ -39,11 +39,11 @@ export function DialogContent({
 }
 
 export function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
-  return <div className={cn("grid gap-1 border-b border-border px-5 pt-5 pb-4 pr-12", className)} {...props} />;
+  return <div className={cn("grid gap-1 border-b border-border px-5 pt-5 pr-12 pb-4", className)} {...props} />;
 }
 
 export function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
-  return <div className={cn("min-h-0 flex-1 overflow-y-auto px-5 py-4 scrollbar-thin", className)} {...props} />;
+  return <div className={cn("min-h-0 flex-1 scrollbar-thin overflow-y-auto px-5 py-4", className)} {...props} />;
 }
 
 export function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {

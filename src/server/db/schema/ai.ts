@@ -1,14 +1,4 @@
-import {
-  foreignKey,
-  index,
-  integer,
-  jsonb,
-  pgEnum,
-  pgTable,
-  text,
-  timestamp,
-  uuid,
-} from "drizzle-orm/pg-core";
+import { foreignKey, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { createdAt, id } from "./_helpers";
 import { user } from "./auth";
 import { clients } from "./clients";

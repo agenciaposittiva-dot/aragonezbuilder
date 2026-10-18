@@ -85,7 +85,12 @@ export function formatBytes(bytes: number): string {
 
 /** Data de hoje (YYYY-MM-DD) no fuso da agência. */
 export function todayISO(): string {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
   return parts;
 }
 

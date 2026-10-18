@@ -53,10 +53,7 @@ export const comments = pgTable(
       columns: [t.organizationId, t.fileVersionId],
       foreignColumns: [fileVersions.organizationId, fileVersions.id],
     }).onDelete("cascade"),
-    check(
-      "comments_single_target",
-      sql`num_nonnulls(${t.projectId}, ${t.taskId}, ${t.requestId}, ${t.fileId}) = 1`,
-    ),
+    check("comments_single_target", sql`num_nonnulls(${t.projectId}, ${t.taskId}, ${t.requestId}, ${t.fileId}) = 1`),
     index().on(t.projectId, t.createdAt),
     index().on(t.taskId, t.createdAt),
     index().on(t.requestId, t.createdAt),

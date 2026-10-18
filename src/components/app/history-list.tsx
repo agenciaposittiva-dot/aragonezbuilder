@@ -40,14 +40,28 @@ function show(v: unknown) {
 /** Linha do tempo de auditoria (quem fez o quê e quando). */
 export function HistoryList({ entries }: { entries: Entry[] }) {
   if (!entries.length) {
-    return <EmptyState compact icon={History} title="Sem histórico ainda" description="As alterações relevantes aparecem aqui." />;
+    return (
+      <EmptyState
+        compact
+        icon={History}
+        title="Sem histórico ainda"
+        description="As alterações relevantes aparecem aqui."
+      />
+    );
   }
   return (
     <ol className="relative grid gap-0">
       {entries.map((e, i) => (
         <li key={e.id} className="relative flex gap-3 pb-5 last:pb-0">
-          {i < entries.length - 1 ? <span className="absolute top-7 bottom-0 left-3 w-px bg-border" aria-hidden="true" /> : null}
-          <Avatar name={e.actorName ?? "Sistema"} src={e.actorImage} size="sm" className="relative z-10 ring-4 ring-surface" />
+          {i < entries.length - 1 ? (
+            <span className="absolute top-7 bottom-0 left-3 w-px bg-border" aria-hidden="true" />
+          ) : null}
+          <Avatar
+            name={e.actorName ?? "Sistema"}
+            src={e.actorImage}
+            size="sm"
+            className="relative z-10 ring-4 ring-surface"
+          />
           <div className="min-w-0 flex-1 pt-0.5">
             <p className="text-sm text-fg">
               <span className="font-medium">{e.actorName ?? "Sistema"}</span>{" "}
@@ -59,7 +73,8 @@ export function HistoryList({ entries }: { entries: Entry[] }) {
                   .slice(0, 6)
                   .map(([k, c]) => (
                     <li key={k}>
-                      <span className="text-fg-subtle">{FIELD_LABEL[k] ?? k}:</span> {show(c.from)} → <span className="text-fg">{show(c.to)}</span>
+                      <span className="text-fg-subtle">{FIELD_LABEL[k] ?? k}:</span> {show(c.from)} →{" "}
+                      <span className="text-fg">{show(c.to)}</span>
                     </li>
                   ))}
               </ul>

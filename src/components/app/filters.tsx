@@ -7,7 +7,15 @@ import { fieldBase } from "@/components/ui/input";
 import { useSearchParamsState } from "@/hooks/use-search-params-state";
 import { cn } from "@/lib/utils";
 
-export function SearchFilter({ placeholder = "Buscar…", param = "q", className }: { placeholder?: string; param?: string; className?: string }) {
+export function SearchFilter({
+  placeholder = "Buscar…",
+  param = "q",
+  className,
+}: {
+  placeholder?: string;
+  param?: string;
+  className?: string;
+}) {
   const { params, set } = useSearchParamsState();
   const urlValue = params.get(param) ?? "";
   const [value, setValue] = useState(urlValue);
@@ -75,7 +83,11 @@ export function SelectFilter({
           </option>
         ))}
       </select>
-      <svg aria-hidden="true" viewBox="0 0 16 16" className="pointer-events-none absolute top-1/2 right-2 size-3.5 -translate-y-1/2 text-fg-subtle">
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 16 16"
+        className="pointer-events-none absolute top-1/2 right-2 size-3.5 -translate-y-1/2 text-fg-subtle"
+      >
         <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
       </svg>
     </div>

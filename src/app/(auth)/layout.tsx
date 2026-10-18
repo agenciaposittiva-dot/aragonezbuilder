@@ -13,19 +13,21 @@ export default function AuthLayout({ children }: LayoutProps<"/">) {
             Da solicitação à entrega aprovada, com cada etapa registrada.
           </p>
           <p className="mt-3 text-sm leading-relaxed text-sidebar-muted">
-            Clientes, briefings, produção, aprovações por versão, arquivos, IA e financeiro no mesmo lugar, com
-            acesso exclusivo para os seus clientes.
+            Clientes, briefings, produção, aprovações por versão, arquivos, IA e financeiro no mesmo lugar, com acesso
+            exclusivo para os seus clientes.
           </p>
         </div>
         <ul className="relative z-10 grid gap-2 text-sm text-sidebar-muted">
-          {["Aprovação vinculada a cada versão do arquivo", "Dados isolados por agência e por cliente", "Rentabilidade por projeto a partir das horas registradas"].map(
-            (t) => (
-              <li key={t} className="flex items-center gap-2">
-                <span className="size-1.5 rounded-full bg-accent" aria-hidden="true" />
-                {t}
-              </li>
-            ),
-          )}
+          {[
+            "Aprovação vinculada a cada versão do arquivo",
+            "Dados isolados por agência e por cliente",
+            "Rentabilidade por projeto a partir das horas registradas",
+          ].map((t) => (
+            <li key={t} className="flex items-center gap-2">
+              <span className="size-1.5 rounded-full bg-accent" aria-hidden="true" />
+              {t}
+            </li>
+          ))}
         </ul>
         <div
           aria-hidden="true"

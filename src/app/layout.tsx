@@ -8,7 +8,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: { default: APP_NAME, template: `%s · ${APP_NAME}` },
-  description: "Plataforma de gestão para agências de marketing: clientes, projetos, aprovações, arquivos, IA e financeiro.",
+  description:
+    "Plataforma de gestão para agências de marketing: clientes, projetos, aprovações, arquivos, IA e financeiro.",
   robots: { index: false, follow: false },
 };
 

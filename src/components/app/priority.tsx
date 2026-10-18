@@ -11,7 +11,12 @@ const META = {
 
 export function PriorityIcon({ priority, className }: { priority: keyof typeof META; className?: string }) {
   const m = META[priority];
-  return <m.icon className={cn("size-3.5 shrink-0", m.cls, className)} aria-label={`Prioridade ${PRIORITY_LABEL[priority]}`} />;
+  return (
+    <m.icon
+      className={cn("size-3.5 shrink-0", m.cls, className)}
+      aria-label={`Prioridade ${PRIORITY_LABEL[priority]}`}
+    />
+  );
 }
 
 export function PriorityLabel({ priority }: { priority: keyof typeof META }) {
@@ -24,4 +29,7 @@ export function PriorityLabel({ priority }: { priority: keyof typeof META }) {
   );
 }
 
-export const PRIORITY_OPTIONS = (["urgent", "high", "medium", "low"] as const).map((p) => ({ value: p, label: PRIORITY_LABEL[p]! }));
+export const PRIORITY_OPTIONS = (["urgent", "high", "medium", "low"] as const).map((p) => ({
+  value: p,
+  label: PRIORITY_LABEL[p]!,
+}));

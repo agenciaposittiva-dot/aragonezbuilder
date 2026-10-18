@@ -15,11 +15,7 @@ export async function enqueueEmail(message: EmailMessage, tx?: Tx) {
 }
 
 function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
 /** Layout simples e legível em qualquer cliente de e-mail. */

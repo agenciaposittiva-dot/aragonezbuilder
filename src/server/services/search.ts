@@ -25,12 +25,24 @@ export async function globalSearch(s: Scope, rawQuery: string): Promise<SearchHi
 
   if (can(s.actor, "clients.read") && internal) {
     const rows = await s.db
-      .select({ id: clients.id, name: clients.name, industry: clients.industry })
+      .select({
+        id: clients.id,
+        name: clients.name,
+        industry: clients.industry,
+      })
       .from(clients)
       .where(and(isNull(clients.archivedAt), ilike(clients.name, like), clientScope(s.actor)))
       .orderBy(clients.name)
       .limit(5);
-    hits.push(...rows.map((r) => ({ type: "client" as const, id: r.id, title: r.name, subtitle: r.industry, href: `${base}/clients/${r.id}` })));
+    hits.push(
+      ...rows.map((r) => ({
+        type: "client" as const,
+        id: r.id,
+        title: r.name,
+        subtitle: r.industry,
+        href: `${base}/clients/${r.id}`,
+      })),
+    );
   }
 
   if (can(s.actor, "projects.read")) {
@@ -41,7 +53,15 @@ export async function globalSearch(s: Scope, rawQuery: string): Promise<SearchHi
       .where(and(isNull(projects.archivedAt), ilike(projects.name, like), projectScope(s.actor)))
       .orderBy(desc(projects.updatedAt))
       .limit(5);
-    hits.push(...rows.map((r) => ({ type: "project" as const, id: r.id, title: r.name, subtitle: r.client, href: `${base}/projects/${r.id}` })));
+    hits.push(
+      ...rows.map((r) => ({
+        type: "project" as const,
+        id: r.id,
+        title: r.name,
+        subtitle: r.client,
+        href: `${base}/projects/${r.id}`,
+      })),
+    );
   }
 
   if (can(s.actor, "tasks.read") && internal) {
@@ -52,18 +72,34 @@ export async function globalSearch(s: Scope, rawQuery: string): Promise<SearchHi
       .where(and(isNull(tasks.archivedAt), ilike(tasks.title, like), taskScope(s.actor)))
       .orderBy(desc(tasks.updatedAt))
       .limit(6);
-    hits.push(...rows.map((r) => ({ type: "task" as const, id: r.id, title: r.title, subtitle: r.project, href: `${base}/tasks/${r.id}` })));
+    hits.push(
+      ...rows.map((r) => ({
+        type: "task" as const,
+        id: r.id,
+        title: r.title,
+        subtitle: r.project,
+        href: `${base}/tasks/${r.id}`,
+      })),
+    );
   }
 
   if (can(s.actor, "requests.read")) {
     const asNumber = Number(q.replace(/^#/, ""));
     const rows = await s.db
-      .select({ id: requests.id, title: requests.title, number: requests.number, client: clients.name })
+      .select({
+        id: requests.id,
+        title: requests.title,
+        number: requests.number,
+        client: clients.name,
+      })
       .from(requests)
       .innerJoin(clients, eq(clients.id, requests.clientId))
       .where(
         and(
-          or(ilike(requests.title, like), Number.isInteger(asNumber) && asNumber > 0 ? eq(requests.number, asNumber) : sql`false`),
+          or(
+            ilike(requests.title, like),
+            Number.isInteger(asNumber) && asNumber > 0 ? eq(requests.number, asNumber) : sql`false`,
+          ),
           clientScope(s.actor),
         ),
       )
@@ -88,7 +124,15 @@ export async function globalSearch(s: Scope, rawQuery: string): Promise<SearchHi
       .where(and(or(ilike(files.name, like), sql`${q.toLowerCase()} = any(${files.tags})`), fileScope(s.actor)))
       .orderBy(desc(files.updatedAt))
       .limit(5);
-    hits.push(...rows.map((r) => ({ type: "file" as const, id: r.id, title: r.name, subtitle: r.client, href: `${base}/files/${r.id}` })));
+    hits.push(
+      ...rows.map((r) => ({
+        type: "file" as const,
+        id: r.id,
+        title: r.name,
+        subtitle: r.client,
+        href: `${base}/files/${r.id}`,
+      })),
+    );
   }
 
   return hits;

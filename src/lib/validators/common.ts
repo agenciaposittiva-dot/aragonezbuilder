@@ -10,8 +10,7 @@ export const optionalText = (max = 2000) =>
     .nullable()
     .transform((v) => (v ? v : null));
 
-export const requiredText = (label: string, max = 200) =>
-  z.string().trim().min(1, `Informe ${label}`).max(max);
+export const requiredText = (label: string, max = 200) => z.string().trim().min(1, `Informe ${label}`).max(max);
 
 export const isoDate = z
   .string()
@@ -23,7 +22,8 @@ export const isoDate = z
 
 export const uuid = z.uuid("Identificador inválido");
 export const optionalUuid = z
-  .union([z.uuid(), z.literal(""), z.null(), z.undefined()])
+  .union([z.uuid(), z.literal(""), z.null()])
+  .optional()
   .transform((v) => (v ? v : null));
 
 export const priorityEnum = z.enum(["low", "medium", "high", "urgent"]);

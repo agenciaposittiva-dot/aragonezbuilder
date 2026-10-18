@@ -10,7 +10,15 @@ export type AutomationCondition = {
 };
 
 export type AutomationAction =
-  | { type: "notify_members"; membershipIds?: string[]; roleKeys?: string[]; toAssignee?: boolean; toOwner?: boolean; title: string; body?: string }
+  | {
+      type: "notify_members";
+      membershipIds?: string[];
+      roleKeys?: string[];
+      toAssignee?: boolean;
+      toOwner?: boolean;
+      title: string;
+      body?: string;
+    }
   | { type: "notify_client"; title: string; body?: string; email?: boolean }
   | { type: "email"; to: "assignee" | "owner" | "client_users"; subject: string; body: string }
   | { type: "create_task"; title: string; description?: string; assigneeMembershipId?: string; dueInDays?: number }

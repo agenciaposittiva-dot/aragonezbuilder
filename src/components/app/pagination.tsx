@@ -17,7 +17,11 @@ export function Pagination({
 }) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
   if (total <= pageSize) {
-    return total ? <p className="px-5 py-3 text-xs text-fg-subtle">{total} {total === 1 ? "registro" : "registros"}</p> : null;
+    return total ? (
+      <p className="px-5 py-3 text-xs text-fg-subtle">
+        {total} {total === 1 ? "registro" : "registros"}
+      </p>
+    ) : null;
   }
   const href = (p: number) => {
     const qs = new URLSearchParams();
@@ -28,7 +32,8 @@ export function Pagination({
   };
   const from = (page - 1) * pageSize + 1;
   const to = Math.min(total, page * pageSize);
-  const linkCls = "inline-flex size-8 items-center justify-center rounded-md border border-border bg-surface text-fg-muted hover:bg-surface-2";
+  const linkCls =
+    "inline-flex size-8 items-center justify-center rounded-md border border-border bg-surface text-fg-muted hover:bg-surface-2";
   return (
     <div className="flex items-center justify-between gap-3 border-t border-border px-5 py-3 text-xs text-fg-subtle">
       <span className="tabular">
@@ -44,7 +49,7 @@ export function Pagination({
             <ChevronLeft className="size-4" />
           </span>
         )}
-        <span className="px-1 tabular">
+        <span className="tabular px-1">
           {page} / {pages}
         </span>
         {page < pages ? (

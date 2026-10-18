@@ -7,7 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
-export type MemberLite = { membershipId: string; name: string; image?: string | null; jobTitle?: string | null; roleName?: string };
+export type MemberLite = {
+  membershipId: string;
+  name: string;
+  image?: string | null;
+  jobTitle?: string | null;
+  roleName?: string;
+};
 
 /** Seleção múltipla de membros com busca. */
 export function MemberPicker({
@@ -27,10 +33,7 @@ export function MemberPicker({
 }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
-  const filtered = useMemo(
-    () => members.filter((m) => m.name.toLowerCase().includes(q.toLowerCase())),
-    [members, q],
-  );
+  const filtered = useMemo(() => members.filter((m) => m.name.toLowerCase().includes(q.toLowerCase())), [members, q]);
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -52,7 +55,7 @@ export function MemberPicker({
             className="h-9 flex-1 bg-transparent text-sm outline-none placeholder:text-fg-subtle"
           />
         </div>
-        <ul className="max-h-64 overflow-y-auto p-1 scrollbar-thin" role="listbox" aria-multiselectable={!single}>
+        <ul className="max-h-64 scrollbar-thin overflow-y-auto p-1" role="listbox" aria-multiselectable={!single}>
           {single ? (
             <li>
               <button
@@ -83,19 +86,26 @@ export function MemberPicker({
                       onChange(selected ? value.filter((v) => v !== m.membershipId) : [...value, m.membershipId]);
                     }
                   }}
-                  className={cn("flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-surface-2", selected && "bg-surface-2")}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-surface-2",
+                    selected && "bg-surface-2",
+                  )}
                 >
                   <Avatar name={m.name} src={m.image} size="xs" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate">{m.name}</span>
-                    {m.jobTitle || m.roleName ? <span className="block truncate text-[11px] text-fg-subtle">{m.jobTitle ?? m.roleName}</span> : null}
+                    {m.jobTitle || m.roleName ? (
+                      <span className="block truncate text-[11px] text-fg-subtle">{m.jobTitle ?? m.roleName}</span>
+                    ) : null}
                   </span>
                   {selected ? <Check className="size-4 text-accent-text" /> : null}
                 </button>
               </li>
             );
           })}
-          {!filtered.length ? <li className="px-2 py-4 text-center text-xs text-fg-muted">Ninguém encontrado</li> : null}
+          {!filtered.length ? (
+            <li className="px-2 py-4 text-center text-xs text-fg-muted">Ninguém encontrado</li>
+          ) : null}
         </ul>
       </PopoverContent>
     </Popover>

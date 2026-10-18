@@ -24,7 +24,11 @@ const schema = z.object({
     .string()
     .optional()
     .transform((v) => v !== "false"),
-  UPLOAD_MAX_BYTES: z.coerce.number().int().positive().default(100 * 1024 * 1024),
+  UPLOAD_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(100 * 1024 * 1024),
   SMTP_HOST: optional,
   SMTP_PORT: z.coerce.number().int().default(587),
   SMTP_USER: optional,

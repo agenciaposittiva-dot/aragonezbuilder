@@ -35,5 +35,8 @@ export async function getShellCounts(s: Scope) {
     pendingApprovals = r?.n ?? 0;
   }
 
-  return { unread, badges: { requests: pendingRequests, approvals: pendingApprovals } };
+  return {
+    unread,
+    badges: { requests: pendingRequests, approvals: pendingApprovals },
+  };
 }

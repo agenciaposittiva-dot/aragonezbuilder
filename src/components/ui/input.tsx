@@ -22,11 +22,7 @@ export function Textarea({ className, ...props }: React.ComponentProps<"textarea
 export function NativeSelect({ className, children, ...props }: React.ComponentProps<"select">) {
   return (
     <div className="relative">
-      <select
-        data-slot="select"
-        className={cn(fieldBase, "h-9 appearance-none pr-8 pl-3", className)}
-        {...props}
-      >
+      <select data-slot="select" className={cn(fieldBase, "h-9 appearance-none pr-8 pl-3", className)} {...props}>
         {children}
       </select>
       <svg

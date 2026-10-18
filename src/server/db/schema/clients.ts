@@ -165,7 +165,10 @@ export const brandProfiles = pgTable(
     audience: text(),
     objectives: text(),
     positioning: text(),
-    keywords: text().array().notNull().default(sql`'{}'::text[]`),
+    keywords: text()
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     avoid: text(),
     guidelines: text(),
     colors: jsonb().$type<BrandColor[]>().notNull().default([]),

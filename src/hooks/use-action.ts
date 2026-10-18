@@ -4,7 +4,8 @@ import { useCallback, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { useWorkspace } from "@/components/shell/workspace-context";
 
-type Result<T> = { ok: true; data: T } | { ok: false; error: string; code?: string; fieldErrors?: Record<string, string[]> };
+type Result<T> =
+  { ok: true; data: T } | { ok: false; error: string; code?: string; fieldErrors?: Record<string, string[]> };
 
 /**
  * Executa uma Server Action da organização atual com estado de carregamento,
@@ -12,7 +13,11 @@ type Result<T> = { ok: true; data: T } | { ok: false; error: string; code?: stri
  */
 export function useOrgAction<I, T>(
   action: (orgSlug: string, input: I) => Promise<Result<T>>,
-  opts: { success?: string | ((data: T) => string); onSuccess?: (data: T) => void; onError?: (error: string) => void } = {},
+  opts: {
+    success?: string | ((data: T) => string);
+    onSuccess?: (data: T) => void;
+    onError?: (error: string) => void;
+  } = {},
 ) {
   const { orgSlug } = useWorkspace();
   const [pending, start] = useTransition();

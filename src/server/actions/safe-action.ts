@@ -7,8 +7,7 @@ import { getActor, getSession } from "@/server/auth/session";
 import { AppError } from "@/server/errors";
 
 export type ActionResult<T = undefined> =
-  | { ok: true; data: T }
-  | { ok: false; error: string; code?: string; fieldErrors?: Record<string, string[]> };
+  { ok: true; data: T } | { ok: false; error: string; code?: string; fieldErrors?: Record<string, string[]> };
 
 function zodFieldErrors(error: z.ZodError): Record<string, string[]> {
   const out: Record<string, string[]> = {};

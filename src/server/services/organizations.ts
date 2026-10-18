@@ -57,11 +57,15 @@ async function uniqueSlug(base: string): Promise<string> {
 export async function createOrganization(userId: string, input: z.infer<typeof createOrganizationInput>) {
   const data = createOrganizationInput.parse(input);
   if (data.slug && RESERVED_SLUGS.has(data.slug)) {
-    throw new ValidationError("Este endereço é reservado.", { slug: ["Escolha outro endereço"] });
+    throw new ValidationError("Este endereço é reservado.", {
+      slug: ["Escolha outro endereço"],
+    });
   }
   const slug = data.slug ?? (await uniqueSlug(data.name));
   if (data.slug && (await slugTaken(slug))) {
-    throw new ValidationError("Este endereço já está em uso.", { slug: ["Escolha outro endereço"] });
+    throw new ValidationError("Este endereço já está em uso.", {
+      slug: ["Escolha outro endereço"],
+    });
   }
   const orgId = randomUUID();
 
@@ -90,7 +94,10 @@ export async function createOrganization(userId: string, input: z.infer<typeof c
 
     await seedWorkflow(tx, orgId);
     await tx.insert(briefingTemplates).values(
-      DEFAULT_BRIEFING_TEMPLATES.map((t) => ({ organizationId: orgId, ...t })),
+      DEFAULT_BRIEFING_TEMPLATES.map((t) => ({
+        organizationId: orgId,
+        ...t,
+      })),
     );
     await tx.insert(auditLogs).values({
       organizationId: orgId,
@@ -115,8 +122,16 @@ async function slugTaken(slug: string) {
 
 async function seedWorkflow(tx: Tx, orgId: string) {
   const rows = [
-    ...DEFAULT_TASK_STATUSES.map((s, i) => ({ ...s, entity: "task" as const, position: i })),
-    ...DEFAULT_PROJECT_STATUSES.map((s, i) => ({ ...s, entity: "project" as const, position: i })),
+    ...DEFAULT_TASK_STATUSES.map((s, i) => ({
+      ...s,
+      entity: "task" as const,
+      position: i,
+    })),
+    ...DEFAULT_PROJECT_STATUSES.map((s, i) => ({
+      ...s,
+      entity: "project" as const,
+      position: i,
+    })),
   ].map((s) => ({
     organizationId: orgId,
     entity: s.entity,
@@ -127,10 +142,11 @@ async function seedWorkflow(tx: Tx, orgId: string) {
     position: s.position,
     isDefault: s.isDefault ?? false,
   }));
-  const inserted = await tx
-    .insert(workflowStatuses)
-    .values(rows)
-    .returning({ id: workflowStatuses.id, key: workflowStatuses.key, entity: workflowStatuses.entity });
+  const inserted = await tx.insert(workflowStatuses).values(rows).returning({
+    id: workflowStatuses.id,
+    key: workflowStatuses.key,
+    entity: workflowStatuses.entity,
+  });
   const projectIds = new Map(inserted.filter((s) => s.entity === "project").map((s) => [s.key, s.id]));
   await tx.insert(workflowTransitions).values(
     DEFAULT_PROJECT_TRANSITIONS.map(([from, to]) => ({

@@ -1,20 +1,24 @@
 "use server";
 
 import { z } from "zod";
-import { brandProfileInput, clientInput, clientMembersInput, contactInput, serviceInput } from "@/lib/validators/clients";
+import {
+  brandProfileInput,
+  clientInput,
+  clientMembersInput,
+  contactInput,
+  serviceInput,
+} from "@/lib/validators/clients";
 import * as clients from "@/server/services/clients";
 import { orgAction } from "./safe-action";
 
 export const createClientAction = orgAction(clientInput, (s, input) => clients.createClient(s, input));
 
-export const updateClientAction = orgAction(
-  z.object({ id: z.uuid(), data: clientInput }),
-  (s, { id, data }) => clients.updateClient(s, id, data),
+export const updateClientAction = orgAction(z.object({ id: z.uuid(), data: clientInput }), (s, { id, data }) =>
+  clients.updateClient(s, id, data),
 );
 
-export const archiveClientAction = orgAction(
-  z.object({ id: z.uuid(), archived: z.boolean() }),
-  (s, { id, archived }) => clients.setClientArchived(s, id, archived),
+export const archiveClientAction = orgAction(z.object({ id: z.uuid(), archived: z.boolean() }), (s, { id, archived }) =>
+  clients.setClientArchived(s, id, archived),
 );
 
 export const saveContactAction = orgAction(contactInput, clients.saveContact);

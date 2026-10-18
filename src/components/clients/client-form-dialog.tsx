@@ -68,7 +68,10 @@ export function ClientFormDialog({
   const pending = create.pending || update.pending;
   const errors = { ...form.formState.errors };
   const serverErrors = client ? update.fieldErrors : create.fieldErrors;
-  const err = (k: keyof FormValues) => (errors[k]?.message as string | undefined) ?? serverErrors[k as string]?.[0] ?? serverErrors[`data.${String(k)}`]?.[0];
+  const err = (k: keyof FormValues) =>
+    (errors[k]?.message as string | undefined) ??
+    serverErrors[k as string]?.[0] ??
+    serverErrors[`data.${String(k)}`]?.[0];
 
   const submit = form.handleSubmit(() => {
     const values = form.getValues();
@@ -129,7 +132,12 @@ export function ClientFormDialog({
             <Field label="Endereço" htmlFor="c-address" className="sm:col-span-2">
               <Input id="c-address" {...form.register("address")} />
             </Field>
-            <Field label="Observações internas" htmlFor="c-notes" hint="Nunca são exibidas ao cliente." className="sm:col-span-2">
+            <Field
+              label="Observações internas"
+              htmlFor="c-notes"
+              hint="Nunca são exibidas ao cliente."
+              className="sm:col-span-2"
+            >
               <Textarea id="c-notes" rows={3} {...form.register("notesInternal")} />
             </Field>
           </DialogBody>

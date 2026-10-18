@@ -70,7 +70,12 @@ export function NotificationsBell({ initialUnread }: { initialUnread: number }) 
       }}
     >
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon-sm" aria-label={`Notificações${unread ? ` (${unread} não lidas)` : ""}`} className="relative">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Notificações${unread ? ` (${unread} não lidas)` : ""}`}
+          className="relative"
+        >
           <Bell />
           {unread > 0 ? (
             <span className="absolute top-1 right-1 flex size-4 items-center justify-center rounded-full bg-accent text-[9px] font-bold text-accent-fg">
@@ -89,11 +94,16 @@ export function NotificationsBell({ initialUnread }: { initialUnread: number }) 
             </Button>
           ) : null}
         </div>
-        <div className="max-h-[420px] overflow-y-auto scrollbar-thin">
+        <div className="max-h-[420px] scrollbar-thin overflow-y-auto">
           {items === null ? (
             <p className="px-4 py-8 text-center text-sm text-fg-muted">Carregando…</p>
           ) : items.length === 0 ? (
-            <EmptyState compact icon={Bell} title="Tudo em dia" description="Avisos sobre tarefas, aprovações e solicitações aparecem aqui." />
+            <EmptyState
+              compact
+              icon={Bell}
+              title="Tudo em dia"
+              description="Avisos sobre tarefas, aprovações e solicitações aparecem aqui."
+            />
           ) : (
             <ul className="divide-y divide-border">
               {items.map((n) => {

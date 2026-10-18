@@ -19,7 +19,11 @@ export const DEFAULT_ALLOWED_TYPES = [
 export const orgSettingsSchema = z.object({
   uploads: z
     .object({
-      maxBytes: z.number().int().positive().default(100 * 1024 * 1024),
+      maxBytes: z
+        .number()
+        .int()
+        .positive()
+        .default(100 * 1024 * 1024),
       allowedTypes: z.array(z.string()).min(1).default(DEFAULT_ALLOWED_TYPES),
     })
     .prefault({}),

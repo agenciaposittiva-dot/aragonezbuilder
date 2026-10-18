@@ -49,11 +49,14 @@ export function SidebarNav({
         return (
           <div key={gi} className="grid gap-0.5">
             {group.label && !collapsed ? (
-              <p className="px-2.5 pb-1 text-[11px] font-medium tracking-wide text-sidebar-muted/80 uppercase">{group.label}</p>
+              <p className="px-2.5 pb-1 text-[11px] font-medium tracking-wide text-sidebar-muted/80 uppercase">
+                {group.label}
+              </p>
             ) : null}
             {items.map((item) => {
               const href = base + item.path;
-              const active = item.path === "" ? pathname === base : pathname === href || pathname.startsWith(href + "/");
+              const active =
+                item.path === "" ? pathname === base : pathname === href || pathname.startsWith(href + "/");
               const badge = item.badgeKey ? badges[item.badgeKey] : 0;
               const link = (
                 <Link
@@ -68,12 +71,15 @@ export function SidebarNav({
                   )}
                 >
                   {active ? (
-                    <span className="absolute top-1.5 bottom-1.5 left-0 w-0.5 rounded-full bg-accent" aria-hidden="true" />
+                    <span
+                      className="absolute top-1.5 bottom-1.5 left-0 w-0.5 rounded-full bg-accent"
+                      aria-hidden="true"
+                    />
                   ) : null}
                   <item.icon className={cn("size-4 shrink-0", active ? "text-accent" : "")} />
                   {collapsed ? null : <span className="flex-1 truncate">{item.label}</span>}
                   {badge && !collapsed ? (
-                    <span className="rounded-full bg-accent px-1.5 text-[10px] leading-4 font-semibold text-accent-fg tabular">
+                    <span className="tabular rounded-full bg-accent px-1.5 text-[10px] leading-4 font-semibold text-accent-fg">
                       {badge > 99 ? "99+" : badge}
                     </span>
                   ) : null}
@@ -166,10 +172,15 @@ export function Sidebar({
       <div className={cn("flex h-14 items-center px-3", collapsed && "justify-center px-2")}>
         <OrgSwitcher orgs={orgs} collapsed={collapsed} />
       </div>
-      <div className={cn("min-h-0 flex-1 overflow-y-auto px-3 py-3 scrollbar-thin", collapsed && "px-2")}>
+      <div className={cn("min-h-0 flex-1 scrollbar-thin overflow-y-auto px-3 py-3", collapsed && "px-2")}>
         <SidebarNav nav={nav} base={base} badges={badges} collapsed={collapsed} />
       </div>
-      <div className={cn("flex items-center border-t border-sidebar-border p-3", collapsed ? "justify-center px-2" : "justify-between")}>
+      <div
+        className={cn(
+          "flex items-center border-t border-sidebar-border p-3",
+          collapsed ? "justify-center px-2" : "justify-between",
+        )}
+      >
         {collapsed ? null : <Logo tone="inverse" className="scale-90 opacity-70" />}
         <button
           type="button"

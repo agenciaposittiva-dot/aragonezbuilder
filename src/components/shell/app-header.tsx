@@ -34,7 +34,13 @@ export function AppHeader({
 
   return (
     <header className="sticky top-0 z-[var(--z-sticky)] flex h-14 items-center gap-2 border-b border-border bg-bg/85 px-4 backdrop-blur-md sm:px-6">
-      <Button variant="ghost" size="icon-sm" className="lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Abrir menu">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        className="lg:hidden"
+        onClick={() => setMobileOpen(true)}
+        aria-label="Abrir menu"
+      >
         <Menu />
       </Button>
       <button
@@ -55,7 +61,12 @@ export function AppHeader({
       </div>
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" width="sm" className="max-w-[300px] border-sidebar-border bg-sidebar text-sidebar-fg" aria-describedby={undefined}>
+        <SheetContent
+          side="left"
+          width="sm"
+          className="max-w-[300px] border-sidebar-border bg-sidebar text-sidebar-fg"
+          aria-describedby={undefined}
+        >
           <SheetTitle className="sr-only">Menu</SheetTitle>
           <div className="flex h-14 items-center px-3 pr-12">
             <OrgSwitcher orgs={orgs} />

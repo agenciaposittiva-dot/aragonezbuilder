@@ -14,7 +14,8 @@ export const clientInput = z.object({
   legalName: optionalText(200),
   document: optionalText(32),
   email: z
-    .union([z.email("E-mail inválido"), z.literal(""), z.null(), z.undefined()])
+    .union([z.email("E-mail inválido"), z.literal(""), z.null()])
+    .optional()
     .transform((v) => (v ? v : null)),
   phone: optionalText(40),
   website: optionalText(200),
@@ -31,7 +32,8 @@ export const contactInput = z.object({
   clientId: uuid,
   name: requiredText("o nome", 120),
   email: z
-    .union([z.email("E-mail inválido"), z.literal(""), z.null(), z.undefined()])
+    .union([z.email("E-mail inválido"), z.literal(""), z.null()])
+    .optional()
     .transform((v) => (v ? v : null)),
   phone: optionalText(40),
   position: optionalText(80),

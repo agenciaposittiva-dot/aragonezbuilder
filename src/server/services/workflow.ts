@@ -1,6 +1,7 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { workflowStatuses, workflowTransitions } from "@/server/db/schema";
+import { eachInSequence, inSequence } from "@/server/db/sequence";
 import { assertCan, type Scope } from "@/server/authz";
 import { ConflictError, NotFoundError, ValidationError } from "@/server/errors";
 import { recordActivity } from "./activity";
@@ -53,10 +54,10 @@ export async function assertTransition(s: Scope, fromId: string, toId: string) {
     .from(workflowTransitions)
     .where(eq(workflowTransitions.fromStatusId, fromId));
   if (rows.length && !rows.some((r) => r.toStatusId === toId)) {
-    const [from, to] = await Promise.all([
-      s.db.select({ name: workflowStatuses.name }).from(workflowStatuses).where(eq(workflowStatuses.id, fromId)),
-      s.db.select({ name: workflowStatuses.name }).from(workflowStatuses).where(eq(workflowStatuses.id, toId)),
-    ]);
+    const [from, to] = await inSequence(
+      () => s.db.select({ name: workflowStatuses.name }).from(workflowStatuses).where(eq(workflowStatuses.id, fromId)),
+      () => s.db.select({ name: workflowStatuses.name }).from(workflowStatuses).where(eq(workflowStatuses.id, toId)),
+    );
     throw new ValidationError(
       `Transição não permitida: "${from[0]?.name ?? "?"}" → "${to[0]?.name ?? "?"}". Ajuste o fluxo em Configurações.`,
     );
@@ -94,7 +95,9 @@ export async function saveStatus(s: Scope, input: z.infer<typeof statusInput>) {
     return data.id;
   }
   const [{ max } = { max: 0 }] = await s.db
-    .select({ max: sql<number>`coalesce(max(${workflowStatuses.position}), -1)::int` })
+    .select({
+      max: sql<number>`coalesce(max(${workflowStatuses.position}), -1)::int`,
+    })
     .from(workflowStatuses)
     .where(eq(workflowStatuses.entity, data.entity));
   const key = `${data.name
@@ -127,13 +130,11 @@ export async function saveStatus(s: Scope, input: z.infer<typeof statusInput>) {
 
 export async function reorderStatuses(s: Scope, entity: WorkflowEntity, orderedIds: string[]) {
   assertCan(s.actor, "org.manage");
-  await Promise.all(
-    orderedIds.map((id, i) =>
-      s.db
-        .update(workflowStatuses)
-        .set({ position: i })
-        .where(and(eq(workflowStatuses.id, id), eq(workflowStatuses.entity, entity))),
-    ),
+  await eachInSequence(orderedIds, (id, i) =>
+    s.db
+      .update(workflowStatuses)
+      .set({ position: i })
+      .where(and(eq(workflowStatuses.id, id), eq(workflowStatuses.entity, entity))),
   );
 }
 
@@ -172,7 +173,11 @@ export async function setTransitions(s: Scope, fromStatusId: string, toStatusIds
   const targets = [...new Set(toStatusIds)].filter((id) => id !== fromStatusId);
   if (targets.length) {
     await s.db.insert(workflowTransitions).values(
-      targets.map((toStatusId) => ({ organizationId: s.actor.orgId, fromStatusId, toStatusId })),
+      targets.map((toStatusId) => ({
+        organizationId: s.actor.orgId,
+        fromStatusId,
+        toStatusId,
+      })),
     );
   }
 }

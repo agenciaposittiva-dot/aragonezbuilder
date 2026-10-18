@@ -10,6 +10,22 @@ export function slugify(input: string): string {
 
 /** Slugs reservados para não colidir com rotas da aplicação. */
 export const RESERVED_SLUGS = new Set([
-  "api", "app", "admin", "login", "signup", "logout", "invite", "onboarding", "portal",
-  "settings", "w", "static", "public", "assets", "_next", "auth", "reset-password", "forgot-password",
+  "api",
+  "app",
+  "admin",
+  "login",
+  "signup",
+  "logout",
+  "invite",
+  "onboarding",
+  "portal",
+  "settings",
+  "w",
+  "static",
+  "public",
+  "assets",
+  "_next",
+  "auth",
+  "reset-password",
+  "forgot-password",
 ]);

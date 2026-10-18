@@ -44,9 +44,7 @@ export async function resolveActor(userId: string, orgSlug: string): Promise<Act
       .innerJoin(organizations, eq(organizations.id, memberships.organizationId))
       .innerJoin(roles, eq(roles.id, memberships.roleId))
       .innerJoin(user, eq(user.id, memberships.userId))
-      .where(
-        and(eq(memberships.userId, userId), eq(organizations.slug, orgSlug), eq(memberships.status, "active")),
-      )
+      .where(and(eq(memberships.userId, userId), eq(organizations.slug, orgSlug), eq(memberships.status, "active")))
       .limit(1);
     if (!row) return null;
 

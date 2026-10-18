@@ -45,8 +45,14 @@ export const projectListParams = z.object({
   statusId: z.uuid().optional(),
   ownerId: z.uuid().optional(),
   priority: priorityEnum.optional(),
-  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  from: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  to: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
   archived: z.coerce.boolean().optional(),
   view: z.enum(["list", "board", "calendar", "timeline"]).default("list"),
   page: z.coerce.number().int().min(1).default(1),

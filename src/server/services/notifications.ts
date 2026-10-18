@@ -28,7 +28,10 @@ export async function unreadCount(s: Scope) {
   return row?.n ?? 0;
 }
 
-export const markReadInput = z.object({ id: z.uuid().optional(), all: z.boolean().optional() });
+export const markReadInput = z.object({
+  id: z.uuid().optional(),
+  all: z.boolean().optional(),
+});
 
 export async function markRead(s: Scope, input: z.infer<typeof markReadInput>) {
   const mine = and(eq(notifications.userId, s.actor.userId), isNull(notifications.readAt));

@@ -41,10 +41,7 @@ export function Logo({
       <LogoMark />
       {collapsed ? null : (
         <span
-          className={cn(
-            "text-[15px] font-semibold tracking-tight",
-            tone === "inverse" ? "text-sidebar-fg" : "text-fg",
-          )}
+          className={cn("text-[15px] font-semibold tracking-tight", tone === "inverse" ? "text-sidebar-fg" : "text-fg")}
         >
           {APP_NAME}
         </span>
