@@ -1,16 +1,19 @@
 import { z } from "zod";
 import { inOrg } from "@/server/authz";
-import { AiProviderError } from "@/server/ai/types";
 import { AppError } from "@/server/errors";
 import { actorForRequest, errorStatus, isSameOrigin, jsonError } from "@/server/http";
-import { generateInput, prepareGeneration, recordUsage, saveGeneration, structuredSchema } from "@/server/services/ai";
+import { ModelSelectionError } from "@/server/services/ai-models";
+import { CostConfirmationError, generateInput, prepareGeneration, recordUsage } from "@/server/services/ai";
+import { runGeneration } from "@/server/services/ai-run";
 
 const body = generateInput.extend({ orgSlug: z.string().min(1).max(64) });
 
 /**
- * Gera conteúdo com o provedor de IA configurado, transmitindo o texto em
- * NDJSON ({t:"chunk"} ... {t:"done"} | {t:"error"}). Uso, custo e o
- * resultado são registrados ao final, inclusive em caso de erro.
+ * Gera conteúdo com o provedor/modelo escolhido (escolha explícita,
+ * preferências salvas ou automático), transmitindo o texto em NDJSON
+ * ({t:"meta"} {t:"chunk"} ... {t:"done"} | {t:"error"}). Uso, duração e custo
+ * (quando há dados) são registrados ao final, inclusive em caso de erro — uma
+ * falha nunca é registrada como sucesso.
  */
 export async function POST(req: Request) {
   if (!isSameOrigin(req)) return jsonError("Origem não permitida.", 403);
@@ -24,6 +27,16 @@ export async function POST(req: Request) {
   try {
     prepared = await inOrg(actor, (s) => prepareGeneration(s, parsed.data));
   } catch (err) {
+    if (err instanceof ModelSelectionError) {
+      return jsonError(err.message, 422, {
+        code: "model_selection",
+        reason: err.reason,
+        alternatives: err.alternatives,
+      });
+    }
+    if (err instanceof CostConfirmationError) {
+      return jsonError(err.message, 409, { code: "cost_confirmation", estimateMicros: err.estimateMicros });
+    }
     if (err instanceof AppError) {
       if (err.code === "limit") {
         await inOrg(actor, (s) =>
@@ -31,6 +44,7 @@ export async function POST(req: Request) {
             provider: "-",
             model: "-",
             operation: parsed.data.operation,
+            module: parsed.data.module,
             clientId: null,
             status: "blocked",
             errorMessage: err.message,
@@ -44,89 +58,13 @@ export async function POST(req: Request) {
   }
 
   const encoder = new TextEncoder();
-  const started = Date.now();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const send = (obj: unknown) => controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
-      send({
-        t: "meta",
-        demo: prepared.demo,
-        model: prepared.model,
-        contextUsed: prepared.contextUsed,
-        structured: prepared.structured,
-      });
       try {
-        const result = await prepared.provider.generate({
-          model: prepared.model,
-          system: prepared.system,
-          prompt: prepared.prompt,
-          maxTokens: prepared.structured ? 4000 : 8000,
-          jsonSchema: structuredSchema(prepared),
+        await runGeneration(actor, prepared, parsed.data.input, {
           signal: req.signal,
-          onText: prepared.structured ? undefined : (chunk) => send({ t: "chunk", v: chunk }),
+          send: (e) => controller.enqueue(encoder.encode(JSON.stringify(e) + "\n")),
         });
-        const saved = await inOrg(actor, async (s) => {
-          const usageId = await recordUsage(s, {
-            provider: prepared.provider.id,
-            model: result.model,
-            operation: prepared.operation,
-            clientId: prepared.clientId,
-            inputTokens: result.inputTokens,
-            outputTokens: result.outputTokens,
-            costMicros: result.costMicros,
-            status: "success",
-            latencyMs: Date.now() - started,
-          });
-          const title = (parsed.data.input.topic || parsed.data.input.text || prepared.label)
-            .split("\n")[0]!
-            .slice(0, 120);
-          const generationId = await saveGeneration(s, {
-            usageId,
-            kind: prepared.operation,
-            title,
-            input: parsed.data.input,
-            output: result.text,
-            provider: prepared.provider.id,
-            model: result.model,
-            clientId: prepared.clientId,
-          });
-          return { generationId };
-        });
-        let data: unknown = undefined;
-        if (prepared.structured) {
-          try {
-            data = JSON.parse(result.text);
-          } catch {
-            data = null;
-          }
-        }
-        send({
-          t: "done",
-          generationId: saved.generationId,
-          data,
-          usage: { inputTokens: result.inputTokens, outputTokens: result.outputTokens, costMicros: result.costMicros },
-        });
-      } catch (err) {
-        const aborted = req.signal.aborted;
-        const message =
-          err instanceof AiProviderError
-            ? err.message
-            : aborted
-              ? "Geração cancelada."
-              : "Falha ao gerar. Tente novamente.";
-        if (!(err instanceof AiProviderError) && !aborted) console.error("[ai] erro na geração", err);
-        await inOrg(actor, (s) =>
-          recordUsage(s, {
-            provider: prepared.provider.id,
-            model: prepared.model,
-            operation: prepared.operation,
-            clientId: prepared.clientId,
-            status: "error",
-            errorMessage: message,
-            latencyMs: Date.now() - started,
-          }),
-        ).catch(() => undefined);
-        if (!aborted) send({ t: "error", message });
       } finally {
         controller.close();
       }

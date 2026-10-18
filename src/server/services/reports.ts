@@ -676,7 +676,7 @@ export async function exportPage(
           r.operation,
           r.input,
           r.output,
-          (r.cost / 1_000_000).toFixed(6).replace(".", ","),
+          r.cost === null ? "não informado" : (r.cost / 1_000_000).toFixed(6).replace(".", ","),
           r.status,
         ]),
       };

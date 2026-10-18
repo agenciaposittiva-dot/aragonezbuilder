@@ -1,4 +1,11 @@
-import { AiProviderError, type AiProvider, type GenerateRequest, type GenerateResult } from "../types";
+import {
+  AiProviderError,
+  type AiProvider,
+  type GenerateRequest,
+  type GenerateResult,
+  type ImageRequest,
+  type ImageResult,
+} from "../types";
 
 /** Modelos disponíveis para a chave (cache por processo, 1 hora). */
 let modelCache: { key: string; at: number; models: string[] } | null = null;
@@ -71,9 +78,57 @@ export function createOpenAiProvider(apiKey: string): AiProvider {
       model: data.model,
       inputTokens: data.usage?.prompt_tokens ?? 0,
       outputTokens: data.usage?.completion_tokens ?? 0,
-      costMicros: 0,
+      costMicros: null,
       stopReason: data.choices[0]?.finish_reason ?? null,
     };
   }
   return { id: "openai", label: "OpenAI (ChatGPT)", defaultModel: "", models: [], generate };
+}
+
+/**
+ * Geração de imagem pela Images API oficial (POST /v1/images/generations).
+ * Os modelos gpt-image sempre devolvem a imagem em base64; o uso de tokens só
+ * vem para alguns modelos. Custo não estimado (sem tabela de preços).
+ */
+export async function generateOpenAiImage(apiKey: string, req: ImageRequest): Promise<ImageResult> {
+  const res = await fetch("https://api.openai.com/v1/images/generations", {
+    method: "POST",
+    signal: req.signal,
+    headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({ model: req.model, prompt: req.prompt, size: req.size, n: 1, output_format: "png" }),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: { code?: string; message?: string } };
+    const code = body.error?.code ?? "";
+    if (res.status === 401 || res.status === 403) throw new AiProviderError("Chave de API da OpenAI inválida.", "auth");
+    if (res.status === 429) throw new AiProviderError("Limite de requisições da OpenAI atingido.", "rate_limit");
+    if (/moderation|content_policy|safety/i.test(code)) {
+      throw new AiProviderError(
+        "A OpenAI recusou o pedido de imagem pelas políticas de uso. Reformule a descrição.",
+        "refusal",
+      );
+    }
+    if (res.status === 404)
+      throw new AiProviderError("Modelo de imagem da OpenAI não encontrado para esta chave.", "config");
+    throw new AiProviderError(
+      `Erro da OpenAI ao gerar a imagem (${res.status}).`,
+      res.status >= 500 ? "unavailable" : "bad_request",
+    );
+  }
+  const data = (await res.json()) as {
+    data?: { b64_json?: string }[];
+    usage?: { input_tokens?: number; output_tokens?: number };
+  };
+  const images = (data.data ?? [])
+    .map((d) => d.b64_json)
+    .filter((b): b is string => !!b)
+    .map((b) => Buffer.from(b, "base64"));
+  if (!images.length) throw new AiProviderError("A OpenAI não devolveu nenhuma imagem.", "unavailable");
+  return {
+    images,
+    model: req.model,
+    inputTokens: data.usage?.input_tokens ?? null,
+    outputTokens: data.usage?.output_tokens ?? null,
+    costMicros: null,
+  };
 }

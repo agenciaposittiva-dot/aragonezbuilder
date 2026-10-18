@@ -43,6 +43,10 @@ export const orgSettingsSchema = z.object({
       allowClientContext: z.boolean().default(false),
       monthlyTokenLimit: z.number().int().nonnegative().default(2_000_000),
       userDailyRequestLimit: z.number().int().nonnegative().default(100),
+      /** Limite mensal de custo estimado (micro-dólares; 0 = sem limite). Só conta gerações com custo conhecido. */
+      monthlyCostLimitMicros: z.number().int().nonnegative().default(0),
+      /** Pede confirmação quando o custo estimado de uma geração passa deste valor (micro-dólares; 0 = nunca). */
+      confirmAboveMicros: z.number().int().nonnegative().default(0),
       /** Chaves de API próprias da organização, sempre criptografadas (src/server/crypto.ts). */
       keys: z
         .object({ anthropic: z.string().optional(), openai: z.string().optional(), gemini: z.string().optional() })

@@ -2,6 +2,11 @@ import Anthropic from "@anthropic-ai/sdk";
 import { estimateCostMicros } from "../pricing";
 import { AiProviderError, type AiProvider, type GenerateRequest, type GenerateResult } from "../types";
 
+/** Modelos atuais com `effort` e saída estruturada verificados (catálogo oficial). */
+const VERIFIED_EFFORT = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5", "claude-fable-5-1"];
+/** Fallback no servidor (beta server-side-fallback): não disponível para o Haiku 5.5. */
+const FALLBACK_OK = ["claude-opus-5-5", "claude-sonnet-5-5"];
+
 export const ANTHROPIC_MODELS = [
   { id: "claude-opus-5-5", label: "Claude Opus 5.5 (padrão, mais capaz)" },
   { id: "claude-sonnet-5-5", label: "Claude Sonnet 5.5 (rápido e econômico)" },
@@ -19,7 +24,16 @@ export function createAnthropicProvider(apiKey: string): AiProvider {
   const client = new Anthropic({ apiKey, maxRetries: 2, timeout: 5 * 60 * 1000 });
 
   async function generate(req: GenerateRequest): Promise<GenerateResult> {
-    const fallbacksSupported = req.model !== "claude-haiku-5-5";
+    // Só envia parâmetros que o modelo suporta: capacidades vindas da API de
+    // modelos; sem essa informação, apenas para os modelos atuais verificados.
+    const verified = VERIFIED_EFFORT.includes(req.model);
+    const effortOk = req.modelCaps?.effort ? req.modelCaps.effort === "yes" : verified;
+    const structuredOk = req.modelCaps?.structured ? req.modelCaps.structured !== "no" : verified;
+    const fallbacksSupported = FALLBACK_OK.includes(req.model);
+    const outputConfig = {
+      ...(effortOk ? { effort: "medium" as const } : {}),
+      ...(req.jsonSchema && structuredOk ? { format: { type: "json_schema" as const, schema: req.jsonSchema } } : {}),
+    };
     try {
       const stream = client.beta.messages.stream(
         {
@@ -27,10 +41,7 @@ export function createAnthropicProvider(apiKey: string): AiProvider {
           max_tokens: req.maxTokens,
           system: req.system,
           messages: [{ role: "user", content: req.prompt }],
-          output_config: {
-            effort: "medium",
-            ...(req.jsonSchema ? { format: { type: "json_schema", schema: req.jsonSchema } } : {}),
-          },
+          ...(Object.keys(outputConfig).length ? { output_config: outputConfig } : {}),
           ...(fallbacksSupported ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
         },
         { signal: req.signal },
