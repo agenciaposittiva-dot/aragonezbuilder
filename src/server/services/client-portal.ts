@@ -11,7 +11,7 @@ import {
   type PortalAssetKey,
   type PortalSettings,
 } from "@/lib/portal-settings";
-import { assertCan, assertClientAccess, assertInternal, type Scope } from "@/server/authz";
+import { assertCan, assertClientAccess, assertInternal, can, fileScope, type Scope } from "@/server/authz";
 import { withSystem, type Tx } from "@/server/db";
 import {
   clientPortalSettings,
@@ -101,6 +101,44 @@ export async function getPortalAdmin(s: Scope, clientId: string) {
 }
 
 export type PortalAdminView = Awaited<ReturnType<typeof getPortalAdmin>>;
+
+/**
+ * Imagens do cliente que podem ser usadas na personalização (PNG, JPEG ou
+ * WebP). Alimenta o seletor de imagens e a prévia da equipe (links
+ * autenticados /api/files/<versão>).
+ */
+export async function portalImageLibrary(s: Scope, clientId: string) {
+  assertInternal(s.actor);
+  assertCan(s.actor, "clients.read");
+  await assertClientAccess(s, clientId);
+  if (!can(s.actor, "files.read")) return [];
+  const rows = await s.db
+    .select({
+      id: files.id,
+      name: files.name,
+      category: files.category,
+      versionId: fileVersions.id,
+      mime: fileVersions.mimeType,
+      width: fileVersions.width,
+      height: fileVersions.height,
+      updatedAt: files.updatedAt,
+    })
+    .from(files)
+    .innerJoin(fileVersions, eq(fileVersions.id, files.currentVersionId))
+    .where(
+      and(
+        fileScope(s.actor),
+        eq(files.clientId, clientId),
+        inArray(fileVersions.mimeType, PORTAL_IMAGE_MIMES),
+        isNull(files.deletedAt),
+      ),
+    )
+    .orderBy(desc(files.updatedAt))
+    .limit(200);
+  return rows;
+}
+
+export type PortalImage = Awaited<ReturnType<typeof portalImageLibrary>>[number];
 
 export async function savePortalDraft(s: Scope, clientId: string, raw: z.input<typeof portalSettingsSchema>) {
   assertInternal(s.actor);
