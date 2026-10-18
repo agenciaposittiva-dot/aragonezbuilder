@@ -22,14 +22,15 @@ import { config } from "dotenv";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Client } from "pg";
+import { databaseOwnerUrl, databaseUrl } from "../src/server/db-url";
 
 const envFile = process.argv.includes("--env") ? process.argv[process.argv.indexOf("--env") + 1] : ".env";
 config({ path: envFile, quiet: true });
 
 const e = process.env;
 // Mesmos nomes alternativos aceitos por src/server/env.ts (integrações Neon/Supabase).
-const appUrl = e.DATABASE_URL || e.POSTGRES_URL;
-const ownerUrl = e.DATABASE_OWNER_URL || e.DATABASE_URL_UNPOOLED || e.POSTGRES_URL_NON_POOLING || appUrl;
+const appUrl = databaseUrl();
+const ownerUrl = databaseOwnerUrl() || appUrl;
 const RLS_ROLE = "aragonez_rls";
 
 if (e.SKIP_DB_MIGRATE === "1" || e.SKIP_DB_MIGRATE === "true") {

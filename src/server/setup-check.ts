@@ -1,5 +1,6 @@
 import "server-only";
 import { Client } from "pg";
+import { databaseUrl } from "./db-url";
 
 /*
  * Diagnóstico da instalação para a página /setup. Não importa src/server/env.ts
@@ -13,7 +14,7 @@ export type Check = { label: string; status: CheckStatus; detail: string };
 const e = process.env;
 
 function dbUrl() {
-  return e.DATABASE_URL || e.POSTGRES_URL || "";
+  return databaseUrl() ?? "";
 }
 
 function describeDbError(err: unknown): string {

@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { databaseOwnerUrl, databaseUrl } from "./db-url";
 
 const optional = z
   .string()
@@ -104,11 +105,11 @@ function source(): NodeJS.ProcessEnv {
       : (e.VERCEL_BRANCH_URL ?? e.VERCEL_URL);
   return {
     ...e,
-    DATABASE_URL: e.DATABASE_URL || e.POSTGRES_URL,
+    DATABASE_URL: databaseUrl(),
     ACCESS_KEY: e.ACCESS_KEY || e.ACESS_KEY,
     UPSTASH_REDIS_REST_URL: e.UPSTASH_REDIS_REST_URL || e.KV_REST_API_URL,
     UPSTASH_REDIS_REST_TOKEN: e.UPSTASH_REDIS_REST_TOKEN || e.KV_REST_API_TOKEN,
-    DATABASE_OWNER_URL: e.DATABASE_OWNER_URL || e.DATABASE_URL_UNPOOLED || e.POSTGRES_URL_NON_POOLING,
+    DATABASE_OWNER_URL: databaseOwnerUrl(),
     APP_URL: e.APP_URL || (vercelHost ? `https://${vercelHost}` : undefined),
   };
 }
