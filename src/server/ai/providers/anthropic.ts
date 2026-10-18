@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { withSchemaInstruction } from "../json-schema";
 import { estimateCostMicros } from "../pricing";
 import { AiProviderError, type AiProvider, type GenerateRequest, type GenerateResult } from "../types";
 
@@ -39,7 +40,8 @@ export function createAnthropicProvider(apiKey: string): AiProvider {
         {
           model: req.model,
           max_tokens: req.maxTokens,
-          system: req.system,
+          // Modelo sem saída estruturada confirmada: o esquema vai por escrito.
+          system: req.jsonSchema && !structuredOk ? withSchemaInstruction(req.system, req.jsonSchema) : req.system,
           messages: [
             {
               role: "user",

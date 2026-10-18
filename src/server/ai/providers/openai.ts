@@ -7,6 +7,7 @@ import {
   type ImageRequest,
   type ImageResult,
 } from "../types";
+import { isStrictCompatible, withSchemaInstruction } from "../json-schema";
 
 /** Modelos disponíveis para a chave (cache por processo, 1 hora). */
 let modelCache: { key: string; at: number; models: string[] } | null = null;
@@ -23,6 +24,16 @@ async function listModels(apiKey: string, signal?: AbortSignal): Promise<string[
   const models = (data.data ?? []).map((m) => m.id);
   modelCache = { key: apiKey, at: Date.now(), models };
   return models;
+}
+
+/** Mensagem de erro da API (só para o log do servidor; nunca inclui a chave). */
+async function errorDetail(res: Response): Promise<string> {
+  try {
+    const data = (await res.json()) as { error?: { message?: string; code?: string } };
+    return [data.error?.code, data.error?.message].filter(Boolean).join(": ").slice(0, 300);
+  } catch {
+    return "";
+  }
 }
 
 /**
@@ -49,40 +60,64 @@ export function createOpenAiProvider(apiKey: string): AiProvider {
       model = pickDefaultOpenAiModel(await listModels(apiKey, req.signal)) ?? "";
       if (!model) throw new AiProviderError("Defina o modelo da OpenAI nas configurações de IA.", "config");
     }
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      signal: req.signal,
-      headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model,
-        max_completion_tokens: req.maxTokens,
-        messages: [
-          { role: "system", content: req.system },
-          {
-            role: "user",
-            content: req.images?.length
-              ? [
-                  ...req.images.map((img) => ({
-                    type: "image_url",
-                    image_url: { url: `data:${img.mediaType};base64,${img.data.toString("base64")}` },
-                  })),
-                  { type: "text", text: req.prompt },
-                ]
-              : req.prompt,
-          },
-        ],
-        ...(req.jsonSchema ? { response_format: { type: "json_object" } } : {}),
-      }),
-    });
+    const user = req.images?.length
+      ? [
+          ...req.images.map((img) => ({
+            type: "image_url",
+            image_url: { url: `data:${img.mediaType};base64,${img.data.toString("base64")}` },
+          })),
+          { type: "text", text: req.prompt },
+        ]
+      : req.prompt;
+    const schema = req.jsonSchema;
+    const strict = schema ? isStrictCompatible(schema) : false;
+    const call = (format: "schema" | "json" | null) =>
+      fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        signal: req.signal,
+        headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model,
+          max_completion_tokens: req.maxTokens,
+          messages: [
+            {
+              role: "system",
+              // Fora do modo estrito, o esquema também vai por escrito (o modelo não inventa campos).
+              content:
+                schema && !(format === "schema" && strict) ? withSchemaInstruction(req.system, schema) : req.system,
+            },
+            { role: "user", content: user },
+          ],
+          ...(format === "schema" && schema
+            ? { response_format: { type: "json_schema", json_schema: { name: "resposta", schema, strict } } }
+            : format === "json"
+              ? { response_format: { type: "json_object" } }
+              : {}),
+        }),
+      });
+    let res = await call(schema ? "schema" : null);
+    // Modelo sem suporte a json_schema: repete em modo JSON com o esquema nas instruções.
+    if (res.status === 400 && schema) {
+      console.warn("[ia] OpenAI recusou json_schema; repetindo em modo JSON", await errorDetail(res));
+      res = await call("json");
+    }
     if (res.status === 401 || res.status === 403) throw new AiProviderError("Chave de API da OpenAI inválida.", "auth");
     if (res.status === 429) throw new AiProviderError("Limite de requisições da OpenAI atingido.", "rate_limit");
-    if (!res.ok)
+    if (!res.ok) {
+      console.warn("[ia] erro da OpenAI", res.status, await errorDetail(res));
       throw new AiProviderError(`Erro da OpenAI (${res.status}).`, res.status >= 500 ? "unavailable" : "bad_request");
+    }
     const data = (await res.json()) as {
       model: string;
-      choices: { message: { content: string | null }; finish_reason: string | null }[];
+      choices: { message: { content: string | null; refusal?: string | null }; finish_reason: string | null }[];
       usage?: { prompt_tokens?: number; completion_tokens?: number };
     };
+    if (data.choices[0]?.message.refusal) {
+      throw new AiProviderError(
+        "O provedor recusou este pedido pelas políticas de uso. Reformule o pedido e tente novamente.",
+        "refusal",
+      );
+    }
     const text = data.choices[0]?.message.content ?? "";
     req.onText?.(text);
     return {

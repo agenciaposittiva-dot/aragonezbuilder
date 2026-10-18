@@ -1,3 +1,4 @@
+import { withSchemaInstruction } from "../json-schema";
 import { AiProviderError, type AiProvider, type GenerateRequest, type GenerateResult } from "../types";
 
 const API = "https://generativelanguage.googleapis.com/v1beta";
@@ -51,29 +52,39 @@ export function createGeminiProvider(apiKey: string): AiProvider {
       model = pickDefaultModel(await listModels(apiKey, req.signal)) ?? "";
       if (!model) throw new AiProviderError("Nenhum modelo do Gemini disponível para esta chave.", "config");
     }
-    const res = await fetch(`${API}/models/${encodeURIComponent(model)}:generateContent`, {
-      method: "POST",
-      signal: req.signal,
-      headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: req.system }] },
-        contents: [
-          {
-            role: "user",
-            parts: [
-              ...(req.images ?? []).map((img) => ({
-                inlineData: { mimeType: img.mediaType, data: img.data.toString("base64") },
-              })),
-              { text: req.prompt },
-            ],
+    const schema = req.jsonSchema;
+    const call = (enforce: boolean) =>
+      fetch(`${API}/models/${encodeURIComponent(model)}:generateContent`, {
+        method: "POST",
+        signal: req.signal,
+        headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+        body: JSON.stringify({
+          // Sem o esquema imposto pela API, ele vai por escrito (o modelo não inventa campos).
+          systemInstruction: {
+            parts: [{ text: schema && !enforce ? withSchemaInstruction(req.system, schema) : req.system }],
           },
-        ],
-        generationConfig: {
-          maxOutputTokens: req.maxTokens,
-          ...(req.jsonSchema ? { responseMimeType: "application/json" } : {}),
-        },
-      }),
-    });
+          contents: [
+            {
+              role: "user",
+              parts: [
+                ...(req.images ?? []).map((img) => ({
+                  inlineData: { mimeType: img.mediaType, data: img.data.toString("base64") },
+                })),
+                { text: req.prompt },
+              ],
+            },
+          ],
+          generationConfig: {
+            maxOutputTokens: req.maxTokens,
+            ...(schema
+              ? { responseMimeType: "application/json", ...(enforce ? { responseJsonSchema: schema } : {}) }
+              : {}),
+          },
+        }),
+      });
+    let res = await call(!!schema);
+    // Modelo sem suporte a esquema JSON: repete só em modo JSON, com o esquema nas instruções.
+    if (res.status === 400 && schema) res = await call(false);
     if (!res.ok) throw errorFor(res.status);
     const data = (await res.json()) as {
       modelVersion?: string;
