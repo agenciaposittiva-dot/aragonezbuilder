@@ -94,14 +94,16 @@ test.describe("acesso somente por convite", () => {
     await login(admin, DEMO.owner);
     await admin.waitForURL((u) => u.pathname === "/" || u.pathname.startsWith("/w/"), { timeout: 60_000 });
     await admin.goto(`${ORG}/team?tab=invites&status=pending`);
-    const pendingRow = admin.getByTestId("invitation-row").filter({ hasText: `outra-${tag}@teste.dev` });
+    // Só linhas visíveis: o Next.js mantém a aba anterior escondida na memória ao navegar.
+    const rows = admin.getByTestId("invitation-row").filter({ visible: true });
+    const pendingRow = rows.filter({ hasText: `outra-${tag}@teste.dev` });
     await expect(pendingRow).toContainText("Designer");
     await pendingRow.getByRole("button", { name: "Cancelar" }).click();
     await expect(pendingRow).toHaveCount(0);
     await admin.goto(`${ORG}/team?tab=invites&status=revoked`);
-    await expect(admin.getByTestId("invitation-row").filter({ hasText: `outra-${tag}@teste.dev` })).toBeVisible();
+    await expect(rows.filter({ hasText: `outra-${tag}@teste.dev` })).toBeVisible();
     await admin.goto(`${ORG}/team?tab=invites&status=accepted`);
-    const acceptedRow = admin.getByTestId("invitation-row").filter({ hasText: email });
+    const acceptedRow = rows.filter({ hasText: email });
     await expect(acceptedRow).toContainText("Designer");
     await expect(acceptedRow).toContainText("Estúdio Aurora");
     await owner.close();

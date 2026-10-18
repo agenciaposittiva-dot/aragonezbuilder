@@ -209,6 +209,8 @@ test.describe("avisos de mensagens do chat", () => {
     await shot(helena, info, "agrupadas");
 
     // Mais uma na mesma conversa logo em seguida: atualiza a janela sem tocar de novo.
+    // O mouse sobre a janela pausa o fechamento automático (8 s), como acontece com quem está lendo.
+    await d.hover();
     await sendAs(rafael, direct, `Quarta ${token}`);
     await expect(d).toContainText("4 mensagens novas", { timeout: 20_000 });
     expect((await tones(helena)).message).toBe(heard);
