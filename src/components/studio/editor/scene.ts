@@ -67,6 +67,8 @@ export class Scene {
   private lastEntered: string | null = null;
   private syncing = false;
   private exporting = false;
+  /** Desenhando a prévia de outro documento (chat de IA): nada volta para o store. */
+  private previewing = false;
   private snapLines: SnapLine[] = [];
   private snapCache: { targets: { x: SnapTarget[]; y: SnapTarget[] }; page: PageRect } | null = null;
   private hovered: FObj | null = null;
@@ -287,7 +289,7 @@ export class Scene {
     canvas.requestRenderAll();
     this.emitViewport();
 
-    if (measure.length) {
+    if (measure.length && !this.previewing) {
       // Medidas reais dos textos (fontes carregadas): ajuste técnico, fora do histórico.
       queueMicrotask(() => this.store.dispatch(measure, { history: false, reason: "silent" }));
     }
@@ -1325,6 +1327,30 @@ export class Scene {
       return this.renderPage(first.id, Math.min(1, scale), { background: "#ffffff" }).toDataURL("image/jpeg", 0.72);
     } catch {
       return null;
+    }
+  }
+
+  /**
+   * Prévia do chat de IA: desenha páginas de um documento proposto (miniaturas
+   * JPEG) e volta ao documento atual na mesma passada — sem passar pelo
+   * store, pelo histórico ou pelo salvamento.
+   */
+  renderDocPreview(doc: DesignDocument, pageIds: string[], maxSide = 320): string[] {
+    const original = this.store.doc;
+    this.previewing = true;
+    try {
+      this.store.doc = doc;
+      return pageIds.map((id) => {
+        const page = doc.pages.find((p) => p.id === id);
+        if (!page) return "";
+        const scale = Math.min(1, maxSide / Math.max(page.width, page.height));
+        return this.renderPage(id, scale, { background: "#ffffff" }).toDataURL("image/jpeg", 0.8);
+      });
+    } finally {
+      this.store.doc = original;
+      this.sync();
+      this.previewing = false;
+      this.canvas.requestRenderAll();
     }
   }
 

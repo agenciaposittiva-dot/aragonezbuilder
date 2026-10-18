@@ -230,6 +230,12 @@ export async function setProviderEnabled(s: Scope, provider: string, enabled: bo
   });
 }
 
+/** Mesma lista de modelos (pelos ids); uma lista nova vazia não conta como mudança. */
+function sameIds(live: AiModelInfo[], saved: AiModelInfo[]) {
+  if (!live.length) return null;
+  return live.map((m) => m.id).join("\n") === saved.map((m) => m.id).join("\n");
+}
+
 /**
  * Provedores prontos para uso agora, com suas chaves (somente no servidor).
  * Provedores com chave ainda não validada (ou com modelos desatualizados) são
@@ -263,7 +269,12 @@ export async function readyProviders(s: Scope) {
       (row.status === "valid" &&
         (!row.modelsFetchedAt || Date.now() - row.modelsFetchedAt.getTime() > MODELS_TTL_MS)) ||
       (row.status === "error" && (!row.lastCheckedAt || Date.now() - row.lastCheckedAt.getTime() > RETRY_ERROR_MS));
-    if ((stale && d.needsKey) || (!d.needsKey && !row?.models.length)) {
+    // Provedores locais (sem chave, ex.: demonstração) listam os modelos sem rede: a lista salva
+    // acompanha a versão instalada (um modelo novo aparece sem precisar revalidar).
+    const outdatedLocal =
+      !d.needsKey &&
+      sameIds(await d.listModels("", AbortSignal.timeout(5_000)).catch(() => []), row?.models ?? []) === false;
+    if ((stale && d.needsKey) || (!d.needsKey && (!row?.models.length || outdatedLocal))) {
       await check(s, d, key);
       row = (await s.db.select().from(aiProviderConfigs).where(eq(aiProviderConfigs.provider, id)))[0];
     }

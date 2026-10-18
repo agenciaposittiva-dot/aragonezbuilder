@@ -3,6 +3,7 @@ import {
   type AiProvider,
   type GenerateRequest,
   type GenerateResult,
+  type ImageEditRequest,
   type ImageRequest,
   type ImageResult,
 } from "../types";
@@ -124,6 +125,62 @@ export async function generateOpenAiImage(apiKey: string, req: ImageRequest): Pr
     .filter((b): b is string => !!b)
     .map((b) => Buffer.from(b, "base64"));
   if (!images.length) throw new AiProviderError("A OpenAI não devolveu nenhuma imagem.", "unavailable");
+  return {
+    images,
+    model: req.model,
+    inputTokens: data.usage?.input_tokens ?? null,
+    outputTokens: data.usage?.output_tokens ?? null,
+    costMicros: null,
+  };
+}
+
+/**
+ * Edição de imagem pela Images API oficial (POST /v1/images/edits): a imagem
+ * original vai como arquivo de referência junto com a instrução. Os modelos
+ * gpt-image devolvem a imagem em base64. O resultado é uma imagem nova; a
+ * original não é alterada.
+ */
+export async function editOpenAiImage(apiKey: string, req: ImageEditRequest): Promise<ImageResult> {
+  const form = new FormData();
+  form.set("model", req.model);
+  form.set("prompt", req.prompt);
+  form.set("n", "1");
+  if (req.size && req.size !== "auto") form.set("size", req.size);
+  const ext = req.mimeType === "image/jpeg" ? "jpg" : req.mimeType === "image/webp" ? "webp" : "png";
+  form.set("image", new Blob([new Uint8Array(req.image)], { type: req.mimeType }), `original.${ext}`);
+  const res = await fetch("https://api.openai.com/v1/images/edits", {
+    method: "POST",
+    signal: req.signal,
+    headers: { authorization: `Bearer ${apiKey}` },
+    body: form,
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: { code?: string; message?: string } };
+    const code = body.error?.code ?? "";
+    if (res.status === 401 || res.status === 403) throw new AiProviderError("Chave de API da OpenAI inválida.", "auth");
+    if (res.status === 429) throw new AiProviderError("Limite de requisições da OpenAI atingido.", "rate_limit");
+    if (/moderation|content_policy|safety/i.test(code)) {
+      throw new AiProviderError(
+        "A OpenAI recusou a edição pelas políticas de uso. Reformule o pedido ou use outra imagem.",
+        "refusal",
+      );
+    }
+    if (res.status === 404)
+      throw new AiProviderError("Modelo de imagem da OpenAI não encontrado para esta chave.", "config");
+    throw new AiProviderError(
+      `Erro da OpenAI ao editar a imagem (${res.status}).`,
+      res.status >= 500 ? "unavailable" : "bad_request",
+    );
+  }
+  const data = (await res.json()) as {
+    data?: { b64_json?: string }[];
+    usage?: { input_tokens?: number; output_tokens?: number };
+  };
+  const images = (data.data ?? [])
+    .map((d) => d.b64_json)
+    .filter((b): b is string => !!b)
+    .map((b) => Buffer.from(b, "base64"));
+  if (!images.length) throw new AiProviderError("A OpenAI não devolveu nenhuma imagem editada.", "unavailable");
   return {
     images,
     model: req.model,

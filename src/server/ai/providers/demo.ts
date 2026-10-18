@@ -1,5 +1,7 @@
+import sharp from "sharp";
+import { demoDesignEditJson } from "../demo-design";
 import { demoTaskJson } from "../demo-tasks";
-import type { AiProvider, GenerateRequest, GenerateResult } from "../types";
+import type { AiProvider, GenerateRequest, GenerateResult, ImageEditRequest, ImageResult } from "../types";
 
 /**
  * Provedor de demonstração: responde localmente, sem enviar dados a terceiros.
@@ -9,7 +11,10 @@ export function createDemoProvider(): AiProvider {
   async function generate(req: GenerateRequest): Promise<GenerateResult> {
     // Formatos identificados no pedido (Radar de Tendências) têm prioridade sobre os do assistente de tarefas.
     const text = req.jsonSchema
-      ? (demoFormatJson(req.prompt) ?? demoTaskJson(req.prompt, req.jsonSchema) ?? demoJson(req.prompt))
+      ? (demoDesignEditJson(req.prompt) ??
+        demoFormatJson(req.prompt) ??
+        demoTaskJson(req.prompt, req.jsonSchema) ??
+        demoJson(req.prompt))
       : demoText(req.prompt);
     for (const chunk of text.match(/[\s\S]{1,24}/g) ?? []) {
       if (req.signal?.aborted) break;
@@ -153,4 +158,19 @@ function demoJson(prompt: string) {
       },
     ],
   });
+}
+
+/**
+ * Edição de imagem de exemplo: aplica localmente um ajuste de cores visível e
+ * determinístico na imagem original (mesmas dimensões). Não é IA real e não
+ * cria conteúdo novo — serve para testar o fluxo sem chave de API.
+ */
+export async function editDemoImage(req: ImageEditRequest): Promise<ImageResult> {
+  const p = req.prompt.toLowerCase();
+  let img = sharp(req.image).rotate();
+  if (/preto e branco|p&b|monocrom/.test(p)) img = img.grayscale();
+  else if (/fria|azul|noite/.test(p)) img = img.modulate({ saturation: 1.1 }).tint({ r: 150, g: 180, b: 255 });
+  else img = img.modulate({ brightness: 1.06, saturation: 1.3 }).tint({ r: 255, g: 226, b: 180 });
+  const png = await img.png().toBuffer();
+  return { images: [png], model: "demo-imagem", inputTokens: null, outputTokens: null, costMicros: 0 };
 }

@@ -36,6 +36,12 @@ import { taskAiOperationLabel } from "@/lib/task-ai";
 import { cn } from "@/lib/utils";
 import { createSuggestedTasksAction, deleteGenerationAction, togglePinGenerationAction } from "@/server/actions/ai";
 
+/** Pedidos do chat de edição de artes (aparecem no histórico geral). */
+const DESIGN_CHAT_KIND: Record<string, string> = {
+  design_edit: "Chat de edição de arte",
+  image_edit: "Nova versão de imagem (chat de arte)",
+};
+
 type Generation = {
   id: string;
   kind: string;
@@ -842,7 +848,7 @@ export function AiStudio({
                   description="O que você gerar fica salvo aqui para reutilizar."
                 />
               ) : (
-                <ul className="grid divide-y divide-border">
+                <ul className="grid grid-cols-1 divide-y divide-border">
                   {history.map((g) => (
                     <li key={g.id} className="group flex items-start gap-3 py-3 first:pt-0 last:pb-0">
                       <button
@@ -861,7 +867,10 @@ export function AiStudio({
                         <span className="block truncate text-xs text-fg-muted">
                           {g.kind === IMAGE_OP
                             ? "Imagem"
-                            : (getOperation(g.kind)?.label ?? taskAiOperationLabel(g.kind) ?? g.kind)}
+                            : (getOperation(g.kind)?.label ??
+                              taskAiOperationLabel(g.kind) ??
+                              DESIGN_CHAT_KIND[g.kind] ??
+                              g.kind)}
                           {g.clientName ? ` · ${g.clientName}` : ""} · {g.model} · {g.userName ?? "—"} ·{" "}
                           {formatDateTime(g.createdAt)}
                         </span>
