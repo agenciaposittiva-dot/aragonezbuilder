@@ -1,7 +1,21 @@
 import { and, desc, eq, ilike, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
+import {
+  applyOperations,
+  DesignDocumentError,
+  DesignOpError,
+  designOpSchema,
+  emptyDocument,
+  findPreset,
+  isDesignDocument,
+  parseDesignDocument,
+  readDesignDocument,
+  versionIdOfSrc,
+  type DesignDocument,
+  type DesignOp,
+} from "@/lib/design-doc";
 import { optionalText, optionalUuid, uuid } from "@/lib/validators/common";
-import { clients, designs, designVersions, files, projects, user } from "@/server/db/schema";
+import { clients, designs, designVersions, files, fileVersions, projects, user } from "@/server/db/schema";
 import {
   assertCan,
   assertClientAccess,
@@ -11,6 +25,7 @@ import {
   assertTaskAccess,
   can,
   clientScope,
+  fileScope,
   type Scope,
 } from "@/server/authz";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/server/errors";
@@ -29,6 +44,13 @@ export const designCreateInput = z.object({
   templateId: optionalUuid,
   isTemplate: z.boolean().default(false),
   templateCategory: optionalText(60),
+  /** Formato escolhido (ver design-doc/presets). */
+  preset: z.string().max(60).optional().nullable(),
+  /** Quantidade de páginas da arte nova (carrossel: páginas conectadas). */
+  pages: z.coerce.number().int().min(1).max(20).optional(),
+  carousel: z.boolean().optional(),
+  /** Documento inicial pronto (formato 2 ou antigo), para módulos que geram artes. */
+  document: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const designSaveInput = z.object({
@@ -147,15 +169,29 @@ export async function createDesign(s: Scope, raw: z.input<typeof designCreateInp
   if (data.isTemplate) assertCan(s.actor, "templates.manage");
   const links = await assertLinks(s, data);
 
-  let document: Record<string, unknown> = { version: "7", objects: [], background: "#ffffff" };
   let width = data.width;
   let height = data.height;
+  let document: Record<string, unknown>;
   if (data.templateId) {
     const template = await getDesign(s, data.templateId);
     if (!template.design.isTemplate) throw new ValidationError("O modelo escolhido não é um template.");
-    document = template.design.document;
+    assertTemplateForClient(template.design, links.clientId);
+    document = withoutOutputs(template.design.document);
     width = template.design.width;
     height = template.design.height;
+  } else if (data.document) {
+    const checked = checkDesignDocument(data.document);
+    document = checked.document;
+    if (checked.size) ({ width, height } = checked.size);
+  } else {
+    // Arte nova já no formato 2 (uma ou várias páginas; carrossel com páginas conectadas).
+    const preset = findPreset(data.preset);
+    const carousel = data.carousel ?? preset?.carousel ?? false;
+    document = emptyDocument(width, height, {
+      pages: data.pages ?? (carousel ? (preset?.pages ?? 3) : 1),
+      carousel,
+      preset: data.preset ?? null,
+    });
   }
 
   const [row] = await s.db
@@ -183,6 +219,54 @@ export async function createDesign(s: Scope, raw: z.input<typeof designCreateInp
   return { id: row!.id };
 }
 
+/** Template de um cliente só é usado em artes do mesmo cliente (templates sem cliente valem para todos). */
+function assertTemplateForClient(t: { clientId: string | null }, clientId: string | null) {
+  if (t.clientId && t.clientId !== clientId) {
+    throw new ValidationError(
+      "Este template é exclusivo de outro cliente. Escolha um template da agência ou do mesmo cliente.",
+    );
+  }
+}
+
+/**
+ * Cópias (template, duplicação) não herdam os arquivos exportados da original:
+ * a próxima exportação cria arquivos novos em vez de versões dos arquivos de outra arte.
+ */
+function withoutOutputs(doc: Record<string, unknown>): Record<string, unknown> {
+  if (!isDesignDocument(doc) || !doc.meta) return doc;
+  const { outputs: _o, pdfOutputFileId: _pdf, ...meta } = doc.meta;
+  void _o;
+  void _pdf;
+  return { ...doc, meta };
+}
+
+/**
+ * Validação do documento recebido: tamanho máximo para qualquer formato e, no
+ * formato 2, o esquema completo (o servidor nunca grava um documento 2 inválido).
+ * Devolve o tamanho da primeira página, que fica nas colunas width/height.
+ */
+export function checkDesignDocument(doc: Record<string, unknown>): {
+  document: Record<string, unknown>;
+  size: { width: number; height: number } | null;
+} {
+  if (Buffer.byteLength(JSON.stringify(doc)) > MAX_DOCUMENT_BYTES) {
+    throw new ValidationError("A arte ficou grande demais para salvar. Reduza o tamanho das imagens inseridas.");
+  }
+  if (!isDesignDocument(doc)) return { document: doc, size: null };
+  try {
+    const parsed = parseDesignDocument(doc);
+    return {
+      document: parsed as unknown as Record<string, unknown>,
+      size: { width: parsed.pages[0]!.width, height: parsed.pages[0]!.height },
+    };
+  } catch (err) {
+    if (err instanceof DesignDocumentError) {
+      throw new ValidationError(`A arte tem dados inválidos: ${err.issues[0] ?? err.message}`);
+    }
+    throw err;
+  }
+}
+
 /**
  * Salva a cena do editor com controle de concorrência otimista: se outra
  * pessoa salvou depois que você abriu, o salvamento é recusado (sem perder
@@ -194,14 +278,16 @@ export async function saveDesign(s: Scope, raw: z.input<typeof designSaveInput>)
   const data = designSaveInput.parse(raw);
   const current = await getDesign(s, data.id);
   if (current.design.isTemplate) assertCan(s.actor, "templates.manage");
-  const size = Buffer.byteLength(JSON.stringify(data.document));
-  if (size > MAX_DOCUMENT_BYTES) {
-    throw new ValidationError("A arte ficou grande demais para salvar. Reduza o tamanho das imagens inseridas.");
-  }
+  const { document, size } = checkDesignDocument(data.document);
+  const width = size?.width ?? current.design.width;
+  const height = size?.height ?? current.design.height;
+  await keepLegacyBeforeConversion(s, current.design, document);
   const res = await s.db
     .update(designs)
     .set({
-      document: data.document,
+      document,
+      width,
+      height,
       ...(data.thumbnail !== undefined ? { thumbnail: data.thumbnail } : {}),
       revision: sql`${designs.revision} + 1`,
       updatedByUserId: s.actor.userId,
@@ -217,12 +303,197 @@ export async function saveDesign(s: Scope, raw: z.input<typeof designSaveInput>)
   await maybeCheckpoint(s, {
     id: data.id,
     revision: saved.revision,
-    document: data.document,
-    width: current.design.width,
-    height: current.design.height,
+    document,
+    width,
+    height,
     thumbnail: data.thumbnail ?? current.design.thumbnail,
   });
   return saved;
+}
+
+/**
+ * Primeira gravação no formato novo de uma arte antiga: o documento original
+ * fica guardado como versão nomeada (não entra na limpeza automática), então a
+ * conversão sempre pode ser desfeita pelo histórico.
+ */
+async function keepLegacyBeforeConversion(
+  s: Scope,
+  current: typeof designs.$inferSelect,
+  next: Record<string, unknown>,
+) {
+  if (isDesignDocument(current.document) || !isDesignDocument(next)) return;
+  const objects = (current.document as { objects?: unknown }).objects;
+  if (!Array.isArray(objects) || !objects.length) return;
+  await insertDesignVersion(
+    s,
+    {
+      id: current.id,
+      revision: current.revision,
+      document: current.document,
+      width: current.width,
+      height: current.height,
+      thumbnail: current.thumbnail,
+    },
+    { kind: "named", label: "Formato anterior (antes do novo editor)" },
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Operações (lote com controle de revisão)                            */
+/* ------------------------------------------------------------------ */
+
+export const designOpsInput = z.object({
+  designId: uuid,
+  /** Revisão que a pessoa (ou o chat) viu; se outra sessão salvou depois, nada é aplicado. */
+  revision: z.number().int().min(1),
+  ops: z.array(designOpSchema).min(1).max(500),
+  /** Cria uma versão nomeada com o estado anterior (ex.: "Antes da edição pelo chat"). */
+  checkpointLabel: z.string().trim().min(1).max(80).optional(),
+  /** Só calcula o resultado e os diffs (prévia), sem gravar. */
+  dryRun: z.boolean().optional(),
+});
+
+/** Imagens referenciadas nas operações precisam ser arquivos acessíveis e do mesmo cliente da arte. */
+async function assertOpAssets(s: Scope, ops: DesignOp[], designClientId: string | null) {
+  const srcs = new Set<string>();
+  const collect = (o: unknown): void => {
+    if (!o || typeof o !== "object") return;
+    if (Array.isArray(o)) return o.forEach(collect);
+    const r = o as Record<string, unknown>;
+    if (typeof r.src === "string") srcs.add(r.src);
+    Object.values(r).forEach(collect);
+  };
+  ops.forEach(collect);
+  for (const src of srcs) {
+    if (src.startsWith("data:image/")) continue;
+    const versionId = versionIdOfSrc(src);
+    if (!versionId) throw new ValidationError("Imagens precisam ser arquivos da plataforma (Arquivos).");
+    const [row] = await s.db
+      .select({ clientId: files.clientId })
+      .from(fileVersions)
+      .innerJoin(files, eq(files.id, fileVersions.fileId))
+      .where(and(eq(fileVersions.id, versionId), fileScope(s.actor), isNull(files.deletedAt)))
+      .limit(1);
+    if (!row) throw new NotFoundError("Imagem não encontrada em Arquivos.");
+    if (designClientId && row.clientId && row.clientId !== designClientId) {
+      throw new ValidationError("A imagem pertence a outro cliente.");
+    }
+  }
+}
+
+/**
+ * Aplica um lote de operações (lib/design-doc/ops) à arte salva, com controle
+ * de revisão: se outra sessão salvou depois da revisão informada, nada é
+ * aplicado (ConflictError). Base para o chat de edição por IA e integrações.
+ */
+export async function applyDesignOperations(s: Scope, raw: z.input<typeof designOpsInput>) {
+  assertInternal(s.actor);
+  assertCan(s.actor, "designs.write");
+  const data = designOpsInput.parse(raw);
+  const current = await getDesign(s, data.designId);
+  const d = current.design;
+  if (d.isTemplate) assertCan(s.actor, "templates.manage");
+  if (d.revision !== data.revision) {
+    throw new ConflictError("A arte mudou desde que foi lida. Carregue a versão atual e tente de novo.");
+  }
+  await assertOpAssets(s, data.ops, d.clientId);
+  const { doc } = readDesignDocument(d.document, { width: d.width, height: d.height });
+  let result: ReturnType<typeof applyOperations>;
+  try {
+    result = applyOperations(doc, data.ops);
+  } catch (err) {
+    if (err instanceof DesignOpError) throw new ValidationError(err.message);
+    throw err;
+  }
+  const checked = checkDesignDocument(result.doc as unknown as Record<string, unknown>);
+  const out = {
+    diffs: result.diffs,
+    inverse: result.inverse,
+    applied: result.applied,
+    document: checked.document as unknown as DesignDocument,
+  };
+  if (data.dryRun) return { ...out, revision: d.revision, saved: false as const };
+
+  if (data.checkpointLabel) {
+    await insertDesignVersion(
+      s,
+      {
+        id: d.id,
+        revision: d.revision,
+        document: d.document,
+        width: d.width,
+        height: d.height,
+        thumbnail: d.thumbnail,
+      },
+      { kind: "named", label: data.checkpointLabel },
+    );
+  } else {
+    await keepLegacyBeforeConversion(s, d, checked.document);
+  }
+  const width = checked.size?.width ?? d.width;
+  const height = checked.size?.height ?? d.height;
+  const res = await s.db
+    .update(designs)
+    .set({
+      document: checked.document,
+      width,
+      height,
+      revision: sql`${designs.revision} + 1`,
+      updatedByUserId: s.actor.userId,
+    })
+    .where(and(eq(designs.id, d.id), eq(designs.revision, data.revision)))
+    .returning({ revision: designs.revision });
+  if (!res.length) {
+    throw new ConflictError(
+      "A arte foi salva em outra sessão enquanto as alterações eram aplicadas. Nada foi alterado.",
+    );
+  }
+  const revision = res[0]!.revision;
+  await maybeCheckpoint(s, { id: d.id, revision, document: checked.document, width, height, thumbnail: d.thumbnail });
+  const summary = result.diffs.length === 1 ? result.diffs[0]!.summary : `${result.diffs.length} alterações aplicadas`;
+  await recordActivity(s, {
+    action: "updated",
+    entityType: "design",
+    entityId: d.id,
+    summary: `Arte "${d.name}": ${summary}`.slice(0, 300),
+    event: false,
+  });
+  return { ...out, revision, saved: true as const };
+}
+
+/* ------------------------------------------------------------------ */
+/* Modelos e imagens para o editor                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Páginas de um template para inserir na arte aberta (painel Modelos). O
+ * template precisa ser da agência ou do mesmo cliente da arte.
+ */
+export async function templatePagesForDesign(s: Scope, templateId: string, designId: string) {
+  const target = await getDesign(s, designId);
+  const t = await getDesign(s, templateId);
+  if (!t.design.isTemplate) throw new ValidationError("O modelo escolhido não é um template.");
+  assertTemplateForClient(t.design, target.design.clientId);
+  const { doc } = readDesignDocument(t.design.document, { width: t.design.width, height: t.design.height });
+  const clean = withoutOutputs(doc as unknown as Record<string, unknown>) as unknown as DesignDocument;
+  return { name: t.design.name, pages: clean.pages, components: clean.components };
+}
+
+/** Templates que podem ser usados na arte (da agência ou do mesmo cliente). */
+export async function templatesForDesign(s: Scope, designId: string) {
+  const target = await getDesign(s, designId);
+  const rows = await listDesigns(s, { templates: true });
+  return rows
+    .filter((t) => !t.clientId || t.clientId === target.design.clientId)
+    .filter((t) => t.id !== designId)
+    .map((t) => ({
+      id: t.id,
+      name: t.name,
+      width: t.width,
+      height: t.height,
+      thumbnail: t.thumbnail,
+      clientName: t.clientName,
+    }));
 }
 
 /* ------------------------------------------------------------------ */
@@ -335,7 +606,7 @@ export async function duplicateDesign(s: Scope, id: string, asTemplate = false) 
       name: asTemplate ? `${src.design.name} (template)` : `${src.design.name} (cópia)`,
       width: src.design.width,
       height: src.design.height,
-      document: src.design.document,
+      document: withoutOutputs(src.design.document),
       thumbnail: src.design.thumbnail,
       isTemplate: asTemplate,
       templateCategory: src.design.templateCategory,
@@ -382,7 +653,13 @@ export async function unarchiveDesign(s: Scope, id: string) {
 }
 
 /** Vincula o arquivo gerado pela exportação (nova versão em Arquivos). */
-export async function linkDesignOutput(s: Scope, designId: string, fileId: string, versionId: string | null) {
+export async function linkDesignOutput(
+  s: Scope,
+  designId: string,
+  fileId: string,
+  versionId: string | null,
+  opts: { primary?: boolean; label?: string } = {},
+) {
   assertInternal(s.actor);
   assertCan(s.actor, "designs.write");
   const d = await getDesign(s, designId);
@@ -391,12 +668,13 @@ export async function linkDesignOutput(s: Scope, designId: string, fileId: strin
   if (d.design.clientId && file?.clientId && file.clientId !== d.design.clientId) {
     throw new ValidationError("O arquivo pertence a outro cliente.");
   }
-  await s.db.update(designs).set({ outputFileId: fileId }).where(eq(designs.id, designId));
+  // Em artes de várias páginas, a principal (primeira página) fica como o arquivo da arte.
+  if (opts.primary !== false) await s.db.update(designs).set({ outputFileId: fileId }).where(eq(designs.id, designId));
   await recordActivity(s, {
     action: "exported",
     entityType: "design",
     entityId: designId,
-    summary: `Arte "${d.design.name}" exportada para Arquivos`,
+    summary: `Arte "${d.design.name}"${opts.label ? ` (${opts.label})` : ""} exportada para Arquivos`,
     event: {
       type: "design.exported",
       payload: {
