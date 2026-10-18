@@ -1,5 +1,6 @@
 import "server-only";
 import { Client } from "pg";
+import journal from "../../drizzle/meta/_journal.json";
 import { databaseUrl } from "./db-url";
 
 /*
@@ -37,22 +38,59 @@ async function checkDatabase(): Promise<Check[]> {
   const client = new Client({ connectionString: url, connectionTimeoutMillis: 6000 });
   try {
     await client.connect();
-    const { rows } = await client.query<{ migrated: boolean; rls_role: boolean; bypass: boolean }>(
+    const { rows } = await client.query<{
+      migrated: boolean;
+      tracked: boolean;
+      rls_role: boolean;
+      bypass: boolean;
+    }>(
       `select to_regclass('public.organizations') is not null as migrated,
+              exists (
+                select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace
+                where n.nspname = 'drizzle' and c.relname = '__drizzle_migrations'
+                  and has_schema_privilege(n.oid, 'USAGE') and has_table_privilege(c.oid, 'SELECT')
+              ) as tracked,
               exists (select 1 from pg_roles where rolname = 'aragonez_rls') as rls_role,
               (select rolsuper or rolbypassrls from pg_roles where rolname = current_user) as bypass`,
     );
     const r = rows[0]!;
+    // As migrações aplicadas são registradas com a data da migração (a mesma do journal).
+    // `null` = este usuário do banco não pode ler o registro de migrações (ex.: usuário só da aplicação).
+    let applied: number | null = null;
+    if (r.tracked) {
+      try {
+        const last = await client.query<{ last: string | null }>(
+          "select max(created_at)::text as last from drizzle.__drizzle_migrations",
+        );
+        const lastWhen = Number(last.rows[0]?.last ?? 0);
+        applied = journal.entries.filter((m) => m.when <= lastWhen).length;
+      } catch {
+        applied = null;
+      }
+    }
+    const total = journal.entries.length;
     const out: Check[] = [{ label: "Conexão com o banco", status: "ok", detail: "Conectado." }];
     out.push(
-      r.migrated
-        ? { label: "Tabelas", status: "ok", detail: "Migrações aplicadas." }
-        : {
+      r.migrated && applied === null
+        ? {
             label: "Tabelas",
-            status: "error",
-            detail:
-              "As tabelas ainda não existem. Faça um novo deploy (o build aplica as migrações) ou rode npm run db:migrate.",
-          },
+            status: "ok",
+            detail: "Tabelas criadas (a lista de migrações não é visível para este usuário do banco).",
+          }
+        : r.migrated && applied !== null && applied >= total
+          ? { label: "Tabelas", status: "ok", detail: `Migrações aplicadas (${applied} de ${total}).` }
+          : r.migrated
+            ? {
+                label: "Tabelas",
+                status: "error",
+                detail: `Faltam ${total - (applied ?? 0)} de ${total} migrações. Faça um novo deploy (o build aplica as migrações) ou rode npm run db:migrate.`,
+              }
+            : {
+                label: "Tabelas",
+                status: "error",
+                detail:
+                  "As tabelas ainda não existem. Faça um novo deploy (o build aplica as migrações) ou rode npm run db:migrate.",
+              },
     );
     if (r.migrated && r.bypass && !r.rls_role && e.DATABASE_RLS_ROLE !== "off") {
       out.push({
@@ -148,6 +186,15 @@ export async function runSetupChecks(): Promise<{ checks: Check[]; ready: boolea
       label: "Ambiente da Vercel",
       status: "warn",
       detail: `Este é um deploy de ${e.VERCEL_ENV === "preview" ? "Preview" : e.VERCEL_ENV}: ele só enxerga variáveis marcadas para esse ambiente.`,
+    });
+  }
+
+  // Versão no ar (a Vercel informa o commit publicado): ajuda a confirmar um deploy.
+  if (e.VERCEL_GIT_COMMIT_SHA) {
+    checks.push({
+      label: "Versão publicada",
+      status: "ok",
+      detail: [e.VERCEL_GIT_COMMIT_SHA.slice(0, 7), e.VERCEL_GIT_COMMIT_REF].filter(Boolean).join(" · "),
     });
   }
 
