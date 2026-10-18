@@ -265,6 +265,56 @@ test.describe("gerador automático de carrosséis", () => {
     if (!isMobile(page)) await expectNoHorizontalScroll(page);
   });
 
+  test("chat de edição com IA: 'Reescreva o slide 3' e 'Mude só a direção visual' com prévia, aplicar e desfazer", async ({
+    page,
+  }) => {
+    test.setTimeout(300_000);
+    await enter(page);
+    await generate(page, "Rotina de skincare para iniciantes");
+    const before = await doc(page);
+    if (isMobile(page))
+      await page.getByRole("navigation", { name: "Ferramentas" }).getByTestId("mobile-design-ai").click();
+    else await page.getByTestId("open-design-ai").click();
+    const chat = page.getByTestId("design-ai-chat");
+    await expect(chat).toBeVisible();
+    // Sugestões próprias do carrossel gerado.
+    await expect(chat.getByRole("button", { name: "Reescreva o slide 3" })).toBeVisible();
+
+    const ask = async (message: string) => {
+      const input = chat.getByTestId("design-ai-input");
+      await input.fill(message);
+      await input.press("Enter");
+      await expect(chat.getByTestId("design-ai-running")).toBeHidden({ timeout: 60_000 });
+      const proposal = chat.getByTestId("design-ai-proposal").last();
+      await expect(proposal.getByTestId("design-ai-carousel")).toBeVisible();
+      return proposal;
+    };
+
+    const p1 = await ask("Reescreva o slide 3");
+    await expect(p1.getByTestId("design-ai-carousel")).toContainText("Regenerar o slide 3");
+    await p1.getByTestId("design-ai-carousel-run").click();
+    await expect(p1.getByTestId("design-ai-carousel-result")).toBeVisible({ timeout: 60_000 });
+    // Nada muda até aplicar.
+    expect(JSON.stringify((await doc(page)).pages[2])).toBe(JSON.stringify(before.pages[2]));
+    await p1.getByTestId("design-ai-apply").click();
+    await expect(p1.getByTestId("design-ai-status")).toHaveText("Salvo", { timeout: 60_000 });
+    const after = await doc(page);
+    expect(pageKey(after.pages[2]!)).not.toBe(pageKey(before.pages[2]!));
+    expect(pageKey(after.pages[0]!)).toBe(pageKey(before.pages[0]!));
+
+    const p2 = await ask("Mude só a direção visual");
+    await p2.getByTestId("design-ai-carousel-run").click();
+    await expect(p2.getByTestId("design-ai-carousel-result")).toContainText("Direção:", { timeout: 60_000 });
+    await p2.getByTestId("design-ai-apply").click();
+    await expect(p2.getByTestId("design-ai-status")).toHaveText("Salvo", { timeout: 60_000 });
+    expect((await doc(page)).meta.generator!.direction.key).not.toBe(before.meta.generator!.direction.key);
+    // Desfazer pelo chat volta a direção anterior.
+    await p2.getByTestId("design-ai-undo").click();
+    await expect
+      .poll(async () => (await doc(page)).meta.generator!.direction.key)
+      .toBe(after.meta.generator!.direction.key);
+  });
+
   test("importar JPG/PNG como modelo: original em Arquivos como camada de fundo bloqueada", async ({ page }) => {
     test.setTimeout(240_000);
     await enter(page);

@@ -72,6 +72,23 @@ salvamento automático → chamar a ação com `revision` atual → `store.dispa
 { reason: "silent" })` (mesmo lote que o servidor aplicou, entra no desfazer) →
 usar a `revision` devolvida. Em `ConflictError`, recarregar a arte.
 
+### Ligado ao chat de edição (Frente L)
+
+Ferramentas registradas em `src/server/services/design-ai-tools.ts`
+(`registerDesignAiTool`), só valem quando o contexto tem `generator`:
+
+| Ferramenta           | Exemplos de pedido                                  | Execução                                                    |
+| -------------------- | --------------------------------------------------- | ----------------------------------------------------------- |
+| `carousel_slide`     | "reescreva o slide 3", "deixe a capa mais impactante" | `planCarouselSlide` → operações para a prévia               |
+| `carousel_direction` | "mude só a direção visual"                          | `planCarouselRestyle` → operações para a prévia (sem custo) |
+| `carousel_variant`   | "gere uma segunda versão"                           | `createCarouselVariant` → arte nova e link para abrir       |
+
+O chat (`src/components/studio/design-ai-chat.tsx`, `ACTION_EXECUTORS` e
+`ACTION_VIEWS`) chama `POST /api/designs/ai/carousel` com o documento aberto no
+editor; as operações entram na mesma prévia/aplicar/desfazer do chat, com o
+ponto de controle dele. O carrossel gerado mostra sugestões próprias no chat.
+Ao terminar a geração, o aviso oferece **Visualizar publicação** (Frente M).
+
 ## Importar JPG/PNG como modelo
 
 `POST /api/studio/import-template` (multipart) → `importImageAsTemplate`

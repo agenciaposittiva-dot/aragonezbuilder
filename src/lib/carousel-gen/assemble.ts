@@ -8,7 +8,7 @@ import {
 import { SLIDE_ROLE_LABEL, type GeneratorMeta, type GeneratorSlide } from "@/lib/design-doc/generator";
 import { pick, rand } from "./direction";
 import { iconForText, type IconName } from "./icons";
-import { chooseLayout, layoutAllowed, LAYOUTS, renderSlide } from "./layouts";
+import { chooseLayout, layoutAllowed, LAYOUTS, NEEDS_IMAGE, renderSlide } from "./layouts";
 
 /*
  * Montagem do carrossel no formato do editor: uma página por slide (todas do
@@ -44,7 +44,9 @@ export function assignLayouts(slides: GeneratorSlide[], seed: number, avoid: str
     const base = chooseLayout(s, seed, avoid[i]);
     let layout = base;
     if (n % 2 === 1) {
-      const alt = LAYOUTS[s.role].filter((l) => l !== base && l !== avoid[i] && layoutAllowed(l, s));
+      const alt = LAYOUTS[s.role].filter(
+        (l) => l !== base && l !== avoid[i] && layoutAllowed(l, s) && (!s.visual.image || NEEDS_IMAGE.has(l)),
+      );
       if (alt.length) layout = alt[Math.floor(rand(seed, 40 + i) * alt.length)]!;
     }
     return { ...s, layout };

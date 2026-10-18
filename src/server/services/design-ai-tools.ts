@@ -114,3 +114,68 @@ registerDesignAiTool({
     };
   },
 });
+
+/* ------------------------------------------------------------------ */
+/* Gerador de carrosséis (artes com document.meta.generator)           */
+/* ------------------------------------------------------------------ */
+
+export type CarouselSlideArgs = { pageId: string; slide: number; instruction: string };
+
+const NOT_GENERATED = "Esta arte não foi criada pelo gerador de carrosséis; use as operações de edição comuns.";
+
+registerDesignAiTool({
+  id: "carousel_slide",
+  label: "Regenerar slide do carrossel",
+  prompt:
+    'SOMENTE se o contexto tiver "generator" (carrossel do gerador): reescrever/refazer UM slide inteiro (texto e composição, mantendo a continuidade), ex.: "reescreva o slide 3", "deixe a capa mais impactante". Argumentos: {"slide": NÚMERO_DO_SLIDE (1 = capa), "instruction": "o que mudar"}. Para trocar só uma palavra ou cor, prefira as operações.',
+  normalize: (ctx, args) => {
+    const meta = ctx.doc.meta?.generator;
+    const n = Math.round(Number(args.slide));
+    const page = Number.isFinite(n) ? ctx.doc.pages[n - 1] : undefined;
+    const slide = page ? meta?.slides.find((s) => s.pageId === page.id) : undefined;
+    if (meta && !slide) return null;
+    const instruction =
+      typeof args.instruction === "string" && args.instruction.trim() ? args.instruction.trim().slice(0, 500) : "";
+    return {
+      tool: "carousel_slide",
+      label: `Regenerar o slide ${n || "?"}${slide?.role === "cover" ? " (capa)" : ""}`,
+      args: { pageId: page?.id ?? "", slide: n, instruction } satisfies CarouselSlideArgs,
+      available: !!slide,
+      note: meta ? null : NOT_GENERATED,
+    };
+  },
+});
+
+registerDesignAiTool({
+  id: "carousel_direction",
+  label: "Nova direção visual",
+  prompt:
+    'SOMENTE com "generator" no contexto: trocar a direção visual do carrossel inteiro (estilo, tipografia, composição e elemento de continuidade) mantendo os textos e as imagens, ex.: "mude só a direção visual". Argumentos: {}.',
+  normalize: (ctx) => {
+    const meta = ctx.doc.meta?.generator;
+    return {
+      tool: "carousel_direction",
+      label: "Nova direção visual (mantém os textos)",
+      args: {},
+      available: !!meta,
+      note: meta ? null : NOT_GENERATED,
+    };
+  },
+});
+
+registerDesignAiTool({
+  id: "carousel_variant",
+  label: "Segunda versão do carrossel",
+  prompt:
+    'SOMENTE com "generator" no contexto: criar uma SEGUNDA VERSÃO do carrossel com outra composição em cada slide (arte nova; esta não muda), ex.: "gere uma segunda versão". Argumentos: {}.',
+  normalize: (ctx) => {
+    const meta = ctx.doc.meta?.generator;
+    return {
+      tool: "carousel_variant",
+      label: "Segunda versão (arte nova com outra composição)",
+      args: {},
+      available: !!meta,
+      note: meta ? null : NOT_GENERATED,
+    };
+  },
+});

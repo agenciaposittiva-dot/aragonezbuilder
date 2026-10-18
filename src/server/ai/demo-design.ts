@@ -22,6 +22,8 @@ type DemoContext = {
   activePage?: number;
   selection?: string[];
   brand?: { colors?: string[]; fonts?: string[] } | null;
+  /** Plano do gerador de carrosséis (arte criada pelo gerador). */
+  generator?: unknown;
 };
 
 const ORDINALS: [string, number][] = [
@@ -152,6 +154,29 @@ export function demoDesignEditJson(prompt: string): string | null {
     return out(`troquei ${map.length} cor(es) pelas da marca nesta página.`, [
       { op: "changePalette", map, pageId: page.id },
     ]);
+  }
+
+  // Carrossel do gerador: ferramentas próprias (slide inteiro, direção visual, segunda versão).
+  if (ctx.generator) {
+    if (/segunda vers|outra vers/.test(msg))
+      return out(
+        "posso criar uma segunda versão do carrossel com outra composição (esta arte não muda).",
+        [],
+        [{ tool: "carousel_variant", args: {} }],
+      );
+    if (/dire[cç][aã]o visual|estilo visual/.test(msg))
+      return out(
+        "posso trocar a direção visual mantendo os textos e as imagens.",
+        [],
+        [{ tool: "carousel_direction", args: {} }],
+      );
+    const slide = named ? named.number : /\bcapa\b/.test(msg) ? 1 : null;
+    if (slide && /reescrev|refa[cç]|regener|impactante|melhor|outra abordagem|mais /.test(msg))
+      return out(
+        `vou refazer o slide ${slide} mantendo a continuidade do carrossel. Revise a prévia antes de aplicar.`,
+        [],
+        [{ tool: "carousel_slide", args: { slide, instruction: original } }],
+      );
   }
 
   if (/aument|maior/.test(msg) && target) {

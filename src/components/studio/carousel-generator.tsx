@@ -174,10 +174,18 @@ export function CarouselGenerator({
           } else if (msg.t === "done") {
             finished = true;
             if (msg.notice) toast.warning(msg.notice);
+            const designId = msg.designId;
             toast.success(
               msg.claims.length
                 ? `Carrossel salvo. ${msg.claims.length} dado(s) a confirmar antes de publicar.`
                 : "Carrossel salvo. Abrindo o editor…",
+              {
+                duration: 10_000,
+                action: {
+                  label: "Visualizar publicação",
+                  onClick: () => router.push(`/w/${orgSlug}/studio/${designId}/preview`),
+                },
+              },
             );
             router.push(`/w/${orgSlug}/studio/${msg.designId}?gerado=1`);
           }

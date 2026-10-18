@@ -11,7 +11,7 @@ import {
 } from "@/lib/design-doc";
 import type { GeneratorDirection, GeneratorSlide, SlideRole } from "@/lib/design-doc/generator";
 import { contrast, isDark, mix, parseHex, readable, shade } from "./color";
-import { pick, rand, tintOf } from "./direction";
+import { pick, tintOf } from "./direction";
 import { fitText, shorten } from "./fit";
 import { ICONS, iconForText, isIconName, type IconName } from "./icons";
 
@@ -44,7 +44,7 @@ export const LAYOUTS: Record<SlideRole, string[]> = {
   cta: ["cta-center", "cta-accent"],
 };
 
-const NEEDS_IMAGE = new Set(["cover-bleed", "cover-split", "point-image"]);
+export const NEEDS_IMAGE = new Set(["cover-bleed", "cover-split", "point-image"]);
 
 /** Papéis que compartilham a mesma família de composição (unidade no carrossel). */
 const FAMILY: Record<SlideRole, string> = {
@@ -84,7 +84,8 @@ export function chooseLayout(slide: GeneratorSlide, seed: number, avoid?: string
   let list = options;
   if (avoid && options.length > 1) list = options.filter((l) => l !== avoid);
   const withImage = list.filter((l) => NEEDS_IMAGE.has(l));
-  if (withImage.length && rand(seed, salt + 7) < 0.75) list = withImage;
+  // Imagem real do slide (gerada ou escolhida) é sempre usada: só composições com imagem.
+  if (withImage.length) list = withImage;
   return pick(list, seed, salt);
 }
 

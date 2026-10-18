@@ -15,9 +15,12 @@ import { ConflictError, ForbiddenError, ValidationError } from "@/server/errors"
 import { CostConfirmationError, updateAiSettings } from "@/server/services/ai";
 import { ModelSelectionError } from "@/server/services/ai-models";
 import { saveProviderKey } from "@/server/services/ai-providers";
+import { runGeneration, type GenerationEvent } from "@/server/services/ai-run";
 import {
   createCarouselVariant,
   generateCarousel,
+  planCarouselRestyle,
+  planCarouselSlide,
   prepareCarousel,
   regenerateCarouselSlide,
   restyleCarousel,
@@ -25,7 +28,9 @@ import {
 } from "@/server/services/carousel-generator";
 import { createClient, updateBrandProfile } from "@/server/services/clients";
 import { importImageAsTemplate } from "@/server/services/design-import";
-import { getDesign, saveDesign } from "@/server/services/designs";
+import { normalizeDesignAi, prepareDesignAi } from "@/server/services/design-ai";
+import { designAiTools } from "@/server/services/design-ai-tools";
+import { applyDesignOperations, getDesign, saveDesign } from "@/server/services/designs";
 import { setClientLogo, storeUpload } from "@/server/services/files";
 import { installAiMock, TINY_PNG } from "./ai-mocks";
 import { addMember, as, createOrgWithOwner, resetDb } from "./helpers";
@@ -248,6 +253,55 @@ describe("gerador de carrosséis (demonstração)", () => {
     const other = await createOrgWithOwner("Outra agência");
     await expect(generateCarousel(other.actor, { topic: "Cliente alheio", clientId })).rejects.toThrow();
     await expect(as(ctx.actor, (s) => prepareCarousel(s, { topic: "x" }))).rejects.toThrow();
+  });
+
+  it("chat de edição: entende os comandos do carrossel e devolve operações para a prévia (sem mudar a arte)", async () => {
+    const r = await generateCarousel(ctx.actor, { topic: "Rotina de skincare para iniciantes" });
+    if (!r.ok) throw new Error(r.message);
+    const cur = await doc(ctx.actor, r.designId);
+    const ask = async (message: string) => {
+      const prepared = await as(ctx.actor, (s) => prepareDesignAi(s, { designId: r.designId, message }));
+      const events: GenerationEvent[] = [];
+      await runGeneration(ctx.actor, prepared.generation, prepared.input, { send: (e) => events.push(e) });
+      const done = events.find((e) => e.t === "done");
+      if (!done || done.t !== "done") throw new Error("sem resposta do chat");
+      return normalizeDesignAi(prepared.ctx, done.data);
+    };
+    expect(designAiTools().map((t) => t.id)).toEqual(
+      expect.arrayContaining(["carousel_slide", "carousel_direction", "carousel_variant"]),
+    );
+
+    const slide3 = await ask("Reescreva o slide 3");
+    expect(slide3.actions[0]).toMatchObject({ tool: "carousel_slide", available: true });
+    expect((slide3.actions[0]!.args as { pageId: string }).pageId).toBe(cur.doc.pages[2]!.id);
+    const cover = await ask("Deixe a capa mais impactante");
+    expect(cover.actions[0]).toMatchObject({ tool: "carousel_slide", args: { slide: 1 } });
+    expect((await ask("Mude só a direção visual")).actions[0]).toMatchObject({ tool: "carousel_direction" });
+    expect((await ask("Gere uma segunda versão")).actions[0]).toMatchObject({ tool: "carousel_variant" });
+
+    // Executar a ferramenta só calcula: a arte não muda até o chat aplicar.
+    const planned = await planCarouselSlide(ctx.actor, {
+      designId: r.designId,
+      pageId: cur.doc.pages[2]!.id,
+      instruction: "mais curto",
+    });
+    expect(planned.ops.map((o) => o.op)).toEqual(["replacePage", "replaceMeta"]);
+    const restyle = await as(ctx.actor, (s) => planCarouselRestyle(s, { designId: r.designId }));
+    expect(restyle.ops.length).toBe(cur.doc.pages.length + 1);
+    expect((await doc(ctx.actor, r.designId)).design.revision).toBe(cur.design.revision);
+    // O chat aplica pelo caminho comum (ponto de controle próprio) e o slide muda.
+    const applied = await as(ctx.actor, (s) =>
+      applyDesignOperations(s, {
+        designId: r.designId,
+        revision: cur.design.revision,
+        ops: planned.ops,
+        checkpointLabel: "Antes da edição pelo chat de IA",
+      }),
+    );
+    expect(applied.saved).toBe(true);
+    const after = await doc(ctx.actor, r.designId);
+    expect(JSON.stringify(after.doc.pages[2])).not.toBe(JSON.stringify(cur.doc.pages[2]));
+    expect(after.doc.pages[0]).toEqual(cur.doc.pages[0]);
   });
 
   it("importar PNG como modelo sem modelo de leitura de imagens: só a camada de fundo", async () => {

@@ -602,9 +602,8 @@ function historyEntry(
   return [...meta.history, { at: new Date().toISOString(), action, slideKey, label: label.slice(0, 240) }].slice(-40);
 }
 
-export const regenerateSlideInput = z.object({
+const slideRequest = z.object({
   designId: z.uuid(),
-  revision: z.number().int().min(0),
   pageId: z.string().min(1).max(64),
   instruction: z.string().trim().max(500).optional(),
   keepImage: z.boolean().default(true),
@@ -612,20 +611,27 @@ export const regenerateSlideInput = z.object({
   confirmCost: z.boolean().optional(),
 });
 
-/**
- * Regenera o texto e a composição de UM slide com a IA (mantém papel,
- * direção visual e a imagem, salvo pedido contrário). Grava uma versão
- * "Antes de regenerar…" e aplica as operações com controle de revisão.
- */
-export async function regenerateCarouselSlide(actor: Actor, raw: z.input<typeof regenerateSlideInput>) {
-  const data = regenerateSlideInput.parse(raw);
+export const regenerateSlideInput = slideRequest.extend({ revision: z.number().int().min(0) });
+/** Prévia para o chat de edição: calcula as operações sem aplicar (documento do editor, se enviado). */
+export const planSlideInput = slideRequest.extend({ document: z.record(z.string(), z.unknown()).optional() });
+
+/** Documento de trabalho: o enviado pelo editor (com alterações locais) ou o salvo. */
+function workingDoc(d: { document: unknown; width: number; height: number }, document?: Record<string, unknown>) {
+  return generatorOf((document ?? d.document) as Record<string, unknown>, d);
+}
+
+async function computeSlide(
+  actor: Actor,
+  data: z.output<typeof slideRequest>,
+  opts: { revision?: number; document?: Record<string, unknown> },
+) {
   const pre = await inOrg(actor, async (s) => {
     assertInternal(s.actor);
     assertCan(s.actor, "designs.write");
     const d = (await getDesign(s, data.designId)).design;
-    if (d.revision !== data.revision)
+    if (opts.revision !== undefined && d.revision !== opts.revision)
       throw new ConflictError("A arte mudou desde que foi lida. Carregue a versão atual e tente de novo.");
-    const { doc, meta: stored } = generatorOf(d.document, d);
+    const { doc, meta: stored } = workingDoc(d, opts.document);
     const meta = syncOrder(doc, stored);
     const index = meta.slides.findIndex((x) => x.pageId === data.pageId);
     if (index < 0) throw new ValidationError("Este slide não foi criado pelo gerador (ou foi excluído).");
@@ -718,34 +724,71 @@ export async function regenerateCarouselSlide(actor: Actor, raw: z.input<typeof 
     ...pageOps(nextMeta, pre.doc.pages, new Set([slide.pageId])),
     { op: "replaceMeta", meta: { ...pre.doc.meta, generator: nextMeta } },
   ];
-  const result = await inOrg(actor, async (s) => {
-    const applied = await applyDesignOperations(s, {
-      designId: data.designId,
-      revision: data.revision,
-      ops,
-      checkpointLabel: `Antes de regenerar o slide ${index + 1}`,
-    });
-    await recordStructuredSuccess(s, call, {
+  const record = (s: Scope) =>
+    recordStructuredSuccess(s, call, {
       title: `Slide ${index + 1} regenerado: ${meta.input.topic}`.slice(0, 120),
       input: { designId: data.designId, pageId: data.pageId, instruction: data.instruction ?? "" },
       clientId: pre.d.clientId,
     });
+  return { ops, index, nextMeta, norm, text, call, record };
+}
+
+/**
+ * Regenera o texto e a composição de UM slide com a IA (mantém papel,
+ * direção visual e a imagem, salvo pedido contrário). Grava uma versão
+ * "Antes de regenerar…" e aplica as operações com controle de revisão.
+ */
+export async function regenerateCarouselSlide(actor: Actor, raw: z.input<typeof regenerateSlideInput>) {
+  const data = regenerateSlideInput.parse(raw);
+  const r = await computeSlide(actor, data, { revision: data.revision });
+  const result = await inOrg(actor, async (s) => {
+    const applied = await applyDesignOperations(s, {
+      designId: data.designId,
+      revision: data.revision,
+      ops: r.ops,
+      checkpointLabel: `Antes de regenerar o slide ${r.index + 1}`,
+    });
+    await r.record(s);
     return applied;
   });
   return {
     revision: result.revision,
     ops: result.applied,
-    slideIndex: index,
-    claims: nextMeta.claims,
-    warnings: norm.warnings,
-    demo: text.demo,
-    notice: modelNotice(text, call.model),
+    slideIndex: r.index,
+    claims: r.nextMeta.claims,
+    warnings: r.norm.warnings,
+    demo: r.text.demo,
+    notice: modelNotice(r.text, r.call.model),
+  };
+}
+
+/**
+ * Mesma regeneração, SEM aplicar: devolve as operações para a prévia do chat
+ * de edição (quem aplica é o chat, com o próprio ponto de controle).
+ */
+export async function planCarouselSlide(actor: Actor, raw: z.input<typeof planSlideInput>) {
+  const data = planSlideInput.parse(raw);
+  const r = await computeSlide(actor, data, { document: data.document });
+  const generationId = await inOrg(actor, (s) => r.record(s));
+  return {
+    ops: r.ops,
+    slideIndex: r.index,
+    title: r.nextMeta.slides[r.index]!.title,
+    claims: r.nextMeta.claims,
+    warnings: r.norm.warnings,
+    demo: r.text.demo,
+    notice: modelNotice(r.text, r.call.model),
+    generationId,
   };
 }
 
 export const restyleInput = z.object({
   designId: z.uuid(),
   revision: z.number().int().min(0),
+});
+export const planRestyleInput = z.object({
+  designId: z.uuid(),
+  document: z.record(z.string(), z.unknown()).optional(),
 });
 
 function styleKeyOf(d: GeneratorMeta["direction"]) {
@@ -755,17 +798,12 @@ function styleKeyOf(d: GeneratorMeta["direction"]) {
   return { style, palette };
 }
 
-/**
- * Nova direção visual mantendo os textos (inclusive os editados no editor) e
- * as imagens: outro estilo tipográfico, motivo de continuidade, composição e
- * — sem identidade do cliente — outra paleta. Sem custo de IA.
- */
-export async function restyleCarousel(s: Scope, raw: z.input<typeof restyleInput>) {
-  assertInternal(s.actor);
-  assertCan(s.actor, "designs.write");
-  const data = restyleInput.parse(raw);
-  const d = (await getDesign(s, data.designId)).design;
-  const { doc, meta: stored } = generatorOf(d.document, d);
+async function computeRestyle(
+  s: Scope,
+  d: { clientId: string | null; document: unknown; width: number; height: number },
+  document?: Record<string, unknown>,
+) {
+  const { doc, meta: stored } = workingDoc(d, document);
   const meta = syncOrder(doc, stored);
   const old = styleKeyOf(meta.direction);
   const identity = meta.direction.fromIdentity && d.clientId ? (await loadClient(s, d.clientId, false)).identity : null;
@@ -787,16 +825,43 @@ export async function restyleCarousel(s: Scope, raw: z.input<typeof restyleInput
     ...pageOps(nextMeta, doc.pages),
     { op: "replaceMeta", meta: { ...doc.meta, generator: nextMeta } },
   ];
+  return { ops, direction: direction.name };
+}
+
+/**
+ * Nova direção visual mantendo os textos (inclusive os editados no editor) e
+ * as imagens: outro estilo tipográfico, motivo de continuidade, composição e
+ * — sem identidade do cliente — outra paleta. Sem custo de IA.
+ */
+export async function restyleCarousel(s: Scope, raw: z.input<typeof restyleInput>) {
+  assertInternal(s.actor);
+  assertCan(s.actor, "designs.write");
+  const data = restyleInput.parse(raw);
+  const d = (await getDesign(s, data.designId)).design;
+  const r = await computeRestyle(s, d);
   const result = await applyDesignOperations(s, {
     designId: data.designId,
     revision: data.revision,
-    ops,
+    ops: r.ops,
     checkpointLabel: "Antes de trocar a direção visual",
   });
-  return { revision: result.revision, ops: result.applied, direction: direction.name };
+  return { revision: result.revision, ops: result.applied, direction: r.direction };
 }
 
-export const variantInput = z.object({ designId: z.uuid() });
+/** Nova direção visual SEM aplicar (prévia do chat de edição). */
+export async function planCarouselRestyle(s: Scope, raw: z.input<typeof planRestyleInput>) {
+  assertInternal(s.actor);
+  assertCan(s.actor, "designs.write");
+  const data = planRestyleInput.parse(raw);
+  const d = (await getDesign(s, data.designId)).design;
+  return computeRestyle(s, d, data.document);
+}
+
+export const variantInput = z.object({
+  designId: z.uuid(),
+  /** Documento do editor (com alterações ainda não salvas), quando houver. */
+  document: z.record(z.string(), z.unknown()).optional(),
+});
 
 /**
  * Segunda versão: arte NOVA com os mesmos textos e a mesma identidade, mas
@@ -809,7 +874,7 @@ export async function createCarouselVariant(s: Scope, raw: z.input<typeof varian
   const data = variantInput.parse(raw);
   const src = await getDesign(s, data.designId);
   const d = src.design;
-  const { doc, meta: stored } = generatorOf(d.document, d);
+  const { doc, meta: stored } = workingDoc(d, data.document);
   const meta = syncOrder(doc, stored);
   const seed = hashSeed(`${meta.direction.seed}|variant|${meta.version}`);
   const motifs = MOTIFS.filter((m) => m !== meta.direction.motif);
