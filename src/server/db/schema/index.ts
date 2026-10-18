@@ -14,3 +14,5 @@ export * from "./finance";
 export * from "./storage";
 export * from "./portal";
 export * from "./chat";
+export * from "./trends";
+export * from "./content";

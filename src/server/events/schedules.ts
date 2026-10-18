@@ -4,6 +4,7 @@ import { auditLogs, domainEvents, invoices } from "@/server/db/schema";
 import { nextCounter } from "@/server/services/finance";
 import { cleanupPendingChatAttachments } from "@/server/services/chat-attachments";
 import { purgeExpiredTrash } from "@/server/services/trash";
+import { refreshDueSources } from "@/server/services/trends";
 
 /*
  * Rotinas agendadas (worker via pg-boss; ou /api/cron/tick em plataformas sem
@@ -257,6 +258,10 @@ export async function runDueSchedules() {
     approvalReminders: await remindPendingApprovals(),
     trash: await purgeExpiredTrash(),
     chatAttachments: await cleanupPendingChatAttachments(),
+    // Radar de Tendências: fontes vencidas de todas as agências, com orçamento de tempo.
+    trends: await refreshDueSources({ budgetMs: 25_000 }).catch((err) => ({
+      error: String((err as Error)?.message ?? err),
+    })),
   };
 }
 
@@ -281,5 +286,11 @@ export const SCHEDULES = [
     cron: "40 3 * * *",
     run: () => cleanupPendingChatAttachments(),
     label: "Anexos de chat não enviados",
+  },
+  {
+    name: "cron-trends-refresh",
+    cron: "20 */6 * * *",
+    run: async () => (await refreshDueSources({ budgetMs: 120_000 })).ok,
+    label: "Radar de Tendências",
   },
 ] as const;

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  FIXTURE DE TESTE — NÃO SÃO DADOS REAIS.
+  Mesmo formato do feed público https://trends.google.com/trending/rss?geo=BR
+  (elementos ht:approx_traffic e ht:news_item), com assuntos e números
+  fictícios, gravado para os testes automáticos do Radar de Tendências.
+-->
+<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:ht="https://trends.google.com/trending/rss" version="2.0">
+  <channel>
+    <title>Daily Search Trends</title>
+    <description>Recent searches</description>
+    <link>https://trends.google.com/trending/rss?geo=BR</link>
+    <atom:link href="https://trends.google.com/trending/rss?geo=BR" rel="self" type="application/rss+xml"/>
+    <item>
+      <title>Festival de Café Fictício</title>
+      <ht:approx_traffic>2000+</ht:approx_traffic>
+      <description></description>
+      <link>https://trends.google.com/trending/rss?geo=BR</link>
+      <pubDate>Fri, 16 Oct 2026 09:40:00 -0700</pubDate>
+      <ht:picture>https://exemplo.invalid/imagem.jpg</ht:picture>
+      <ht:picture_source>Portal Exemplo</ht:picture_source>
+      <ht:news_item>
+        <ht:news_item_title>Festival de café reúne produtores (notícia fictícia)</ht:news_item_title>
+        <ht:news_item_url>https://noticias.exemplo.invalid/festival-cafe</ht:news_item_url>
+        <ht:news_item_picture>https://exemplo.invalid/n1.jpg</ht:news_item_picture>
+        <ht:news_item_source>Portal Exemplo</ht:news_item_source>
+      </ht:news_item>
+      <ht:news_item>
+        <ht:news_item_title>Programação do festival &amp; horários</ht:news_item_title>
+        <ht:news_item_url>https://outro.exemplo.invalid/programacao</ht:news_item_url>
+        <ht:news_item_source>Outro Exemplo</ht:news_item_source>
+      </ht:news_item>
+    </item>
+    <item>
+      <title>Lançamento do Aplicativo Exemplo</title>
+      <ht:approx_traffic>500+</ht:approx_traffic>
+      <description></description>
+      <link>https://trends.google.com/trending/rss?geo=BR</link>
+      <pubDate>Fri, 16 Oct 2026 08:10:00 -0700</pubDate>
+      <ht:news_item>
+        <ht:news_item_title>Aplicativo Exemplo chega às lojas</ht:news_item_title>
+        <ht:news_item_url>https://tec.exemplo.invalid/app</ht:news_item_url>
+        <ht:news_item_source>Tec Exemplo</ht:news_item_source>
+      </ht:news_item>
+    </item>
+    <item>
+      <title>Clássico Regional Exemplo</title>
+      <ht:approx_traffic>10.000+</ht:approx_traffic>
+      <description></description>
+      <link>https://trends.google.com/trending/rss?geo=BR</link>
+      <pubDate>Fri, 16 Oct 2026 07:00:00 -0700</pubDate>
+    </item>
+  </channel>
+</rss>
