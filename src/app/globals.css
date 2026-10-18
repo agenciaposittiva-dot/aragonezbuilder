@@ -1,0 +1,264 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* =====================================================================
+   Design tokens
+   Paleta reduzida: neutros quentes + tinta (ações primárias) + íris
+   (destaque e foco). Cores de estado aparecem só em badges e alertas.
+   ===================================================================== */
+:root {
+  --bg: #f6f5f2;
+  --surface: #ffffff;
+  --surface-2: #f1f0ec;
+  --surface-3: #e9e7e2;
+  --fg: #161513;
+  --fg-muted: #5e5b55;
+  --fg-subtle: #8b8780;
+  --border: #e5e3dd;
+  --border-strong: #d3d0c8;
+
+  --primary: #161513;
+  --primary-hover: #2c2a26;
+  --primary-fg: #faf9f6;
+
+  /* Dourado da marca: preenchimentos com texto escuro; para texto use --accent-text */
+  --accent: #f4bf2f;
+  --accent-hover: #e5ae17;
+  --accent-fg: #161513;
+  --accent-soft: #fdf3d6;
+  --accent-soft-fg: #7a5200;
+  --accent-text: #8f6100;
+
+  --success: #18794e;
+  --success-soft: #e9f6ee;
+  --warning: #a35200;
+  --warning-soft: #fdf1e3;
+  --danger: #c62a2f;
+  --danger-hover: #ad1f24;
+  --danger-soft: #fdecec;
+  --info: #0b68cb;
+  --info-soft: #e8f2fd;
+
+  --ring: color-mix(in oklab, #d9a21a 70%, transparent);
+  --overlay: rgb(14 13 12 / 0.45);
+
+  /* Sidebar sempre escura (identidade preto + dourado) */
+  --sidebar-bg: #121110;
+  --sidebar-fg: #f2f0ea;
+  --sidebar-muted: #9c978d;
+  --sidebar-border: #24221f;
+  --sidebar-hover: #1d1b19;
+  --sidebar-active: #262420;
+
+  --shadow-xs: 0 1px 1px rgb(22 21 19 / 0.04);
+  --shadow-sm: 0 1px 2px rgb(22 21 19 / 0.06), 0 1px 1px rgb(22 21 19 / 0.03);
+  --shadow-md: 0 4px 12px -2px rgb(22 21 19 / 0.08), 0 2px 4px -2px rgb(22 21 19 / 0.05);
+  --shadow-lg: 0 16px 40px -8px rgb(22 21 19 / 0.16), 0 4px 10px -4px rgb(22 21 19 / 0.06);
+
+  /* Camadas */
+  --z-sticky: 20;
+  --z-sidebar: 30;
+  --z-overlay: 40;
+  --z-modal: 50;
+  --z-popover: 60;
+  --z-toast: 70;
+
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --bg: #0d0c0b;
+  --surface: #151412;
+  --surface-2: #1c1a18;
+  --surface-3: #24221f;
+  --fg: #efede8;
+  --fg-muted: #a39f96;
+  --fg-subtle: #77736b;
+  --border: #272522;
+  --border-strong: #35322e;
+
+  --primary: #efede8;
+  --primary-hover: #d9d6cf;
+  --primary-fg: #151412;
+
+  --accent: #f4bf2f;
+  --accent-hover: #f7cd57;
+  --accent-fg: #151412;
+  --accent-soft: #2a2310;
+  --accent-soft-fg: #f6cf63;
+  --accent-text: #f4bf2f;
+
+  --success: #3dd68c;
+  --success-soft: #11291d;
+  --warning: #ffb224;
+  --warning-soft: #2d2010;
+  --danger: #ff6369;
+  --danger-hover: #ff8589;
+  --danger-soft: #331517;
+  --info: #70b8ff;
+  --info-soft: #0f2134;
+
+  --ring: color-mix(in oklab, #f4bf2f 65%, transparent);
+  --overlay: rgb(0 0 0 / 0.62);
+
+  --sidebar-bg: #0f0e0d;
+  --sidebar-fg: #efede8;
+  --sidebar-muted: #8e897f;
+  --sidebar-border: #211f1c;
+  --sidebar-hover: #1a1816;
+  --sidebar-active: #23211e;
+
+  --shadow-xs: 0 1px 1px rgb(0 0 0 / 0.3);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.5);
+  --shadow-lg: 0 16px 40px -8px rgb(0 0 0 / 0.6);
+
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-fg: var(--primary-fg);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-soft-fg: var(--accent-soft-fg);
+  --color-accent-text: var(--accent-text);
+  --color-sidebar: var(--sidebar-bg);
+  --color-sidebar-fg: var(--sidebar-fg);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-hover: var(--sidebar-hover);
+  --color-sidebar-active: var(--sidebar-active);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-ring: var(--ring);
+  --color-overlay: var(--overlay);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
+  --animate-fade-in: fade-in 160ms ease-out;
+  --animate-scale-in: scale-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-slide-in-right: slide-in-right 240ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-slide-in-left: slide-in-left 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes slide-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--border);
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--accent) 25%, transparent);
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  summary {
+    cursor: pointer;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
