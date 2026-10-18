@@ -1,4 +1,4 @@
-import { CalendarDays, KanbanSquare, List } from "lucide-react";
+import { CalendarDays, Flame, GanttChartSquare, KanbanSquare, List, UserRoundCheck } from "lucide-react";
 import { SegmentedNav } from "@/components/ui/segmented-nav";
 
 type Params = Record<string, string | string[] | undefined>;
@@ -18,11 +18,36 @@ export function TasksViewSwitcher({
   basePath,
   searchParams,
   defaultView = "list",
+  full,
 }: {
   basePath: string;
   searchParams: Params;
-  defaultView?: "list" | "board";
+  defaultView?: "list" | "board" | "my";
+  /** Central de tarefas: inclui Minha visão, Linha do tempo e Prioridades. */
+  full?: boolean;
 }) {
+  if (full) {
+    const item = (value: string, label: string, icon: React.ReactNode, extra: Record<string, string | null> = {}) => ({
+      label,
+      value,
+      icon,
+      href: hrefWith(basePath, searchParams, { view: value === defaultView ? null : value, month: null, ...extra }),
+    });
+    return (
+      <SegmentedNav
+        param="view"
+        className="max-w-full overflow-x-auto"
+        items={[
+          item("my", "Minha visão", <UserRoundCheck />),
+          item("list", "Lista", <List />),
+          item("board", "Quadro", <KanbanSquare />),
+          item("calendar", "Calendário", <CalendarDays />),
+          item("timeline", "Linha do tempo", <GanttChartSquare />),
+          item("focus", "Prioridades", <Flame />),
+        ]}
+      />
+    );
+  }
   const list = {
     label: "Lista",
     value: "list",

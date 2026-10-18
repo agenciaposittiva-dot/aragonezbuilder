@@ -108,7 +108,7 @@ export function relativeFromNow(value: Date | string): string {
 
 export const PRIORITY_LABEL: Record<string, string> = {
   low: "Baixa",
-  medium: "Média",
+  medium: "Normal",
   high: "Alta",
   urgent: "Urgente",
 };

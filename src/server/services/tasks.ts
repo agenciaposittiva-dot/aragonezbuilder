@@ -10,11 +10,13 @@ import {
   inArray,
   isNotNull,
   isNull,
+  lt,
   lte,
   ne,
   sql,
 } from "drizzle-orm";
 import type { z } from "zod";
+import { todayISO } from "@/lib/format";
 import { checklistItemInput, taskInput, taskListParams, taskMoveInput, taskUpdateInput } from "@/lib/validators/tasks";
 import {
   approvals,
@@ -74,6 +76,17 @@ async function emit(s: Scope, type: string, entityId: string, payload: Record<st
 
 const assigneeUser = aliasedTable(user, "assignee_user");
 
+/** Tarefa aberta com alguma dependência ainda não concluída. */
+const blockedExpr = sql`exists (select 1 from ${taskDependencies} d join ${tasks} dep on dep.id = d.depends_on_task_id where d.task_id = ${tasks.id} and dep.completed_at is null and dep.archived_at is null)`;
+
+const PRIORITY_WEIGHT = sql<number>`case ${tasks.priority} when 'urgent' then 4 when 'high' then 3 when 'medium' then 2 else 1 end`;
+
+function plusDays(iso: string, days: number) {
+  const d = new Date(`${iso}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 export async function listTasks(s: Scope, raw: z.input<typeof taskListParams>) {
   assertCan(s.actor, "tasks.read");
   const p = taskListParams.parse(raw);
@@ -86,10 +99,20 @@ export async function listTasks(s: Scope, raw: z.input<typeof taskListParams>) {
           ? eq(tasks.assigneeMembershipId, p.assignee)
           : undefined;
 
+  const today = todayISO();
   const where = and(
     taskScope(s.actor),
     p.archived ? isNotNull(tasks.archivedAt) : isNull(tasks.archivedAt),
     p.subtasks ? undefined : isNull(tasks.parentTaskId),
+    p.due === "overdue" ? and(isNull(tasks.completedAt), lt(tasks.dueDate, today)) : undefined,
+    p.due === "today" ? and(isNull(tasks.completedAt), eq(tasks.dueDate, today)) : undefined,
+    p.due === "week"
+      ? and(isNull(tasks.completedAt), gte(tasks.dueDate, today), lte(tasks.dueDate, plusDays(today, 7)))
+      : undefined,
+    p.due === "none" ? and(isNull(tasks.completedAt), isNull(tasks.dueDate)) : undefined,
+    p.blocked ? and(isNull(tasks.completedAt), blockedExpr) : undefined,
+    p.open ? isNull(tasks.completedAt) : undefined,
+    p.completedSince ? gte(tasks.completedAt, new Date(`${p.completedSince}T00:00:00-03:00`)) : undefined,
     p.projectId ? eq(tasks.projectId, p.projectId) : undefined,
     p.clientId ? eq(projects.clientId, p.clientId) : undefined,
     p.statusId ? eq(tasks.statusId, p.statusId) : undefined,
@@ -126,6 +149,8 @@ export async function listTasks(s: Scope, raw: z.input<typeof taskListParams>) {
       subtasksDone: sql<number>`(select count(*)::int from ${tasks} st where st.parent_task_id = ${tasks.id} and st.archived_at is null and st.completed_at is not null)`,
       checklistTotal: sql<number>`(select count(*)::int from ${taskChecklistItems} ci where ci.task_id = ${tasks.id})`,
       checklistDone: sql<number>`(select count(*)::int from ${taskChecklistItems} ci where ci.task_id = ${tasks.id} and ci.done)`,
+      blocked: sql<boolean>`${blockedExpr}`,
+      updatedAt: tasks.updatedAt,
     })
     .from(tasks)
     .innerJoin(projects, eq(projects.id, tasks.projectId))
@@ -136,8 +161,22 @@ export async function listTasks(s: Scope, raw: z.input<typeof taskListParams>) {
     .where(where);
 
   if (p.view === "list") {
+    const order = {
+      status: [asc(workflowStatuses.position), sql`${tasks.dueDate} asc nulls last`, asc(tasks.position)],
+      due: [sql`${tasks.dueDate} asc nulls last`, desc(PRIORITY_WEIGHT)],
+      priority: [desc(PRIORITY_WEIGHT), sql`${tasks.dueDate} asc nulls last`],
+      recent: [desc(tasks.completedAt), desc(tasks.updatedAt)],
+      title: [asc(tasks.title)],
+      // Foco: desbloqueadas primeiro, depois atrasadas, mais prioritárias e com prazo mais próximo.
+      focus: [
+        asc(sql`${blockedExpr}`),
+        desc(sql`(${tasks.dueDate} is not null and ${tasks.dueDate} < ${today})`),
+        desc(PRIORITY_WEIGHT),
+        sql`${tasks.dueDate} asc nulls last`,
+      ],
+    }[p.sort ?? "status"];
     const rows = await query
-      .orderBy(asc(workflowStatuses.position), sql`${tasks.dueDate} asc nulls last`, asc(tasks.position))
+      .orderBy(...order)
       .limit(p.pageSize)
       .offset((p.page - 1) * p.pageSize);
     const [total] = await s.db
@@ -152,6 +191,43 @@ export async function listTasks(s: Scope, raw: z.input<typeof taskListParams>) {
 }
 
 export type TaskListRow = Awaited<ReturnType<typeof listTasks>>["rows"][number];
+
+/** Indicadores do topo da central (só tarefas que o ator pode ver). */
+export async function taskIndicators(s: Scope) {
+  assertCan(s.actor, "tasks.read");
+  const today = todayISO();
+  const open = and(taskScope(s.actor), isNull(tasks.archivedAt), isNull(tasks.completedAt));
+  const [row] = await s.db
+    .select({
+      mine: sql<number>`count(*) filter (where ${tasks.assigneeMembershipId} = ${s.actor.membershipId})::int`,
+      overdue: sql<number>`count(*) filter (where ${tasks.dueDate} < ${today})::int`,
+      today: sql<number>`count(*) filter (where ${tasks.dueDate} = ${today})::int`,
+      blocked: sql<number>`count(*) filter (where ${blockedExpr})::int`,
+      unassigned: sql<number>`count(*) filter (where ${tasks.assigneeMembershipId} is null)::int`,
+    })
+    .from(tasks)
+    .where(open);
+  const [done] = await s.db
+    .select({ n: count() })
+    .from(tasks)
+    .where(
+      and(
+        taskScope(s.actor),
+        isNull(tasks.archivedAt),
+        gte(tasks.completedAt, new Date(`${plusDays(today, -6)}T00:00:00-03:00`)),
+      ),
+    );
+  return {
+    mine: row?.mine ?? 0,
+    overdue: row?.overdue ?? 0,
+    today: row?.today ?? 0,
+    blocked: row?.blocked ?? 0,
+    unassigned: row?.unassigned ?? 0,
+    doneWeek: done?.n ?? 0,
+  };
+}
+
+export type TaskIndicators = Awaited<ReturnType<typeof taskIndicators>>;
 
 export async function getTask(s: Scope, id: string) {
   assertCan(s.actor, "tasks.read");

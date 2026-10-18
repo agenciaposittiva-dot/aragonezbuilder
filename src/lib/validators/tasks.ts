@@ -80,7 +80,20 @@ export const taskListParams = z.object({
   archived: z.coerce.boolean().optional(),
   /** Incluir subtarefas na listagem (padrão: só tarefas principais). */
   subtasks: z.coerce.boolean().optional(),
-  view: z.enum(["list", "board", "calendar"]).default("list"),
+  /** Atalhos de prazo: vencidas, para hoje, próximos 7 dias ou sem prazo (abertas). */
+  due: z.enum(["overdue", "today", "week", "none"]).optional(),
+  /** Só tarefas abertas (não concluídas). */
+  open: z.coerce.boolean().optional(),
+  /** Só tarefas bloqueadas por dependências abertas. */
+  blocked: z.coerce.boolean().optional(),
+  /** Ordenação da lista (padrão: status e prazo). */
+  sort: z.enum(["status", "due", "priority", "recent", "title", "focus"]).optional(),
+  /** Concluídas a partir desta data (AAAA-MM-DD). */
+  completedSince: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  view: z.enum(["my", "list", "board", "calendar", "timeline", "focus"]).default("list"),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(5).max(200).default(50),
 });

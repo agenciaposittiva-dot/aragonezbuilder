@@ -1,22 +1,17 @@
 import { ListChecks } from "lucide-react";
-import Link from "next/link";
-import { DueDate } from "@/components/app/due-date";
 import { MonthCalendar } from "@/components/app/month-calendar";
 import { Pagination } from "@/components/app/pagination";
-import { PriorityLabel } from "@/components/app/priority";
-import { Avatar } from "@/components/ui/avatar";
-import { StatusBadge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
+import { Timeline } from "@/components/app/timeline";
 import { todayISO } from "@/lib/format";
 import type { TaskListRow } from "@/server/services/tasks";
 import type { StatusRow } from "@/server/services/workflow";
-import { TaskDoneCheckbox } from "./task-done-checkbox";
+import { TaskListTable, type TaskGroupBy } from "./task-list-table";
 import { TasksBoard } from "./tasks-board";
 import type { ProjectOption } from "./task-form-dialog";
 
-type View = "list" | "board" | "calendar";
+type View = "my" | "list" | "board" | "calendar" | "timeline" | "focus";
 
 export function monthRange(searchParams: Record<string, string | string[] | undefined>) {
   const month =
@@ -43,6 +38,10 @@ export function TasksView({
   projects,
   assigneeMembershipId,
   emptyAction,
+  transitions = [],
+  members = [],
+  canAssign = false,
+  groupBy = "none",
 }: {
   view: View;
   rows: TaskListRow[];
@@ -58,6 +57,10 @@ export function TasksView({
   projects?: ProjectOption[];
   assigneeMembershipId?: string;
   emptyAction?: React.ReactNode;
+  transitions?: { fromStatusId: string; toStatusId: string }[];
+  members?: { membershipId: string; name: string; image: string | null }[];
+  canAssign?: boolean;
+  groupBy?: TaskGroupBy;
 }) {
   const base = `/w/${orgSlug}`;
   if (view === "board") {
@@ -98,6 +101,25 @@ export function TasksView({
     );
   }
 
+  if (view === "timeline") {
+    return (
+      <Timeline
+        rows={rows.map((r) => ({
+          id: r.id,
+          title: r.title,
+          subtitle: `${r.clientName} · ${r.projectName}${r.blocked && !r.completedAt ? " · bloqueada" : ""}${
+            r.startDate && r.dueDate && r.startDate > r.dueDate ? " · conflito: prazo antes do início" : ""
+          }`,
+          start: r.startDate ?? r.dueDate,
+          end: r.dueDate ?? r.startDate,
+          color: r.statusColor,
+          href: `${base}/tasks/${r.id}`,
+          progress: r.subtasksTotal ? Math.round((r.subtasksDone / r.subtasksTotal) * 100) : r.completedAt ? 100 : 0,
+        }))}
+      />
+    );
+  }
+
   return (
     <Card>
       {rows.length === 0 ? (
@@ -109,60 +131,17 @@ export function TasksView({
         />
       ) : (
         <>
-          <Table>
-            <THead>
-              <tr>
-                <TH className="w-10" aria-label="Concluída" />
-                <TH>Tarefa</TH>
-                <TH>Status</TH>
-                <TH className="hidden md:table-cell">Responsável</TH>
-                <TH className="hidden lg:table-cell">Prioridade</TH>
-                <TH>Prazo</TH>
-              </tr>
-            </THead>
-            <TBody>
-              {rows.map((t) => (
-                <TR key={t.id} className="relative">
-                  <TD className="w-10 pr-0">
-                    <TaskDoneCheckbox taskId={t.id} done={!!t.completedAt} disabled={!canWrite} label={t.title} />
-                  </TD>
-                  <TD className="max-w-[360px]">
-                    <Link href={`${base}/tasks/${t.id}`} className="block after:absolute after:inset-0">
-                      <span
-                        className={`block truncate font-medium ${t.completedAt ? "text-fg-subtle line-through" : ""}`}
-                      >
-                        {t.title}
-                      </span>
-                      {projectId ? null : (
-                        <span className="block truncate text-xs text-fg-muted">
-                          {t.clientName} · {t.projectName}
-                        </span>
-                      )}
-                    </Link>
-                  </TD>
-                  <TD>
-                    <StatusBadge name={t.statusName} color={t.statusColor} />
-                  </TD>
-                  <TD className="hidden md:table-cell">
-                    {t.assigneeName ? (
-                      <span className="flex items-center gap-2 text-fg-muted">
-                        <Avatar name={t.assigneeName} src={t.assigneeImage} size="xs" />
-                        <span className="truncate">{t.assigneeName}</span>
-                      </span>
-                    ) : (
-                      <span className="text-xs text-fg-subtle">Sem responsável</span>
-                    )}
-                  </TD>
-                  <TD className="hidden lg:table-cell">
-                    <PriorityLabel priority={t.priority} />
-                  </TD>
-                  <TD>
-                    <DueDate date={t.dueDate} done={!!t.completedAt} />
-                  </TD>
-                </TR>
-              ))}
-            </TBody>
-          </Table>
+          <TaskListTable
+            rows={rows}
+            statuses={statuses.map((st) => ({ id: st.id, name: st.name, color: st.color }))}
+            transitions={transitions}
+            members={members}
+            base={base}
+            canWrite={canWrite}
+            canAssign={canAssign}
+            groupBy={groupBy}
+            hideProject={!!projectId}
+          />
           <Pagination page={page} pageSize={pageSize} total={total} searchParams={searchParams} basePath={basePath} />
         </>
       )}

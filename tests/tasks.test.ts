@@ -12,11 +12,13 @@ import {
   getTask,
   listTasks,
   moveTask,
+  taskIndicators,
   toggleTaskDone,
   updateTask,
 } from "@/server/services/tasks";
 import { addTimeEntry, getRunningTimer, startTimer, stopTimer } from "@/server/services/time-entries";
 import { listStatuses } from "@/server/services/workflow";
+import { todayISO } from "@/lib/format";
 import { parseDuration } from "@/lib/validators/tasks";
 import { addMember, as, createOrgWithOwner, resetDb } from "./helpers";
 
@@ -157,6 +159,41 @@ describe("tarefas", () => {
     const stopped = await as(ctx.actor, (s) => stopTimer(s));
     expect(stopped.minutes).toBeGreaterThanOrEqual(1);
     expect(await as(ctx.actor, (s) => getRunningTimer(s))).toBeNull();
+  });
+
+  it("indicadores e filtros de prazo/bloqueio batem com as tarefas reais", async () => {
+    const today = todayISO();
+    const past = new Date(Date.parse(`${today}T12:00:00Z`) - 3 * 86_400_000).toISOString().slice(0, 10);
+    const before = await as(ctx.actor, (s) => taskIndicators(s));
+    const me = ctx.actor.membershipId;
+    const late = await as(ctx.actor, (s) =>
+      createTask(s, { projectId, title: "Vencida", dueDate: past, assigneeMembershipId: me }),
+    );
+    const now = await as(ctx.actor, (s) =>
+      createTask(s, { projectId, title: "Hoje", dueDate: today, assigneeMembershipId: me }),
+    );
+    const waiting = await as(ctx.actor, (s) => createTask(s, { projectId, title: "Esperando" }));
+    await as(ctx.actor, (s) => addDependency(s, waiting.id, now.id));
+    const after = await as(ctx.actor, (s) => taskIndicators(s));
+    expect(after.overdue - before.overdue).toBe(1);
+    expect(after.today - before.today).toBe(1);
+    expect(after.blocked - before.blocked).toBe(1);
+    expect(after.unassigned - before.unassigned).toBe(1);
+    expect(after.mine - before.mine).toBe(2);
+
+    const ids = async (p: Parameters<typeof listTasks>[1]) =>
+      (await as(ctx.actor, (s) => listTasks(s, p))).rows.map((r) => r.id);
+    expect(await ids({ due: "overdue" })).toContain(late.id);
+    expect(await ids({ due: "overdue" })).not.toContain(now.id);
+    expect(await ids({ due: "today" })).toEqual(expect.arrayContaining([now.id]));
+    expect(await ids({ blocked: true })).toEqual([waiting.id]);
+    const focus = await ids({ assignee: "me", open: true, sort: "focus" });
+    expect(focus.indexOf(late.id)).toBeLessThan(focus.indexOf(now.id));
+
+    await as(ctx.actor, (s) => toggleTaskDone(s, now.id, true));
+    expect(await ids({ blocked: true })).toEqual([]);
+    expect(await ids({ completedSince: today })).toContain(now.id);
+    expect((await as(ctx.actor, (s) => taskIndicators(s))).doneWeek - after.doneWeek).toBe(1);
   });
 
   it("usuário de cliente não vê tarefas", async () => {

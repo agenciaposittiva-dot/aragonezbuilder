@@ -16,7 +16,7 @@ export type EventField = {
 
 const PRIORITY = [
   { value: "low", label: "Baixa" },
-  { value: "medium", label: "Média" },
+  { value: "medium", label: "Normal" },
   { value: "high", label: "Alta" },
   { value: "urgent", label: "Urgente" },
 ];
