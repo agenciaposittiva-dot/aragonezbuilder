@@ -272,6 +272,9 @@ export async function acceptInvitation(token: string, sessionUser: { id: string;
     if (!role) throw new ValidationError("O papel do convite não existe mais.");
 
     const [current] = await tx.select().from(memberships).where(eq(memberships.userId, sessionUser.id));
+    // Quem já é membro ativo não troca de papel por um convite (evita, por exemplo,
+    // rebaixar o último proprietário); mudanças de papel passam pela tela de equipe.
+    if (current?.status === "active") throw new ConflictError("Você já faz parte desta organização.");
     let membershipId: string;
     if (current) {
       await tx.update(memberships).set({ status: "active", roleId: role.id }).where(eq(memberships.id, current.id));

@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 import { resolveActor } from "@/server/authz/actor";
 import { withOrg, withSystem } from "@/server/db";
-import { emailOutbox, invitations, roles, user } from "@/server/db/schema";
+import { emailOutbox, invitations, memberships, roles, user } from "@/server/db/schema";
 import { createClient, getClient } from "@/server/services/clients";
 import {
   acceptInvitation,
@@ -64,6 +64,21 @@ describe("convites", () => {
     await expect(acceptInvitation(tokenOf(url), { id: u.id, email: "davi@teste.dev" })).rejects.toThrow(
       /já foi utilizado/i,
     );
+  });
+
+  it("quem já é membro ativo não troca de papel ao aceitar um convite antigo", async () => {
+    const u = await createUser("Iara", "iara@teste.dev");
+    const { url } = await as(ctx.actor, async (s) =>
+      createInvitation(s, { email: "iara@teste.dev", roleId: await roleId(ctx.org.id, "collaborator") }),
+    );
+    // A pessoa passa a ser membro ativo por outro caminho antes de aceitar.
+    const managerRole = await roleId(ctx.org.id, "manager");
+    await withSystem((tx) =>
+      tx.insert(memberships).values({ organizationId: ctx.org.id, userId: u.id, roleId: managerRole }),
+    );
+    await expect(acceptInvitation(tokenOf(url), { id: u.id, email: "iara@teste.dev" })).rejects.toThrow(/já faz parte/i);
+    const actor = await resolveActor(u.id, ctx.org.slug);
+    expect(actor?.roleKey).toBe("manager");
   });
 
   it("recusa aceite com outro e-mail", async () => {

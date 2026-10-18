@@ -9,6 +9,7 @@ import { can, inOrg } from "@/server/authz";
 import { requireActor } from "@/server/auth/session";
 import { NotFoundError } from "@/server/errors";
 import { getClient } from "@/server/services/clients";
+import { clientLogoVersions } from "@/server/services/files";
 import { listInternalMembers } from "@/server/services/members";
 
 export default async function ClientLayout({ children, params }: LayoutProps<"/w/[org]/clients/[id]">) {
@@ -16,7 +17,9 @@ export default async function ClientLayout({ children, params }: LayoutProps<"/w
   const actor = await requireActor(org, { kind: "internal", permission: "clients.read" });
   const data = await inOrg(actor, async (s) => {
     try {
-      return { detail: await getClient(s, id), members: await listInternalMembers(s) };
+      const detail = await getClient(s, id);
+      const logos = detail.client.logoFileId ? await clientLogoVersions(s, [id]) : new Map<string, string>();
+      return { detail, members: await listInternalMembers(s), logoVersionId: logos.get(id) ?? null };
     } catch (e) {
       if (e instanceof NotFoundError) return null;
       throw e;
@@ -33,7 +36,13 @@ export default async function ClientLayout({ children, params }: LayoutProps<"/w
         <Breadcrumbs items={[{ label: "Clientes", href: `/w/${actor.orgSlug}/clients` }, { label: client.name }]} />
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-4">
-            <Avatar name={client.name} square size="xl" />
+            <Avatar
+              name={client.name}
+              src={data.logoVersionId ? `/api/files/${data.logoVersionId}` : null}
+              square
+              size="xl"
+              className={data.logoVersionId ? "bg-surface ring-1 ring-border [&_img]:object-contain" : undefined}
+            />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="truncate text-xl font-semibold tracking-tight">{client.name}</h1>
