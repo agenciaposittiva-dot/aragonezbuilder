@@ -1,5 +1,5 @@
 import { alias } from "drizzle-orm/pg-core";
-import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { approvalListParams, decideApprovalInput, requestApprovalInput } from "@/lib/validators/approvals";
 import { approvals, clients, files, fileVersions, projects, tasks, user, workflowStatuses } from "@/server/db/schema";
@@ -39,7 +39,11 @@ export async function requestApproval(s: Scope, raw: z.input<typeof requestAppro
   if (!version) throw new NotFoundError("Versão não encontrada.");
 
   const taskId = data.taskId ?? file.taskId;
-  if (taskId) await assertTaskAccess(s, taskId);
+  if (taskId) {
+    const task = await assertTaskAccess(s, taskId);
+    if (file.projectId && task.projectId !== file.projectId)
+      throw new ValidationError("A tarefa escolhida é de outro projeto.");
+  }
 
   if (data.stage === "client") {
     if (!file.clientId) throw new ValidationError("Associe o arquivo a um cliente antes de enviar para aprovação.");
@@ -109,7 +113,35 @@ export async function requestApproval(s: Scope, raw: z.input<typeof requestAppro
       },
     },
   });
+  if (taskId && data.moveTaskToReview) {
+    await moveTaskToStatus(s, taskId, data.stage === "client" ? "client_review" : "internal_review", "review", {
+      reason: data.stage === "client" ? "enviada para aprovação do cliente" : "enviada para revisão interna",
+      skipCategories: ["done", "cancelled"],
+    });
+  }
   return { id: row!.id };
+}
+
+/** Tarefas abertas do projeto do arquivo, para vincular ao pedido de aprovação. */
+export async function approvalTaskOptions(s: Scope, fileId: string) {
+  if (s.actor.kind !== "internal") throw new ForbiddenError();
+  const file = await loadFile(s, fileId);
+  if (!file.projectId) return { tasks: [], defaultTaskId: file.taskId };
+  const rows = await s.db
+    .select({ id: tasks.id, title: tasks.title, statusName: workflowStatuses.name })
+    .from(tasks)
+    .innerJoin(workflowStatuses, eq(workflowStatuses.id, tasks.statusId))
+    .where(
+      and(
+        eq(tasks.projectId, file.projectId),
+        isNull(tasks.completedAt),
+        isNull(tasks.archivedAt),
+        isNull(tasks.deletedAt),
+      ),
+    )
+    .orderBy(asc(tasks.title))
+    .limit(200);
+  return { tasks: rows, defaultTaskId: file.taskId };
 }
 
 /** Registra a decisão. Só a versão atual pode ser decidida; cada etapa tem seu decisor. */
@@ -187,22 +219,31 @@ export async function decideApproval(s: Scope, raw: z.input<typeof decideApprova
   });
 
   if (data.decision === "changes_requested" && approval.taskId) {
-    await moveTaskToAdjustments(s, approval.taskId);
+    await moveTaskToStatus(s, approval.taskId, "adjustments", "in_progress", {
+      reason: "ajustes solicitados na aprovação",
+    });
   }
 }
 
 /**
- * Ajustes solicitados devolvem a tarefa vinculada para "Ajustes" (ou o primeiro
- * status em andamento). A regra de negócio prevalece sobre o fluxo configurado.
+ * Leva a tarefa vinculada ao status de chave `key` (ou o primeiro da categoria
+ * `fallback`): ajustes solicitados → "Ajustes"; envio para revisão (quando a
+ * pessoa marca a opção) → status de revisão da etapa. A regra de negócio
+ * prevalece sobre o fluxo configurado.
  */
-async function moveTaskToAdjustments(s: Scope, taskId: string) {
+async function moveTaskToStatus(
+  s: Scope,
+  taskId: string,
+  key: string,
+  fallback: "in_progress" | "review",
+  opts: { reason: string; skipCategories?: string[] },
+) {
   const statuses = await s.db
     .select()
     .from(workflowStatuses)
     .where(eq(workflowStatuses.entity, "task"))
     .orderBy(workflowStatuses.position);
-  const target =
-    statuses.find((st) => st.key === "adjustments") ?? statuses.find((st) => st.category === "in_progress");
+  const target = statuses.find((st) => st.key === key) ?? statuses.find((st) => st.category === fallback);
   if (!target) return;
   const [task] = await s.db
     .select({ statusId: tasks.statusId, title: tasks.title })
@@ -210,12 +251,13 @@ async function moveTaskToAdjustments(s: Scope, taskId: string) {
     .where(eq(tasks.id, taskId));
   if (!task || task.statusId === target.id) return;
   const from = statuses.find((st) => st.id === task.statusId);
+  if (from && opts.skipCategories?.includes(from.category)) return;
   await s.db.update(tasks).set({ statusId: target.id, completedAt: null }).where(eq(tasks.id, taskId));
   await recordActivity(s, {
     action: "status_changed",
     entityType: "task",
     entityId: taskId,
-    summary: `Status: ${from?.name ?? "?"} → ${target.name} (ajustes solicitados na aprovação)`,
+    summary: `Status: ${from?.name ?? "?"} → ${target.name} (${opts.reason})`,
     changes: { status: { from: from?.name ?? null, to: target.name } },
     event: {
       type: "task.status_changed",

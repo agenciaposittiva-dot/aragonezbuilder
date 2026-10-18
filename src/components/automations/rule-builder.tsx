@@ -58,6 +58,8 @@ function defaultAction(type: ActionInput["type"]): ActionInput {
       return { type, title: "" };
     case "set_task_status":
       return { type, statusKey: "" };
+    case "assign_task":
+      return { type, membershipId: "", onlyIfUnassigned: true };
     case "webhook":
       return { type, url: "https://" };
   }
@@ -586,6 +588,31 @@ function ActionFields({
             ))}
           </NativeSelect>
         </Field>
+      );
+    case "assign_task":
+      return (
+        <div className="grid gap-3">
+          <Field label="Responsável pela tarefa ligada ao evento" required>
+            <NativeSelect
+              value={action.membershipId}
+              onChange={(e) => onChange({ ...action, membershipId: e.target.value })}
+            >
+              <option value="">Selecione…</option>
+              {options.members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </NativeSelect>
+          </Field>
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={action.onlyIfUnassigned !== false}
+              onCheckedChange={(v) => onChange({ ...action, onlyIfUnassigned: v === true })}
+            />
+            Só quando a tarefa ainda não tiver responsável
+          </label>
+        </div>
       );
     case "webhook":
       return (

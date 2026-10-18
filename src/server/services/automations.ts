@@ -97,7 +97,9 @@ async function validateRule(
       ? (a.membershipIds ?? [])
       : a.type === "create_task" && a.assigneeMembershipId
         ? [a.assigneeMembershipId]
-        : [],
+        : a.type === "assign_task"
+          ? [a.membershipId]
+          : [],
   );
   await assertActiveMembers(s, memberIds);
 

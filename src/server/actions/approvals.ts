@@ -7,6 +7,12 @@ import { orgAction } from "./safe-action";
 
 export const requestApprovalAction = orgAction(requestApprovalInput, approvals.requestApproval);
 
+export const approvalTaskOptionsAction = orgAction(
+  z.object({ fileId: z.uuid() }),
+  (s, { fileId }) => approvals.approvalTaskOptions(s, fileId),
+  { refresh: false },
+);
+
 export const decideApprovalAction = orgAction(decideApprovalInput, approvals.decideApproval);
 
 export const cancelApprovalAction = orgAction(z.object({ approvalId: z.uuid() }), (s, { approvalId }) =>

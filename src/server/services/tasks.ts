@@ -52,6 +52,7 @@ import {
 import { ForbiddenError, NotFoundError, ValidationError } from "@/server/errors";
 import { diff, recordActivity } from "./activity";
 import { assertActiveMembers } from "./members";
+import { releasedDependents, unblockedPayload } from "./task-release";
 import { assertTransition, getDefaultStatus, getStatus, type StatusRow } from "./workflow";
 
 const ESC = (q: string) => `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
@@ -633,6 +634,10 @@ async function applyStatus(
       title: before.title,
       assigneeMembershipId: before.assigneeMembershipId,
     });
+    // Libera as tarefas que só aguardavam esta (aviso ao responsável e gatilho de automações).
+    for (const dep of await releasedDependents(s.db, s.actor.orgId, before.id)) {
+      await emit(s, "task.unblocked", dep.id, unblockedPayload(dep, before));
+    }
   }
 }
 

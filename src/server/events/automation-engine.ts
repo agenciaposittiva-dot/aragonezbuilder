@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { EVENT_CATALOG } from "@/lib/events";
 import { APP_NAME } from "@/lib/constants";
 import type { Tx } from "@/server/db";
@@ -9,6 +9,7 @@ import {
   domainEvents,
   emailOutbox,
   notifications,
+  taskDependencies,
   tasks,
   workflowStatuses,
   type AutomationAction,
@@ -29,6 +30,7 @@ import {
 import { postWebhook, webhookSecret } from "./webhook";
 import { prefEnabled } from "@/lib/notification-prefs";
 import { preferencesFor } from "@/server/services/notification-preferences";
+import { releasedDependents, unblockedPayload } from "@/server/services/task-release";
 
 /* ------------------------------------------------------------------ */
 /* Condições                                                           */
@@ -335,6 +337,10 @@ async function runAction(ctx: Ctx, action: AutomationAction): Promise<Record<str
       const taskId = (p.taskId as string | undefined) ?? (ctx.ev.entityType === "task" ? ctx.ev.entityId : null);
       const task = await taskInfo(ctx.tx, org, taskId);
       if (!task) throw new Error("O evento não está ligado a uma tarefa.");
+      const [current] = await ctx.tx
+        .select({ completedAt: tasks.completedAt })
+        .from(tasks)
+        .where(and(eq(tasks.organizationId, org), eq(tasks.id, task.id)));
       const [status] = await ctx.tx
         .select()
         .from(workflowStatuses)
@@ -346,9 +352,32 @@ async function runAction(ctx: Ctx, action: AutomationAction): Promise<Record<str
           ),
         );
       if (!status) throw new Error(`Status de tarefa "${action.statusKey}" não existe.`);
+      const completing = status.category === "done" && !current?.completedAt;
+      if (completing) {
+        // Mesma regra da tela: não conclui tarefa com dependências abertas.
+        const pending = await ctx.tx
+          .select({ title: tasks.title })
+          .from(taskDependencies)
+          .innerJoin(tasks, eq(tasks.id, taskDependencies.dependsOnTaskId))
+          .where(
+            and(
+              eq(taskDependencies.organizationId, org),
+              eq(taskDependencies.taskId, task.id),
+              isNull(tasks.completedAt),
+              isNull(tasks.archivedAt),
+            ),
+          );
+        if (pending.length)
+          throw new Error(
+            `A tarefa depende de outras ainda abertas: ${pending.map((d) => `"${d.title}"`).join(", ")}.`,
+          );
+      }
       await ctx.tx
         .update(tasks)
-        .set({ statusId: status.id, completedAt: status.category === "done" ? new Date() : null })
+        .set({
+          statusId: status.id,
+          completedAt: status.category === "done" ? (current?.completedAt ?? new Date()) : null,
+        })
         .where(and(eq(tasks.organizationId, org), eq(tasks.id, task.id)));
       await ctx.tx.insert(auditLogs).values({
         organizationId: org,
@@ -365,7 +394,50 @@ async function runAction(ctx: Ctx, action: AutomationAction): Promise<Record<str
         toCategory: status.category,
         assigneeMembershipId: task.assigneeMembershipId,
       });
+      if (completing) {
+        await emitFromAutomation(ctx, "task.completed", "task", task.id, {
+          taskId: task.id,
+          projectId: task.projectId,
+          title: task.title,
+          assigneeMembershipId: task.assigneeMembershipId,
+        });
+        for (const dep of await releasedDependents(ctx.tx, org, task.id)) {
+          await emitFromAutomation(ctx, "task.unblocked", "task", dep.id, unblockedPayload(dep, task));
+        }
+      }
       return { type: action.type, taskId: task.id, status: status.key };
+    }
+    case "assign_task": {
+      const taskId = (p.taskId as string | undefined) ?? (ctx.ev.entityType === "task" ? ctx.ev.entityId : null);
+      const task = await taskInfo(ctx.tx, org, taskId);
+      if (!task) throw new Error("O evento não está ligado a uma tarefa.");
+      if (action.onlyIfUnassigned !== false && task.assigneeMembershipId) {
+        return { type: action.type, taskId: task.id, skipped: "A tarefa já tem responsável." };
+      }
+      if (task.assigneeMembershipId === action.membershipId) {
+        return { type: action.type, taskId: task.id, skipped: "Já é o responsável." };
+      }
+      const [m] = await membersByIds(ctx.tx, org, [action.membershipId]);
+      if (!m || m.kind !== "internal") throw new Error("O responsável configurado não está ativo.");
+      await ctx.tx
+        .update(tasks)
+        .set({ assigneeMembershipId: action.membershipId })
+        .where(and(eq(tasks.organizationId, org), eq(tasks.id, task.id)));
+      await ctx.tx.insert(auditLogs).values({
+        organizationId: org,
+        action: "assigned",
+        entityType: "task",
+        entityId: task.id,
+        summary: `Responsável: ${m.name} (automação "${ctx.rule.name}")`,
+      });
+      await emitFromAutomation(ctx, "task.assigned", "task", task.id, {
+        taskId: task.id,
+        projectId: task.projectId,
+        title: task.title,
+        assigneeMembershipId: action.membershipId,
+        previousAssigneeMembershipId: task.assigneeMembershipId,
+      });
+      return { type: action.type, taskId: task.id, assigneeMembershipId: action.membershipId };
     }
     case "webhook": {
       const res = await postWebhook(

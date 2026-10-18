@@ -23,6 +23,7 @@ export type AutomationAction =
   | { type: "email"; to: "assignee" | "owner" | "client_users"; subject: string; body: string }
   | { type: "create_task"; title: string; description?: string; assigneeMembershipId?: string; dueInDays?: number }
   | { type: "set_task_status"; statusKey: string }
+  | { type: "assign_task"; membershipId: string; onlyIfUnassigned?: boolean }
   | { type: "webhook"; url: string };
 
 /** Regras "quando X acontecer, se Y, faça Z". */

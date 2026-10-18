@@ -18,6 +18,8 @@ export const requestApprovalInput = z.object({
   message: optionalText(2000),
   dueDate: isoDate,
   taskId: optionalUuid,
+  /** Leva a tarefa vinculada para o status de revisão da etapa (Revisão interna / Aprovação do cliente). */
+  moveTaskToReview: z.boolean().optional(),
 });
 
 export const decideApprovalInput = z.object({

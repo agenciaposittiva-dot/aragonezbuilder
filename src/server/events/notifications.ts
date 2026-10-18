@@ -89,6 +89,34 @@ async function draftsFor(tx: Tx, ev: DomainEvent): Promise<Draft[]> {
       ];
     }
 
+    case "task.due_soon": {
+      const task = await taskInfo(tx, org, str(p.taskId) || ev.entityId);
+      const days = Number(p.daysLeft);
+      const date = str(p.dueDate).split("-").reverse().join("/");
+      const when = days <= 0 ? "Vence hoje" : days === 1 ? "Vence amanhã" : `Vence em ${days} dias`;
+      return [
+        {
+          recipients: await membersByIds(tx, org, [str(p.assigneeMembershipId), ...(task?.collaboratorIds ?? [])]),
+          title: `Prazo próximo: ${str(p.title)}`,
+          body: date ? `${when} (${date}).` : `${when}.`,
+          internalPath: `/tasks/${str(p.taskId) || ev.entityId}`,
+        },
+      ];
+    }
+
+    case "task.unblocked": {
+      return [
+        {
+          recipients: await membersByIds(tx, org, [str(p.assigneeMembershipId)]),
+          title: `Tarefa liberada: ${str(p.title)}`,
+          body: p.releasedByTitle
+            ? `“${str(p.releasedByTitle)}” foi concluída; você já pode seguir.`
+            : "As dependências foram concluídas.",
+          internalPath: `/tasks/${str(p.taskId) || ev.entityId}`,
+        },
+      ];
+    }
+
     case "task.overdue": {
       return [
         {

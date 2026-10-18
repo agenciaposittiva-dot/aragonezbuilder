@@ -99,6 +99,23 @@ export const EVENT_CATALOG = {
       { key: "toDueDate", label: "Novo prazo", type: "date" },
     ],
   },
+  "task.due_soon": {
+    label: "Prazo da tarefa próximo (verificação diária)",
+    fields: [
+      { key: "projectId", label: "Projeto", type: "uuid" },
+      { key: "assigneeMembershipId", label: "Responsável", type: "uuid" },
+      { key: "daysLeft", label: "Dias até o prazo (0 = hoje)", type: "number" },
+      { key: "priority", label: "Prioridade", type: "enum", options: PRIORITY },
+    ],
+  },
+  "task.unblocked": {
+    label: "Tarefa liberada (dependências concluídas)",
+    fields: [
+      { key: "projectId", label: "Projeto", type: "uuid" },
+      { key: "assigneeMembershipId", label: "Responsável", type: "uuid" },
+      { key: "statusCategory", label: "Categoria do status atual", type: "enum", options: CATEGORY },
+    ],
+  },
   "task.overdue": {
     label: "Tarefa atrasada (verificação diária)",
     fields: [
@@ -233,6 +250,8 @@ export type EventType = keyof typeof EVENT_CATALOG;
  * task.completed        { taskId, projectId, title, assigneeMembershipId }
  * task.overdue          { taskId, projectId, title, assigneeMembershipId, dueDate }
  * task.due_changed      { taskId, projectId, title, fromDueDate, toDueDate, assigneeMembershipId }
+ * task.due_soon         { taskId, projectId, clientId, title, assigneeMembershipId, priority, dueDate, daysLeft }
+ * task.unblocked        { taskId, projectId, title, assigneeMembershipId, statusCategory, releasedByTaskId, releasedByTitle }
  * comment.created       { commentId, target: { type, id }, internal, authorKind, authorName, excerpt, mentionedMembershipIds }
  * request.created       { requestId, clientId, number, title, category, priority, createdByKind }
  * request.status_changed{ requestId, clientId, number, title, fromStatus, toStatus }
