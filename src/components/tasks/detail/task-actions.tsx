@@ -1,8 +1,9 @@
 "use client";
 
-import { Archive, ArchiveRestore, MoreHorizontal, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Copy, CopyPlus, LayoutTemplate, MoreHorizontal, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { ConfirmDialog } from "@/components/app/confirm-dialog";
+import { useState } from "react";
+import { DeleteDialog } from "@/components/app/delete-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,7 +14,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useWorkspace } from "@/components/shell/workspace-context";
 import { useOrgAction } from "@/hooks/use-action";
-import { archiveTaskAction, deleteTaskAction } from "@/server/actions/tasks";
+import { archiveTaskAction, deleteTaskAction, duplicateTaskAction } from "@/server/actions/tasks";
+import { templateFromTaskAction } from "@/server/actions/task-organization";
+import { restoreFromTrashAction } from "@/server/actions/trash";
 
 export function TaskActions({
   taskId,
@@ -22,6 +25,8 @@ export function TaskActions({
   projectId,
   canWrite,
   canDelete,
+  isSubtask = false,
+  hasSubtasks = false,
 }: {
   taskId: string;
   title: string;
@@ -29,45 +34,74 @@ export function TaskActions({
   projectId: string;
   canWrite: boolean;
   canDelete: boolean;
+  isSubtask?: boolean;
+  hasSubtasks?: boolean;
 }) {
   const router = useRouter();
   const { orgSlug } = useWorkspace();
+  const [deleting, setDeleting] = useState(false);
   const archive = useOrgAction(archiveTaskAction, { success: archived ? "Tarefa restaurada" : "Tarefa arquivada" });
-  const remove = useOrgAction(deleteTaskAction, {
-    success: "Tarefa excluída",
-    onSuccess: () => router.replace(`/w/${orgSlug}/projects/${projectId}/tasks`),
+  const duplicate = useOrgAction(duplicateTaskAction, {
+    success: "Cópia criada",
+    onSuccess: (d) => router.push(`/w/${orgSlug}/tasks/${d.id}`),
+  });
+  const saveAsTemplate = useOrgAction(templateFromTaskAction, {
+    success: "Modelo criado a partir da tarefa",
+    onSuccess: (d) => router.push(`/w/${orgSlug}/task-templates?modelo=${d.id}`),
   });
   if (!canWrite && !canDelete) return null;
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="secondary" size="icon" aria-label="Mais ações">
-          <MoreHorizontal />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {canWrite ? (
-          <DropdownMenuItem onSelect={() => archive.run({ id: taskId, archived: !archived })}>
-            {archived ? <ArchiveRestore /> : <Archive />} {archived ? "Restaurar tarefa" : "Arquivar tarefa"}
-          </DropdownMenuItem>
-        ) : null}
-        {canDelete ? (
-          <>
-            <DropdownMenuSeparator />
-            <ConfirmDialog
-              title={`Excluir "${title}"?`}
-              description="A tarefa, as subtarefas, o checklist e os registros de tempo serão excluídos. Arquivos e aprovações vinculados são preservados. Esta ação não pode ser desfeita."
-              confirmLabel="Excluir"
-              onConfirm={() => remove.run({ id: taskId })}
-              trigger={
-                <DropdownMenuItem variant="danger" onSelect={(e) => e.preventDefault()}>
-                  <Trash2 /> Excluir tarefa
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="secondary" size="icon" aria-label="Mais ações">
+            <MoreHorizontal />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {canWrite ? (
+            <>
+              <DropdownMenuItem onSelect={() => duplicate.run({ id: taskId })}>
+                <Copy /> Duplicar
+              </DropdownMenuItem>
+              {!isSubtask && hasSubtasks ? (
+                <DropdownMenuItem onSelect={() => duplicate.run({ id: taskId, withSubtasks: true })}>
+                  <CopyPlus /> Duplicar com subtarefas
                 </DropdownMenuItem>
-              }
-            />
-          </>
-        ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
+              ) : null}
+              {!isSubtask ? (
+                <DropdownMenuItem onSelect={() => saveAsTemplate.run({ taskId })}>
+                  <LayoutTemplate /> Salvar como modelo
+                </DropdownMenuItem>
+              ) : null}
+              <DropdownMenuItem onSelect={() => archive.run({ id: taskId, archived: !archived })}>
+                {archived ? <ArchiveRestore /> : <Archive />} {archived ? "Desarquivar tarefa" : "Arquivar tarefa"}
+              </DropdownMenuItem>
+            </>
+          ) : null}
+          {canDelete ? (
+            <>
+              {canWrite ? <DropdownMenuSeparator /> : null}
+              <DropdownMenuItem variant="danger" onSelect={() => setDeleting(true)}>
+                <Trash2 /> Excluir tarefa
+              </DropdownMenuItem>
+            </>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {canDelete ? (
+        <DeleteDialog
+          open={deleting}
+          onOpenChange={setDeleting}
+          kindLabel={isSubtask ? "subtarefa" : "tarefa"}
+          name={title}
+          description={`${isSubtask ? "A subtarefa" : "A tarefa"} vai para a Lixeira${hasSubtasks ? " com as subtarefas" : ""} e pode ser restaurada por 30 dias. Arquivos, aprovações e artes vinculados são preservados.`}
+          onDelete={(org) => deleteTaskAction(org, { id: taskId })}
+          onUndo={(org) => restoreFromTrashAction(org, { kind: "task", id: taskId })}
+          successMessage={`Tarefa “${title}” movida para a lixeira`}
+          onDeleted={() => router.replace(`/w/${orgSlug}/projects/${projectId}/tasks`)}
+        />
+      ) : null}
+    </>
   );
 }

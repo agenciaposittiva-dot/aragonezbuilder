@@ -1,5 +1,4 @@
 import { ListChecks } from "lucide-react";
-import { MonthCalendar } from "@/components/app/month-calendar";
 import { Pagination } from "@/components/app/pagination";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -7,6 +6,7 @@ import { Timeline } from "@/components/app/timeline";
 import { todayISO } from "@/lib/format";
 import type { TaskListRow } from "@/server/services/tasks";
 import type { StatusRow } from "@/server/services/workflow";
+import { TaskCalendar, type CalendarMode } from "./task-calendar";
 import { TaskListTable, type TaskGroupBy } from "./task-list-table";
 import { TasksBoard } from "./tasks-board";
 import type { ProjectOption } from "./task-form-dialog";
@@ -21,6 +21,31 @@ export function monthRange(searchParams: Record<string, string | string[] | unde
   const [y, m] = month.split("-").map(Number) as [number, number];
   const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
   return { month, from: `${month}-01`, to: `${month}-${String(last).padStart(2, "0")}` };
+}
+
+function plusDays(iso: string, days: number) {
+  const d = new Date(`${iso}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Intervalo do calendário: ?cal=day|week com ?date=AAAA-MM-DD, ou mês (?month=AAAA-MM). */
+export function calendarRange(searchParams: Record<string, string | string[] | undefined>): {
+  mode: CalendarMode;
+  anchor: string;
+  from: string;
+  to: string;
+} {
+  const cal = searchParams.cal;
+  if (cal === "day" || cal === "week") {
+    const raw = searchParams.date;
+    const date = typeof raw === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : todayISO();
+    if (cal === "day") return { mode: "day", anchor: date, from: date, to: date };
+    const start = plusDays(date, -new Date(`${date}T12:00:00Z`).getUTCDay());
+    return { mode: "week", anchor: start, from: start, to: plusDays(start, 6) };
+  }
+  const { from, to } = monthRange(searchParams);
+  return { mode: "month", anchor: from, from, to };
 }
 
 export function TasksView({
@@ -42,6 +67,7 @@ export function TasksView({
   members = [],
   canAssign = false,
   groupBy = "none",
+  unscheduled = [],
 }: {
   view: View;
   rows: TaskListRow[];
@@ -61,6 +87,8 @@ export function TasksView({
   members?: { membershipId: string; name: string; image: string | null }[];
   canAssign?: boolean;
   groupBy?: TaskGroupBy;
+  /** Tarefas sem prazo (bandeja do calendário). */
+  unscheduled?: TaskListRow[];
 }) {
   const base = `/w/${orgSlug}`;
   if (view === "board") {
@@ -76,29 +104,8 @@ export function TasksView({
     );
   }
   if (view === "calendar") {
-    const { month } = monthRange(searchParams);
-    return (
-      <MonthCalendar
-        month={month}
-        events={rows
-          .filter((r) => r.dueDate)
-          .map((r) => ({
-            id: r.id,
-            title: r.title,
-            subtitle: `${r.clientName} · ${r.projectName}`,
-            date: r.dueDate!,
-            color: r.statusColor,
-            href: `${base}/tasks/${r.id}`,
-            done: !!r.completedAt,
-          }))}
-        hrefForMonth={(mth) => {
-          const qs = new URLSearchParams();
-          for (const [k, v] of Object.entries(searchParams)) if (typeof v === "string" && k !== "month") qs.set(k, v);
-          qs.set("month", mth);
-          return `${basePath}?${qs.toString()}`;
-        }}
-      />
-    );
+    const range = calendarRange(searchParams);
+    return <TaskCalendar {...range} rows={rows} unscheduled={unscheduled} base={base} canWrite={canWrite} />;
   }
 
   if (view === "timeline") {

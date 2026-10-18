@@ -1,12 +1,16 @@
-import { Plus } from "lucide-react";
+import { LayoutTemplate, Plus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ClearFilters, DateFilter, FilterBar, SearchFilter, SelectFilter } from "@/components/app/filters";
 import { PRIORITY_OPTIONS } from "@/components/app/priority";
+import { SavedViewsMenu } from "@/components/tasks/saved-views";
+import { TaskAiAssistant } from "@/components/tasks/task-ai";
 import { TaskFormDialog } from "@/components/tasks/task-form-dialog";
+import { LabelManager } from "@/components/tasks/task-labels";
 import { TaskListTable, type TaskGroupBy } from "@/components/tasks/task-list-table";
+import { ApplyTemplateDialog } from "@/components/tasks/task-templates";
 import { MineToggle, TasksViewSwitcher } from "@/components/tasks/tasks-toolbar";
-import { monthRange, TasksView } from "@/components/tasks/tasks-view";
+import { calendarRange, TasksView } from "@/components/tasks/tasks-view";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
@@ -18,6 +22,8 @@ import { requireActor } from "@/server/auth/session";
 import { clientOptions } from "@/server/services/clients";
 import { listInternalMembers } from "@/server/services/members";
 import { projectOptions } from "@/server/services/projects";
+import { listLabels, listSavedViews } from "@/server/services/task-labels";
+import { listTemplates } from "@/server/services/task-templates";
 import { listTasks, taskIndicators, type TaskListRow } from "@/server/services/tasks";
 import { listStatuses, listTransitions } from "@/server/services/workflow";
 
@@ -64,6 +70,9 @@ export default async function TasksPage({ params, searchParams }: PageProps<"/w/
       projects: await projectOptions(s),
       clients: await clientOptions(s),
       members: await listInternalMembers(s),
+      labels: await listLabels(s),
+      views: await listSavedViews(s),
+      templates: await listTemplates(s),
     };
     if (view === "my") {
       const mine = { assignee: "me" as const, view: "list" as const, pageSize: 30 };
@@ -83,8 +92,20 @@ export default async function TasksPage({ params, searchParams }: PageProps<"/w/
       const rows = (await listTasks(s, { assignee: "me", open: true, view: "list", sort: "focus", pageSize: 60 })).rows;
       return { ...base, my: null, list: null, focus: rows };
     }
-    const query = view === "calendar" ? { ...filters, ...monthRange(sp) } : filters;
-    return { ...base, my: null, focus: null, list: await listTasks(s, query) };
+    if (view === "calendar") {
+      const { from, to } = calendarRange(sp);
+      return {
+        ...base,
+        my: null,
+        focus: null,
+        list: await listTasks(s, { ...filters, from, to }),
+        // Bandeja "sem prazo" para planejar arrastando para o calendário.
+        unscheduled: can(actor, "tasks.write")
+          ? (await listTasks(s, { ...filters, due: "none", from: undefined, to: undefined })).rows
+          : [],
+      };
+    }
+    return { ...base, my: null, focus: null, list: await listTasks(s, filters) };
   });
 
   const basePath = `/w/${actor.orgSlug}/tasks`;
@@ -147,7 +168,36 @@ export default async function TasksPage({ params, searchParams }: PageProps<"/w/
       <PageHeader
         title="Tarefas"
         description="Produção da equipe: responsáveis, prazos, prioridades e bloqueios."
-        actions={newButton}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <TaskAiAssistant
+              projects={projectOpts}
+              members={memberLite}
+              basePath={basePath}
+              defaultProjectId={filters.projectId ?? null}
+              initialRequestId={
+                sp.assistente === "solicitacao" && typeof sp.solicitacao === "string" ? sp.solicitacao : null
+              }
+              canWrite={canWrite}
+              canAssign={canAssign}
+            />
+            <Button variant="secondary" asChild>
+              <Link href={`/w/${actor.orgSlug}/task-templates`}>
+                <LayoutTemplate /> Modelos
+              </Link>
+            </Button>
+            {canWrite && data.templates.length ? (
+              <ApplyTemplateDialog
+                templates={data.templates.map((t) => ({ id: t.id, name: t.name, steps: t.steps }))}
+                projects={projectOpts}
+                members={memberLite}
+                defaultProjectId={filters.projectId}
+                trigger={<Button variant="secondary">Usar modelo</Button>}
+              />
+            ) : null}
+            {newButton}
+          </div>
+        }
       >
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
           {indicator("Minhas abertas", ind.mine, `${basePath}?view=list&assignee=me&open=1`)}
@@ -202,6 +252,13 @@ export default async function TasksPage({ params, searchParams }: PageProps<"/w/
                 ]}
               />
               <SelectFilter param="blocked" label="Bloqueio" options={[{ value: "1", label: "Só bloqueadas" }]} />
+              {data.labels.length ? (
+                <SelectFilter
+                  param="label"
+                  label="Etiqueta"
+                  options={data.labels.map((l) => ({ value: l.id, label: l.name }))}
+                />
+              ) : null}
               {view === "list" ? (
                 <>
                   <SelectFilter param="group" label="Sem agrupamento" options={GROUPS} />
@@ -224,9 +281,12 @@ export default async function TasksPage({ params, searchParams }: PageProps<"/w/
                   "group",
                   "sort",
                   "open",
+                  "label",
                 ]}
               />
             </FilterBar>
+            <SavedViewsMenu basePath={basePath} views={data.views} />
+            <LabelManager labels={data.labels} canManage={can(actor, "org.manage")} />
           </div>
         ) : null}
       </PageHeader>
@@ -299,6 +359,7 @@ export default async function TasksPage({ params, searchParams }: PageProps<"/w/
           members={memberLite}
           canAssign={canAssign}
           groupBy={groupBy}
+          unscheduled={"unscheduled" in data ? data.unscheduled : []}
         />
       ) : null}
     </>

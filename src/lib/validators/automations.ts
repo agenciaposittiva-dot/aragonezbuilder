@@ -18,6 +18,7 @@ export const ACTION_TYPES = [
   "email",
   "create_task",
   "set_task_status",
+  "assign_task",
   "webhook",
 ] as const;
 export const ACTION_LABEL: Record<(typeof ACTION_TYPES)[number], string> = {
@@ -26,6 +27,7 @@ export const ACTION_LABEL: Record<(typeof ACTION_TYPES)[number], string> = {
   email: "Enviar e-mail",
   create_task: "Criar tarefa",
   set_task_status: "Mudar status da tarefa",
+  assign_task: "Atribuir responsável",
   webhook: "Chamar webhook",
 };
 
@@ -72,6 +74,12 @@ export const actionSchema = z.discriminatedUnion("type", [
     dueInDays: z.number().int().min(0).max(365).optional(),
   }),
   z.object({ type: z.literal("set_task_status"), statusKey: text("o status", 80) }),
+  z.object({
+    type: z.literal("assign_task"),
+    membershipId: z.uuid("Escolha o responsável"),
+    /** Padrão: só atribui quando a tarefa ainda não tem responsável. */
+    onlyIfUnassigned: z.boolean().optional(),
+  }),
   z.object({ type: z.literal("webhook"), url: z.url("URL inválida").max(500) }),
 ]);
 

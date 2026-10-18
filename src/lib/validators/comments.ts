@@ -17,4 +17,6 @@ export const commentInput = z.object({
   body: z.string().trim().min(1, "Escreva um comentário").max(10000),
   /** Interno = só a equipe vê. Usuários de cliente sempre publicam comentários visíveis. */
   internal: z.boolean().default(true),
+  /** Pessoas da equipe mencionadas com @ (vínculos). Hoje: comentários de tarefas. */
+  mentions: z.array(z.uuid()).max(20).default([]),
 });

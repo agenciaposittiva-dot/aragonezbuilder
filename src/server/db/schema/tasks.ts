@@ -7,10 +7,12 @@ import {
   foreignKey,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
   unique,
+  uniqueIndex,
   uuid,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
@@ -43,6 +45,13 @@ export const tasks = pgTable(
     position: doublePrecision().notNull().default(0),
     completedAt: tstz(),
     archivedAt: tstz(),
+    /**
+     * Lixeira: ao excluir, `deleted_at` e `archived_at` recebem a mesma data (a
+     * tarefa some de todas as listas que já ignoram arquivadas). Restaurar limpa
+     * os dois — `archived_at` só quando foi a exclusão que o preencheu.
+     */
+    deletedAt: tstz(),
+    deletedByUserId: text().references(() => user.id, { onDelete: "set null" }),
     createdByUserId: text().references(() => user.id, { onDelete: "set null" }),
     ...timestamps,
   },
@@ -72,6 +81,9 @@ export const tasks = pgTable(
     index().on(t.organizationId, t.assigneeMembershipId, t.dueDate),
     index().on(t.parentTaskId),
     index("tasks_title_trgm").using("gin", sql`${t.title} gin_trgm_ops`),
+    index("tasks_trash_idx")
+      .on(t.organizationId, t.deletedAt)
+      .where(sql`${t.deletedAt} is not null`),
   ],
 );
 
@@ -168,5 +180,117 @@ export const timeEntries = pgTable(
     index().on(t.organizationId, t.membershipId, t.startedAt),
     index().on(t.taskId),
     check("time_entries_minutes_positive", sql`${t.minutes} >= 0`),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
+/* Etiquetas, filtros salvos e modelos de tarefa                       */
+/* ------------------------------------------------------------------ */
+
+/** Etiquetas por organização (nome único, sem diferenciar maiúsculas). */
+export const taskLabels = pgTable(
+  "task_labels",
+  {
+    id: id(),
+    organizationId: uuid()
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    name: text().notNull(),
+    /** Nome de cor da paleta da interface (ex.: "blue", "green"). */
+    color: text().notNull().default("slate"),
+    createdByUserId: text().references(() => user.id, { onDelete: "set null" }),
+    ...timestamps,
+  },
+  (t) => [
+    unique().on(t.organizationId, t.id),
+    uniqueIndex("task_labels_org_name_unique").on(t.organizationId, sql`lower(${t.name})`),
+  ],
+);
+
+export const taskLabelLinks = pgTable(
+  "task_label_links",
+  {
+    organizationId: uuid().notNull(),
+    taskId: uuid().notNull(),
+    labelId: uuid().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.taskId, t.labelId] }),
+    foreignKey({
+      columns: [t.organizationId, t.taskId],
+      foreignColumns: [tasks.organizationId, tasks.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [t.organizationId, t.labelId],
+      foreignColumns: [taskLabels.organizationId, taskLabels.id],
+    }).onDelete("cascade"),
+    index().on(t.labelId),
+  ],
+);
+
+/** Filtros salvos da central de tarefas, por pessoa. `query` é a busca da URL, revalidada ao usar. */
+export const taskSavedViews = pgTable(
+  "task_saved_views",
+  {
+    id: id(),
+    organizationId: uuid().notNull(),
+    membershipId: uuid().notNull(),
+    name: text().notNull(),
+    query: text().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.organizationId, t.membershipId],
+      foreignColumns: [memberships.organizationId, memberships.id],
+    }).onDelete("cascade"),
+    index().on(t.organizationId, t.membershipId),
+  ],
+);
+
+/**
+ * Modelos de processo: uma tarefa principal com etapas (subtarefas) e
+ * checklist. Os prazos são deslocamentos em dias a partir da data de início
+ * escolhida ao aplicar o modelo.
+ */
+export const taskTemplates = pgTable(
+  "task_templates",
+  {
+    id: id(),
+    organizationId: uuid()
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    name: text().notNull(),
+    description: text(),
+    priority: priority().notNull().default("medium"),
+    /** Prazo da tarefa principal, em dias após o início. */
+    dueOffsetDays: integer(),
+    estimateMinutes: integer(),
+    checklist: jsonb().$type<string[]>().notNull().default([]),
+    createdByUserId: text().references(() => user.id, { onDelete: "set null" }),
+    ...timestamps,
+  },
+  (t) => [unique().on(t.organizationId, t.id)],
+);
+
+export const taskTemplateSteps = pgTable(
+  "task_template_steps",
+  {
+    id: id(),
+    organizationId: uuid().notNull(),
+    templateId: uuid().notNull(),
+    position: integer().notNull().default(0),
+    title: text().notNull(),
+    dueOffsetDays: integer(),
+    estimateMinutes: integer(),
+    checklist: jsonb().$type<string[]>().notNull().default([]),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.organizationId, t.templateId],
+      foreignColumns: [taskTemplates.organizationId, taskTemplates.id],
+    }).onDelete("cascade"),
+    index().on(t.templateId, t.position),
   ],
 );

@@ -55,6 +55,45 @@ export async function scanOverdueTasks(): Promise<number> {
   return res.rowCount ?? res.rows.length;
 }
 
+/** Janela do aviso de prazo próximo: hoje e os próximos 2 dias. */
+export const DUE_SOON_DAYS = 2;
+
+/**
+ * Emite `task.due_soon` para tarefas abertas com prazo entre hoje e os
+ * próximos dias. No máximo um aviso por tarefa e prazo: se o prazo mudar,
+ * um novo aviso pode sair para a nova data.
+ */
+export async function scanDueSoonTasks(): Promise<number> {
+  const res = await withSystem((tx) =>
+    tx.execute<{ id: string }>(sql`
+      insert into domain_events (organization_id, type, entity_type, entity_id, payload)
+      select t.organization_id, 'task.due_soon', 'task', t.id,
+        jsonb_build_object(
+          'taskId', t.id, 'projectId', t.project_id, 'clientId', p.client_id, 'title', t.title,
+          'assigneeMembershipId', t.assignee_membership_id, 'priority', t.priority, 'dueDate', t.due_date,
+          'daysLeft', t.due_date - ${todaySql}
+        )
+      from tasks t
+      join projects p on p.id = t.project_id and p.organization_id = t.organization_id
+      join workflow_statuses ws on ws.id = t.status_id and ws.organization_id = t.organization_id
+      where t.completed_at is null
+        and t.archived_at is null
+        and t.deleted_at is null
+        and p.deleted_at is null
+        and ${orgAlive(sql`t.organization_id`)}
+        and ws.category not in ('done', 'cancelled')
+        and t.due_date between ${todaySql} and ${todaySql} + ${sql.raw(String(DUE_SOON_DAYS))}
+        and not exists (
+          select 1 from domain_events e
+          where e.organization_id = t.organization_id and e.type = 'task.due_soon' and e.entity_id = t.id
+            and e.payload->>'dueDate' = t.due_date::text
+        )
+      returning id
+    `),
+  );
+  return res.rowCount ?? res.rows.length;
+}
+
 /** Faturas em aberto com vencimento passado → "vencida" (+ auditoria e evento). */
 export async function markOverdueInvoices(): Promise<number> {
   const res = await withSystem((tx) =>
@@ -211,6 +250,7 @@ export async function remindPendingApprovals(): Promise<number> {
 export async function runDueSchedules() {
   return {
     overdueTasks: await scanOverdueTasks(),
+    dueSoonTasks: await scanDueSoonTasks(),
     overdueInvoices: await markOverdueInvoices(),
     recurringInvoices: await generateRecurringInvoices(),
     approvalReminders: await remindPendingApprovals(),
@@ -220,6 +260,7 @@ export async function runDueSchedules() {
 
 export const SCHEDULES = [
   { name: "cron-task-overdue", cron: "15 7 * * *", run: scanOverdueTasks, label: "Tarefas atrasadas" },
+  { name: "cron-task-due-soon", cron: "20 7 * * *", run: scanDueSoonTasks, label: "Prazos próximos" },
   { name: "cron-invoices-overdue", cron: "30 6 * * *", run: markOverdueInvoices, label: "Faturas vencidas" },
   {
     name: "cron-recurring-invoices",

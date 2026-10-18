@@ -12,26 +12,32 @@ import { listTrash, TRASH_DAYS, type TrashKind } from "@/server/services/trash";
 
 export const metadata: Metadata = { title: "Lixeira" };
 
-const KIND: Record<TrashKind, string> = { client: "Cliente", project: "Projeto", design: "Arte", file: "Arquivo" };
+const KIND: Record<TrashKind, string> = {
+  client: "Cliente",
+  project: "Projeto",
+  design: "Arte",
+  file: "Arquivo",
+  task: "Tarefa",
+};
 
 export default async function TrashPage({ params }: PageProps<"/w/[org]/trash">) {
   const { org } = await params;
   const actor = await requireActor(org, { kind: "internal" });
-  if (!canAny(actor, "clients.delete", "projects.delete", "designs.delete", "files.delete")) notFound();
+  if (!canAny(actor, "clients.delete", "projects.delete", "designs.delete", "files.delete", "tasks.delete")) notFound();
   const items = await inOrg(actor, listTrash);
 
   return (
     <>
       <PageHeader
         title="Lixeira"
-        description={`Clientes, projetos, artes e arquivos excluídos ficam aqui por ${TRASH_DAYS} dias e podem ser restaurados. Depois disso, são apagados definitivamente.${actor.dataAll ? "" : " Você vê apenas o que você mesmo excluiu."}`}
+        description={`Clientes, projetos, tarefas, artes e arquivos excluídos ficam aqui por ${TRASH_DAYS} dias e podem ser restaurados. Depois disso, são apagados definitivamente.${actor.dataAll ? "" : " Você vê apenas o que você mesmo excluiu."}`}
       />
       {items.length === 0 ? (
         <div className="rounded-xl border border-border bg-surface">
           <EmptyState
             icon={Trash2}
             title="A lixeira está vazia"
-            description="Ao excluir um cliente, projeto, arte ou arquivo, ele aparece aqui até ser restaurado ou apagado de vez."
+            description="Ao excluir um cliente, projeto, tarefa, arte ou arquivo, ele aparece aqui até ser restaurado ou apagado de vez."
           />
         </div>
       ) : (

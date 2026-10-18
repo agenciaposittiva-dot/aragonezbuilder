@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { changeTaskStatusAction, updateTaskAction } from "@/server/actions/tasks";
 import type { TaskListRow } from "@/server/services/tasks";
 import { TaskDoneCheckbox } from "./task-done-checkbox";
+import { LabelList } from "./task-labels";
 
 export type TaskGroupBy = "none" | "status" | "project" | "client" | "assignee" | "priority" | "due";
 type Member = { membershipId: string; name: string; image: string | null };
@@ -175,6 +176,7 @@ export function TaskListTable({
                             <Lock className="size-3" /> Bloqueada
                           </Badge>
                         ) : null}
+                        {t.labels?.length ? <LabelList labels={t.labels} /> : null}
                       </span>
                     </Link>
                   </TD>

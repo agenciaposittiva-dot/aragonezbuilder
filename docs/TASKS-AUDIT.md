@@ -41,3 +41,32 @@ módulo atual com segurança, preservando dados e integrações.
 - `task_labels` (etiquetas por organização, cor) e `task_label_links`.
 - `task_templates` + itens (subtarefas/checklist com deslocamento de prazo) para processos recorrentes.
 - Nenhuma alteração destrutiva: colunas e tabelas novas apenas.
+
+## Situação após as etapas 4 a 10
+
+| Plano | Situação | Onde |
+|---|---|---|
+| 4. Subtarefas, comentários e histórico | Subtarefas com status, responsável e prazo editáveis em linha; menções com `@` nos comentários de tarefa (só pessoas com acesso à tarefa; a notificação respeita as preferências, categoria “comentários”); aviso de prazo alterado (`task.due_changed`); comentários da tarefa identificados como internos; duplicar (com ou sem subtarefas). | `task-subtasks.tsx`, `comments.tsx`, `services/comments.ts`, `events/notifications.ts` |
+| Exclusão | **Decisão:** “Excluir tarefa” passa a mover para a **Lixeira** (com as subtarefas, mesma data), com desfazer e restauração; a exclusão definitiva acontece na Lixeira ou na limpeza automática (`hardDeleteTask`). Tarefas na lixeira somem de listas, indicadores, calendário e buscas (escopo `taskScope`). | `services/tasks.ts`, `services/trash.ts` |
+| 5. Calendário e filtros | Calendário dia/semana/mês; arrastar para mudar o prazo (só com `tasks.write`, otimista, desfeito se o servidor recusar); bandeja “Sem prazo”; aviso de sobrecarga (3+ entregas da mesma pessoa no dia). Filtros salvos por pessoa (só parâmetros conhecidos e válidos, até 30). Etiquetas por organização com cor (renomear/excluir: `org.manage`). Modelos de tarefa com etapas, checklists e prazos relativos; aplicar a um projeto; “Salvar como modelo”. | `task-calendar.tsx`, `saved-views.tsx`, `task-labels.tsx`, `task-templates.tsx`, `/w/[org]/task-templates` |
+| 6. IA | Assistente na Central (texto → tarefas, solicitação → tarefas, pendências) e na tarefa (quebrar em subtarefas/checklist, sugerir prioridade e prazo, resumir comentários), com o seletor universal (módulo “Tarefas”; tarefas `task_planning` e `task_review` no catálogo). Sempre prévia editável + confirmação; criação numa transação. Datas: só as citadas no texto (ou o prazo desejado da solicitação) vêm marcadas; as demais aparecem como “Sugestão da IA — não é prazo combinado”, desmarcadas. Política: sem “contexto dos clientes”, só o texto digitado vai ao provedor; dados de tarefas, comentários e solicitações exigem a autorização (ou o modo demonstração, local). Pendências (sem responsável, sem prazo, bloqueadas com o motivo) são calculadas sem IA. | `lib/task-ai.ts`, `services/task-ai.ts`, `api/tasks/ai`, `task-ai.tsx`, `ai/demo-tasks.ts` |
+| 7. Integrações | Solicitação → tarefas pelo assistente (vincula `request_id` e coloca a solicitação em produção no projeto escolhido; projeto de outro cliente é recusado); atalho “Planejar tarefas com IA” na solicitação. Pedido de aprovação pode ser vinculado a uma tarefa do projeto do arquivo e, se marcado, leva a tarefa para Revisão interna / Aprovação do cliente. | `services/approvals.ts`, `request-approval-dialog.tsx`, `requests/[id]` |
+| 8. Automações | Nova ação “Atribuir responsável” (por padrão só sem responsável). Eventos `task.due_soon` (rotina diária `cron-task-due-soon`, de hoje a 2 dias, um aviso por tarefa **e prazo**) e `task.unblocked` (todas as dependências concluídas), com notificação ao responsável e disponíveis como gatilho. Concluir uma tarefa libera as dependentes também quando a conclusão vem de automação; automação não conclui tarefa com dependências abertas (falha registrada). Modelos prontos: responsável padrão, aviso ao revisor, aprovação do cliente conclui a tarefa, prazo próximo ao responsável do projeto e liberar a próxima tarefa. Histórico (`automation_runs`) e proteção contra ciclos (eventos de automação marcados com `viaAutomation` não disparam regras) já existiam e foram mantidos. | `automation-engine.ts`, `schedules.ts`, `task-release.ts`, `automation-presets.ts` |
+
+### Esquema (somente adições)
+
+- `tasks.deleted_at`, `tasks.deleted_by_user_id` (+ índice parcial `tasks_trash_idx`) e `comments.mentioned_membership_ids uuid[] default '{}'`.
+- Tabelas `task_labels` (nome único por organização, sem diferenciar maiúsculas), `task_label_links`, `task_saved_views`, `task_templates` e `task_template_steps`. Todas têm `organization_id`: o `scripts/migrate.ts` aplica a RLS automaticamente (`app_apply_tenant_rls()`).
+- A migração **não está versionada nesta branch**: gere com `npm run db:generate` ao integrar (depois das migrações já existentes). Nenhuma permissão nova foi criada, então não há concessão manual a papéis existentes.
+
+### Testes
+
+- Vitest: `tests/tasks-collab.test.ts`, `tests/tasks-organize.test.ts`, `tests/tasks-ai.test.ts` (provedor de demonstração e Anthropic simulado por `tests/ai-mocks.ts`) e `tests/tasks-automation.test.ts`.
+- Playwright (computador e celular 390 px): `e2e/tasks.spec.ts` — criação rápida, edição inline, arrastar no quadro, mudar prazo no calendário, subtarefas, menção, etiqueta, modelo, assistente de IA com confirmação (modo demonstração habilitado pela organização e restaurado no fim) e lixeira.
+
+### Pendências conhecidas
+
+- Editor de artes e calendário editorial: a ligação com tarefas fica para quando esses módulos estabilizarem (outras frentes de trabalho).
+- “Revisor” é o responsável pelo projeto (aviso padrão) ou quem a regra de automação indicar; não há campo de revisor por tarefa.
+- A janela do aviso de prazo próximo é fixa (2 dias); as regras podem filtrar por `daysLeft`.
+- O modo demonstração da IA só divide o texto em linhas/frases e reconhece datas `dd/mm`, `@nome` e “urgente”; respostas reais dependem de um provedor configurado.

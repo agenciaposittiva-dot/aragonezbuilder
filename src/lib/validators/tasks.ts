@@ -93,11 +93,106 @@ export const taskListParams = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
+  /** Só tarefas com esta etiqueta. */
+  label: z.uuid().optional(),
   view: z.enum(["my", "list", "board", "calendar", "timeline", "focus"]).default("list"),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(5).max(200).default(50),
 });
 export type TaskListParams = z.input<typeof taskListParams>;
+
+/** Parâmetros da URL que um filtro salvo pode guardar (os demais são descartados). */
+export const SAVED_VIEW_KEYS = [
+  "q",
+  "projectId",
+  "clientId",
+  "assignee",
+  "statusId",
+  "priority",
+  "from",
+  "to",
+  "due",
+  "open",
+  "blocked",
+  "sort",
+  "label",
+  "view",
+  "group",
+  "cal",
+] as const;
+
+export const savedViewInput = z.object({
+  name: requiredText("o nome do filtro", 60),
+  /** Busca da URL (ex.: "view=list&due=overdue"). */
+  query: z.string().max(1000),
+});
+
+/* Etiquetas ---------------------------------------------------------- */
+
+export const LABEL_COLORS = [
+  "slate",
+  "zinc",
+  "blue",
+  "sky",
+  "amber",
+  "orange",
+  "violet",
+  "pink",
+  "green",
+  "teal",
+  "red",
+] as const;
+
+export const labelInput = z.object({
+  id: optionalUuid,
+  name: requiredText("o nome da etiqueta", 40),
+  color: z.enum(LABEL_COLORS).default("blue"),
+});
+
+/* Modelos ------------------------------------------------------------ */
+
+const offsetDays = z.coerce
+  .number()
+  .int("Use dias inteiros")
+  .min(0, "O deslocamento não pode ser negativo")
+  .max(365, "Use no máximo 365 dias")
+  .nullable()
+  .optional()
+  .transform((v) => (v === undefined ? null : v));
+const checklistTitles = (max: number) =>
+  z.array(z.string().trim().min(1).max(300)).max(max, `No máximo ${max} itens`).default([]);
+
+export const templateInput = z.object({
+  id: optionalUuid,
+  name: requiredText("o nome do modelo", 120),
+  description: optionalText(2000),
+  priority: priorityEnum.default("medium"),
+  dueOffsetDays: offsetDays,
+  estimateMinutes: estimate,
+  checklist: checklistTitles(50),
+  steps: z
+    .array(
+      z.object({
+        title: requiredText("o nome da etapa", 300),
+        dueOffsetDays: offsetDays,
+        estimateMinutes: estimate,
+        checklist: checklistTitles(30),
+      }),
+    )
+    .max(40, "No máximo 40 etapas")
+    .default([]),
+});
+export type TemplateInput = z.input<typeof templateInput>;
+
+export const applyTemplateInput = z.object({
+  templateId: uuid,
+  projectId: uuid,
+  /** Título da tarefa principal (padrão: nome do modelo). */
+  title: optionalText(300),
+  /** Data base dos prazos (padrão: hoje). */
+  startDate: isoDate,
+  assigneeMembershipId: optionalUuid,
+});
 
 export const taskMoveInput = z.object({
   id: uuid,

@@ -1,7 +1,16 @@
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { commentInput, commentTarget, type CommentTarget } from "@/lib/validators/comments";
-import { comments, user } from "@/server/db/schema";
+import {
+  comments,
+  memberships,
+  projectMembers,
+  projects,
+  roles,
+  taskCollaborators,
+  tasks,
+  user,
+} from "@/server/db/schema";
 import {
   assertFileAccess,
   assertProjectAccess,
@@ -10,7 +19,7 @@ import {
   can,
   type Scope,
 } from "@/server/authz";
-import { ForbiddenError, NotFoundError } from "@/server/errors";
+import { ForbiddenError, NotFoundError, ValidationError } from "@/server/errors";
 import { recordActivity } from "./activity";
 
 /** Valida o acesso ao alvo e devolve a condição SQL correspondente. */
@@ -61,6 +70,7 @@ export async function listComments(s: Scope, target: CommentTarget) {
       body: comments.body,
       internal: comments.internal,
       fileVersionId: comments.fileVersionId,
+      mentionedMembershipIds: comments.mentionedMembershipIds,
       createdAt: comments.createdAt,
       editedAt: comments.editedAt,
       authorUserId: comments.authorUserId,
@@ -75,6 +85,60 @@ export async function listComments(s: Scope, target: CommentTarget) {
 
 export type CommentRow = Awaited<ReturnType<typeof listComments>>[number];
 
+/**
+ * Pessoas da equipe que podem ser mencionadas numa tarefa: vínculo ativo,
+ * papel interno e acesso à tarefa (acesso a todos os dados, dono ou membro do
+ * projeto, responsável ou colaborador). Assim ninguém recebe aviso de algo que
+ * não consegue abrir.
+ */
+export async function taskMentionables(s: Scope, taskId: string) {
+  await assertTaskAccess(s, taskId);
+  return s.db
+    .select({ membershipId: memberships.id, name: user.name, image: user.image })
+    .from(memberships)
+    .innerJoin(user, eq(user.id, memberships.userId))
+    .innerJoin(roles, eq(roles.id, memberships.roleId))
+    .innerJoin(tasks, eq(tasks.id, taskId))
+    .innerJoin(projects, eq(projects.id, tasks.projectId))
+    .where(
+      and(
+        eq(memberships.status, "active"),
+        eq(roles.kind, "internal"),
+        sql`(
+          'data.all' = any(${roles.permissions})
+          or ${projects.ownerMembershipId} = ${memberships.id}
+          or ${tasks.assigneeMembershipId} = ${memberships.id}
+          or exists (select 1 from ${projectMembers} pm where pm.project_id = ${projects.id} and pm.membership_id = ${memberships.id})
+          or exists (select 1 from ${taskCollaborators} tc where tc.task_id = ${tasks.id} and tc.membership_id = ${memberships.id})
+        )`,
+      ),
+    )
+    .orderBy(asc(user.name));
+}
+
+async function validMentions(s: Scope, entity: { type: string; id: string }, ids: string[]) {
+  const unique = [...new Set(ids)];
+  if (!unique.length) return [];
+  if (s.actor.kind !== "internal" || entity.type !== "task") {
+    throw new ValidationError("Menções estão disponíveis apenas nos comentários das tarefas.");
+  }
+  const allowed = new Set((await taskMentionables(s, entity.id)).map((m) => m.membershipId));
+  const denied = unique.filter((id) => !allowed.has(id));
+  if (denied.length) {
+    const names = await s.db
+      .select({ name: user.name })
+      .from(memberships)
+      .innerJoin(user, eq(user.id, memberships.userId))
+      .where(inArray(memberships.id, denied));
+    throw new ValidationError(
+      names.length
+        ? `${names.map((n) => n.name).join(", ")} não tem acesso a esta tarefa e não pode ser mencionado.`
+        : "Uma das pessoas mencionadas não faz parte da equipe com acesso a esta tarefa.",
+    );
+  }
+  return unique;
+}
+
 export async function addComment(s: Scope, raw: z.input<typeof commentInput>) {
   // Na área do cliente, comentar é uma permissão explícita do papel do convidado.
   if (s.actor.kind === "client" && !can(s.actor, "portal.comment")) throw new ForbiddenError();
@@ -82,9 +146,17 @@ export async function addComment(s: Scope, raw: z.input<typeof commentInput>) {
   const { values, entity } = await targetCondition(s, data.target);
   // Tarefas são só da equipe: comentários nelas são sempre internos.
   const internal = entity.type === "task" ? true : canSeeInternal(s) ? data.internal : false;
+  const mentions = await validMentions(s, entity, data.mentions);
   const [row] = await s.db
     .insert(comments)
-    .values({ organizationId: s.actor.orgId, authorUserId: s.actor.userId, body: data.body, internal, ...values })
+    .values({
+      organizationId: s.actor.orgId,
+      authorUserId: s.actor.userId,
+      body: data.body,
+      internal,
+      mentionedMembershipIds: mentions,
+      ...values,
+    })
     .returning({ id: comments.id });
   await recordActivity(s, {
     action: "comment_added",
@@ -99,7 +171,9 @@ export async function addComment(s: Scope, raw: z.input<typeof commentInput>) {
         target: entity,
         internal,
         authorKind: s.actor.kind,
+        authorName: s.actor.name,
         excerpt: data.body.slice(0, 200),
+        mentionedMembershipIds: mentions,
       },
     },
   });

@@ -102,7 +102,11 @@ export function clientScope(actor: Actor): SQL | undefined {
 export function taskScope(actor: Actor): SQL | undefined {
   if (actor.kind === "client") return FALSE;
   const visibleProjects = projectScope(actor) ?? projectAlive;
-  return sql`exists (select 1 from ${projects} where ${projects.id} = ${tasks.projectId} and ${visibleProjects})`;
+  // Tarefas na lixeira também saem do escopo (detalhe, comentários, anexos).
+  return and(
+    isNull(tasks.deletedAt),
+    sql`exists (select 1 from ${projects} where ${projects.id} = ${tasks.projectId} and ${visibleProjects})`,
+  );
 }
 
 /**

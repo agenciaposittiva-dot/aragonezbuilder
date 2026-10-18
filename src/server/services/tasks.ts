@@ -32,6 +32,8 @@ import {
   taskChecklistItems,
   taskCollaborators,
   taskDependencies,
+  taskLabelLinks,
+  taskLabels,
   tasks,
   timeEntries,
   user,
@@ -50,6 +52,7 @@ import {
 import { ForbiddenError, NotFoundError, ValidationError } from "@/server/errors";
 import { diff, recordActivity } from "./activity";
 import { assertActiveMembers } from "./members";
+import { releasedDependents, unblockedPayload } from "./task-release";
 import { assertTransition, getDefaultStatus, getStatus, type StatusRow } from "./workflow";
 
 const ESC = (q: string) => `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
@@ -120,6 +123,9 @@ export async function listTasks(s: Scope, raw: z.input<typeof taskListParams>) {
     p.from ? gte(tasks.dueDate, p.from) : undefined,
     p.to ? lte(tasks.dueDate, p.to) : undefined,
     p.q ? ilike(tasks.title, ESC(p.q)) : undefined,
+    p.label
+      ? sql`exists (select 1 from ${taskLabelLinks} ll where ll.task_id = ${tasks.id} and ll.label_id = ${p.label})`
+      : undefined,
     assignee,
   );
 
@@ -150,6 +156,9 @@ export async function listTasks(s: Scope, raw: z.input<typeof taskListParams>) {
       checklistTotal: sql<number>`(select count(*)::int from ${taskChecklistItems} ci where ci.task_id = ${tasks.id})`,
       checklistDone: sql<number>`(select count(*)::int from ${taskChecklistItems} ci where ci.task_id = ${tasks.id} and ci.done)`,
       blocked: sql<boolean>`${blockedExpr}`,
+      labels: sql<
+        { id: string; name: string; color: string }[]
+      >`coalesce((select json_agg(json_build_object('id', l.id, 'name', l.name, 'color', l.color) order by lower(l.name)) from ${taskLabelLinks} ll join ${taskLabels} l on l.id = ll.label_id where ll.task_id = ${tasks.id}), '[]'::json)`,
       updatedAt: tasks.updatedAt,
     })
     .from(tasks)
@@ -275,6 +284,9 @@ export async function getTask(s: Scope, id: string) {
       title: tasks.title,
       completedAt: tasks.completedAt,
       dueDate: tasks.dueDate,
+      priority: tasks.priority,
+      statusId: tasks.statusId,
+      assigneeMembershipId: tasks.assigneeMembershipId,
       statusName: workflowStatuses.name,
       statusColor: workflowStatuses.color,
       statusCategory: workflowStatuses.category,
@@ -299,7 +311,7 @@ export async function getTask(s: Scope, id: string) {
     .from(taskDependencies)
     .innerJoin(tasks, eq(tasks.id, taskDependencies.dependsOnTaskId))
     .innerJoin(workflowStatuses, eq(workflowStatuses.id, tasks.statusId))
-    .where(eq(taskDependencies.taskId, id))
+    .where(and(eq(taskDependencies.taskId, id), isNull(tasks.deletedAt)))
     .orderBy(asc(tasks.title));
 
   const blocking = await s.db
@@ -313,7 +325,7 @@ export async function getTask(s: Scope, id: string) {
     .from(taskDependencies)
     .innerJoin(tasks, eq(tasks.id, taskDependencies.taskId))
     .innerJoin(workflowStatuses, eq(workflowStatuses.id, tasks.statusId))
-    .where(eq(taskDependencies.dependsOnTaskId, id))
+    .where(and(eq(taskDependencies.dependsOnTaskId, id), isNull(tasks.deletedAt)))
     .orderBy(asc(tasks.title));
 
   const stages = await s.db
@@ -326,6 +338,13 @@ export async function getTask(s: Scope, id: string) {
     .select({ minutes: sql<number>`coalesce(sum(${timeEntries.minutes}), 0)::int` })
     .from(timeEntries)
     .where(eq(timeEntries.taskId, id));
+
+  const labels = await s.db
+    .select({ id: taskLabels.id, name: taskLabels.name, color: taskLabels.color })
+    .from(taskLabelLinks)
+    .innerJoin(taskLabels, eq(taskLabels.id, taskLabelLinks.labelId))
+    .where(eq(taskLabelLinks.taskId, id))
+    .orderBy(asc(sql`lower(${taskLabels.name})`));
 
   return {
     task: row.task,
@@ -343,6 +362,7 @@ export async function getTask(s: Scope, id: string) {
     dependsOn,
     blocking,
     stages,
+    labels,
     trackedMinutes: time?.minutes ?? 0,
   };
 }
@@ -545,6 +565,17 @@ export async function updateTask(s: Scope, raw: z.input<typeof taskUpdateInput>)
       previousAssigneeMembershipId: before.assigneeMembershipId,
     });
   }
+  if ("dueDate" in changes) {
+    // Responsável e colaboradores são avisados (o despachante ignora quem alterou).
+    await emit(s, "task.due_changed", data.id, {
+      taskId: data.id,
+      projectId: before.projectId,
+      title: patch.title ?? before.title,
+      fromDueDate: before.dueDate,
+      toDueDate: patch.dueDate ?? null,
+      assigneeMembershipId: patch.assigneeMembershipId ?? before.assigneeMembershipId,
+    });
+  }
 }
 
 /** Dependências pendentes impedem a conclusão. */
@@ -553,7 +584,7 @@ async function assertDependenciesDone(s: Scope, taskId: string) {
     .select({ title: tasks.title })
     .from(taskDependencies)
     .innerJoin(tasks, eq(tasks.id, taskDependencies.dependsOnTaskId))
-    .where(and(eq(taskDependencies.taskId, taskId), isNull(tasks.completedAt)));
+    .where(and(eq(taskDependencies.taskId, taskId), isNull(tasks.completedAt), isNull(tasks.deletedAt)));
   if (pending.length) {
     const names = pending.map((p) => `"${p.title}"`).join(", ");
     throw new ValidationError(`Conclua antes as tarefas de que esta depende: ${names}.`);
@@ -603,6 +634,10 @@ async function applyStatus(
       title: before.title,
       assigneeMembershipId: before.assigneeMembershipId,
     });
+    // Libera as tarefas que só aguardavam esta (aviso ao responsável e gatilho de automações).
+    for (const dep of await releasedDependents(s.db, s.actor.orgId, before.id)) {
+      await emit(s, "task.unblocked", dep.id, unblockedPayload(dep, before));
+    }
   }
 }
 
@@ -714,28 +749,129 @@ export async function setTaskArchived(s: Scope, taskId: string, archived: boolea
   });
 }
 
-/** Exclusão definitiva. Arquivos, aprovações e artes vinculados são preservados e desvinculados. */
+/**
+ * "Excluir" move a tarefa (e as subtarefas) para a Lixeira por 30 dias: some de
+ * todas as visões e pode ser restaurada. A exclusão definitiva acontece na
+ * Lixeira ou na rotina diária (`hardDeleteTask`).
+ */
 export async function deleteTask(s: Scope, taskId: string) {
   assertInternal(s.actor);
   assertCan(s.actor, "tasks.delete");
-  const access = await assertTaskAccess(s, taskId);
+  await assertTaskAccess(s, taskId);
   const [row] = await s.db.select({ title: tasks.title }).from(tasks).where(eq(tasks.id, taskId));
+  const now = new Date();
+  const ids = [
+    taskId,
+    ...(
+      await s.db
+        .select({ id: tasks.id })
+        .from(tasks)
+        .where(and(eq(tasks.parentTaskId, taskId), isNull(tasks.deletedAt)))
+    ).map((r) => r.id),
+  ];
+  // Mesma data em deleted_at e (se vazio) archived_at: assim a restauração sabe o que desfazer.
+  await s.db
+    .update(tasks)
+    .set({ deletedAt: now, deletedByUserId: s.actor.userId, archivedAt: sql`coalesce(${tasks.archivedAt}, ${now})` })
+    .where(and(inArray(tasks.id, ids), isNull(tasks.deletedAt)));
+  await recordActivity(s, {
+    action: "trashed",
+    entityType: "task",
+    entityId: taskId,
+    summary: `Tarefa movida para a lixeira: ${row?.title ?? ""}`,
+    event: false,
+  });
+  return { title: row?.title ?? "", deletedAt: now };
+}
+
+/** Exclusão definitiva. Arquivos, aprovações e artes vinculados são preservados e desvinculados. */
+export async function hardDeleteTask(tx: Scope["db"], taskId: string) {
   // Subtarefas são excluídas em cascata: desvincula os registros delas também.
   const ids = [
     taskId,
-    ...(await s.db.select({ id: tasks.id }).from(tasks).where(eq(tasks.parentTaskId, taskId))).map((r) => r.id),
+    ...(await tx.select({ id: tasks.id }).from(tasks).where(eq(tasks.parentTaskId, taskId))).map((r) => r.id),
   ];
-  await s.db.update(files).set({ taskId: null }).where(inArray(files.taskId, ids));
-  await s.db.update(approvals).set({ taskId: null }).where(inArray(approvals.taskId, ids));
-  await s.db.update(designs).set({ taskId: null }).where(inArray(designs.taskId, ids));
-  await s.db.delete(tasks).where(eq(tasks.id, taskId));
+  await tx.update(files).set({ taskId: null }).where(inArray(files.taskId, ids));
+  await tx.update(approvals).set({ taskId: null }).where(inArray(approvals.taskId, ids));
+  await tx.update(designs).set({ taskId: null }).where(inArray(designs.taskId, ids));
+  await tx.delete(tasks).where(eq(tasks.id, taskId));
+}
+
+/** Duplica a tarefa no mesmo projeto (checklist desmarcado, colaboradores e, se pedido, subtarefas). */
+export async function duplicateTask(s: Scope, taskId: string, opts: { withSubtasks?: boolean } = {}) {
+  assertInternal(s.actor);
+  assertCan(s.actor, "tasks.write");
+  await assertTaskAccess(s, taskId);
+  const [src] = await s.db.select().from(tasks).where(eq(tasks.id, taskId));
+  if (!src) throw new NotFoundError("Tarefa não encontrada.");
+
+  const copyOne = async (from: typeof src, parentTaskId: string | null, title: string) => {
+    // Sem permissão de atribuir, a cópia só mantém o responsável se for o próprio ator.
+    const assignee =
+      from.assigneeMembershipId && (from.assigneeMembershipId === s.actor.membershipId || can(s.actor, "tasks.assign"))
+        ? from.assigneeMembershipId
+        : null;
+    const collaborators = (
+      await s.db
+        .select({ membershipId: taskCollaborators.membershipId })
+        .from(taskCollaborators)
+        .innerJoin(memberships, eq(memberships.id, taskCollaborators.membershipId))
+        .where(and(eq(taskCollaborators.taskId, from.id), eq(memberships.status, "active")))
+    ).map((c) => c.membershipId);
+    const { id } = await createTask(s, {
+      projectId: from.projectId,
+      parentTaskId,
+      stageId: from.stageId,
+      title,
+      description: from.description,
+      priority: from.priority,
+      assigneeMembershipId: assignee,
+      collaboratorIds: can(s.actor, "tasks.assign") ? collaborators : [],
+      startDate: from.startDate,
+      dueDate: from.dueDate,
+      estimateMinutes: from.estimateMinutes,
+    });
+    const items = await s.db
+      .select({ title: taskChecklistItems.title, position: taskChecklistItems.position })
+      .from(taskChecklistItems)
+      .where(eq(taskChecklistItems.taskId, from.id))
+      .orderBy(asc(taskChecklistItems.position));
+    if (items.length) {
+      await s.db
+        .insert(taskChecklistItems)
+        .values(
+          items.map((i) => ({ organizationId: s.actor.orgId, taskId: id, title: i.title, position: i.position })),
+        );
+    }
+    const labelIds = await s.db
+      .select({ labelId: taskLabelLinks.labelId })
+      .from(taskLabelLinks)
+      .where(eq(taskLabelLinks.taskId, from.id));
+    if (labelIds.length) {
+      await s.db
+        .insert(taskLabelLinks)
+        .values(labelIds.map((l) => ({ organizationId: s.actor.orgId, taskId: id, labelId: l.labelId })));
+    }
+    return id;
+  };
+
+  const newId = await copyOne(src, src.parentTaskId, `${src.title} (cópia)`.slice(0, 300));
+  if (opts.withSubtasks && !src.parentTaskId) {
+    const children = await s.db
+      .select()
+      .from(tasks)
+      .where(and(eq(tasks.parentTaskId, taskId), isNull(tasks.archivedAt)))
+      .orderBy(asc(tasks.position), asc(tasks.createdAt));
+    await eachInSequence(children, (child) => copyOne(child, newId, child.title));
+  }
   await recordActivity(s, {
-    action: "deleted",
-    entityType: "project",
-    entityId: access.projectId,
-    summary: `Tarefa excluída: ${row?.title ?? ""}`,
+    action: "duplicated",
+    entityType: "task",
+    entityId: newId,
+    summary: `Tarefa duplicada de "${src.title}"`,
     event: false,
   });
+  return { id: newId };
 }
 
 export async function setTaskCollaborators(s: Scope, taskId: string, membershipIds: string[]) {

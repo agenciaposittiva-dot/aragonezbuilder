@@ -1,3 +1,4 @@
+import { Sparkles } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -161,6 +162,17 @@ export default async function RequestDetailPage({ params }: PageProps<"/w/[org]/
                 projects={data.projects.map((p) => ({ id: p.id, name: p.name }))}
                 canTriage={data.triage}
               />
+              {data.triage &&
+              can(actor, "tasks.write") &&
+              can(actor, "ai.use") &&
+              !["draft", "rejected", "cancelled", "delivered"].includes(r.status) ? (
+                <Link
+                  href={`/w/${actor.orgSlug}/tasks?assistente=solicitacao&solicitacao=${r.id}`}
+                  className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-accent-text hover:underline"
+                >
+                  <Sparkles className="size-4" /> Planejar tarefas com IA
+                </Link>
+              ) : null}
             </CardContent>
           </Card>
           <Card>

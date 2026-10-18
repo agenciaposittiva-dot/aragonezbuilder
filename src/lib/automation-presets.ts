@@ -76,4 +76,72 @@ export const AUTOMATION_PRESETS: { key: string; title: string; description: stri
       enabled: true,
     },
   },
+  {
+    key: "task-default-assignee",
+    title: "Atribuir um responsável padrão às tarefas novas",
+    description: "Quando uma tarefa é criada sem responsável, atribui a pessoa escolhida (só nos projetos filtrados).",
+    rule: {
+      name: "Responsável padrão de tarefas",
+      trigger: "task.created",
+      conditions: [],
+      actions: [{ type: "assign_task", membershipId: "", onlyIfUnassigned: true }],
+      enabled: true,
+    },
+  },
+  {
+    key: "task-review-reviewer",
+    title: "Avisar o revisor quando a tarefa entrar em revisão",
+    description: "Notifica o responsável pelo projeto (e quem mais você escolher) quando uma tarefa vai para revisão.",
+    rule: {
+      name: "Tarefa em revisão",
+      trigger: "task.status_changed",
+      conditions: [{ field: "toCategory", op: "eq", value: "review" }],
+      actions: [{ type: "notify_members", toOwner: true, title: "Revisar: {{title}}" }],
+      enabled: true,
+    },
+  },
+  {
+    key: "approved-task-done",
+    title: "Concluir a tarefa quando o cliente aprovar o material",
+    description:
+      "Ao aprovar o material ligado a uma tarefa, a tarefa vai para Concluída (se não tiver dependências abertas).",
+    rule: {
+      name: "Material aprovado conclui a tarefa",
+      trigger: "approval.decided",
+      conditions: [
+        { field: "stage", op: "eq", value: "client" },
+        { field: "decision", op: "eq", value: "approved" },
+      ],
+      actions: [{ type: "set_task_status", statusKey: "done" }],
+      enabled: true,
+    },
+  },
+  {
+    key: "task-due-soon-owner",
+    title: "Avisar o responsável pelo projeto sobre prazos próximos",
+    description:
+      "O responsável pela tarefa já recebe o aviso diário; esta regra também avisa quem cuida do projeto quando faltar até 1 dia.",
+    rule: {
+      name: "Prazo próximo (projeto)",
+      trigger: "task.due_soon",
+      conditions: [{ field: "daysLeft", op: "lt", value: 2 }],
+      actions: [
+        { type: "notify_members", toOwner: true, title: "Prazo próximo: {{title}}", body: "Prazo: {{dueDate}}" },
+      ],
+      enabled: true,
+    },
+  },
+  {
+    key: "task-unblocked-todo",
+    title: "Mover para A fazer a tarefa liberada por uma dependência",
+    description:
+      "Quando todas as dependências de uma tarefa no Backlog forem concluídas, ela vai para A fazer (o responsável é avisado).",
+    rule: {
+      name: "Liberar a próxima tarefa",
+      trigger: "task.unblocked",
+      conditions: [{ field: "statusCategory", op: "eq", value: "backlog" }],
+      actions: [{ type: "set_task_status", statusKey: "todo" }],
+      enabled: true,
+    },
+  },
 ];

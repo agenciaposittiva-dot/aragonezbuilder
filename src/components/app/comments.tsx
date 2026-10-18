@@ -1,7 +1,7 @@
 "use client";
 
-import { Lock, MessageSquare, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { AtSign, Lock, MessageSquare, Trash2 } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/checkbox";
@@ -17,6 +17,7 @@ export type CommentItem = {
   id: string;
   body: string;
   internal: boolean;
+  mentionedMembershipIds?: string[];
   createdAt: Date;
   editedAt: Date | null;
   authorUserId: string | null;
@@ -35,6 +36,7 @@ export function Comments({
   defaultInternal = true,
   lockInternal = false,
   placeholder = "Escreva um comentário…",
+  mentionables,
 }: {
   target: CommentTarget;
   comments: CommentItem[];
@@ -43,12 +45,26 @@ export function Comments({
   /** Registros só da equipe (ex.: tarefas): todo comentário é interno, sem opção de torná-lo visível. */
   lockInternal?: boolean;
   placeholder?: string;
+  /** Pessoas que podem ser mencionadas com @ (só quem tem acesso ao registro). */
+  mentionables?: Mentionable[];
 }) {
   const ws = useWorkspace();
   const [body, setBody] = useState("");
   const [internalChoice, setInternal] = useState(allowInternal && defaultInternal);
   const internal = lockInternal || internalChoice;
-  const add = useOrgAction(addCommentAction, { onSuccess: () => setBody("") });
+  const [picked, setPicked] = useState<Mentionable[]>([]);
+  const add = useOrgAction(addCommentAction, {
+    onSuccess: () => {
+      setBody("");
+      setPicked([]);
+    },
+  });
+  const names = useMemo(() => new Map((mentionables ?? []).map((m) => [m.membershipId, m.name])), [mentionables]);
+  // Só valem as menções cujo "@Nome" continua no texto.
+  const submit = () => {
+    const mentions = picked.filter((m) => body.includes(`@${m.name}`)).map((m) => m.membershipId);
+    add.run({ target, body, internal, mentions: [...new Set(mentions)] });
+  };
   const remove = useOrgAction(deleteCommentAction);
   const isAdmin = ws.permissions.includes("org.manage");
   // Convidados só comentam com a permissão explícita (o servidor também confere).
@@ -87,11 +103,14 @@ export function Comments({
                 </div>
                 <p
                   className={cn(
-                    "mt-1 rounded-lg px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap",
+                    "mt-1 rounded-lg px-3 py-2 text-sm leading-relaxed break-words whitespace-pre-wrap",
                     c.internal ? "border border-dashed border-warning/40 bg-warning-soft/40" : "bg-surface-2",
                   )}
                 >
-                  {c.body}
+                  <WithMentions
+                    body={c.body}
+                    names={(c.mentionedMembershipIds ?? []).map((id) => names.get(id)).filter((n): n is string => !!n)}
+                  />
                 </p>
               </div>
             </li>
@@ -103,21 +122,16 @@ export function Comments({
           className="grid gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            if (body.trim()) add.run({ target, body, internal });
+            if (body.trim()) submit();
           }}
         >
-          <Textarea
+          <MentionTextarea
             value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder={placeholder}
-            rows={3}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && body.trim()) {
-                e.preventDefault();
-                add.run({ target, body, internal });
-              }
-            }}
-            aria-label="Novo comentário"
+            onChange={setBody}
+            placeholder={mentionables?.length ? `${placeholder} Use @ para mencionar alguém.` : placeholder}
+            mentionables={mentionables ?? []}
+            onPick={(m) => setPicked((p) => (p.some((x) => x.membershipId === m.membershipId) ? p : [...p, m]))}
+            onSubmit={() => body.trim() && submit()}
           />
           <div className="flex flex-wrap items-center justify-between gap-2">
             {allowInternal && !lockInternal ? (
@@ -133,6 +147,159 @@ export function Comments({
             </Button>
           </div>
         </form>
+      ) : null}
+    </div>
+  );
+}
+
+export type Mentionable = { membershipId: string; name: string; image?: string | null };
+
+const escapeRe = (v: string) => v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** Destaca os "@Nome" das pessoas mencionadas (texto puro, sem HTML). */
+function WithMentions({ body, names }: { body: string; names: string[] }) {
+  if (!names.length) return <>{body}</>;
+  const alternatives = [...new Set(names)].sort((a, b) => b.length - a.length).map(escapeRe);
+  const re = new RegExp(`(@(?:${alternatives.join("|")}))`, "g");
+  return (
+    <>
+      {body.split(re).map((part, i) =>
+        i % 2 === 1 ? (
+          <span key={i} className="rounded bg-accent/15 px-0.5 font-medium text-accent-text">
+            {part}
+          </span>
+        ) : (
+          part
+        ),
+      )}
+    </>
+  );
+}
+
+/**
+ * Caixa de texto com sugestões de menção: ao digitar "@" seguido de letras,
+ * lista as pessoas que podem ser mencionadas (setas para escolher, Enter/Tab
+ * para inserir, Esc para fechar). Ctrl/⌘+Enter envia.
+ */
+function MentionTextarea({
+  value,
+  onChange,
+  placeholder,
+  mentionables,
+  onPick,
+  onSubmit,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  mentionables: Mentionable[];
+  onPick: (m: Mentionable) => void;
+  onSubmit: () => void;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const [query, setQuery] = useState<{ start: number; text: string } | null>(null);
+  const [active, setActive] = useState(0);
+  const options = useMemo(() => {
+    if (!query) return [];
+    const q = query.text.toLowerCase();
+    return mentionables.filter((m) => m.name.toLowerCase().includes(q)).slice(0, 6);
+  }, [query, mentionables]);
+  const open = !!query && options.length > 0;
+
+  function detect(text: string, caret: number) {
+    if (!mentionables.length) return setQuery(null);
+    const before = text.slice(0, caret);
+    const m = before.match(/(?:^|\s)@([^\s@][^@\n]{0,30})?$/u);
+    if (!m) return setQuery(null);
+    const typed = m[1] ?? "";
+    setQuery({ start: caret - typed.length - 1, text: typed });
+    setActive(0);
+  }
+
+  function insert(m: Mentionable) {
+    if (!query) return;
+    const caret = ref.current?.selectionStart ?? value.length;
+    const next = `${value.slice(0, query.start)}@${m.name} ${value.slice(caret)}`;
+    onChange(next);
+    onPick(m);
+    setQuery(null);
+    const pos = query.start + m.name.length + 2;
+    requestAnimationFrame(() => {
+      ref.current?.focus();
+      ref.current?.setSelectionRange(pos, pos);
+    });
+  }
+
+  return (
+    <div className="relative">
+      <Textarea
+        ref={ref}
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value);
+          detect(e.target.value, e.target.selectionStart ?? e.target.value.length);
+        }}
+        placeholder={placeholder}
+        rows={3}
+        role={mentionables.length ? "combobox" : undefined}
+        aria-expanded={mentionables.length ? open : undefined}
+        aria-controls={open ? "mention-options" : undefined}
+        aria-activedescendant={open ? `mention-${options[active]?.membershipId}` : undefined}
+        aria-autocomplete={mentionables.length ? "list" : undefined}
+        onKeyDown={(e) => {
+          if (open) {
+            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+              e.preventDefault();
+              setActive((i) => (i + (e.key === "ArrowDown" ? 1 : -1) + options.length) % options.length);
+              return;
+            }
+            if (e.key === "Enter" || e.key === "Tab") {
+              e.preventDefault();
+              insert(options[active]!);
+              return;
+            }
+            if (e.key === "Escape") {
+              e.preventDefault();
+              setQuery(null);
+              return;
+            }
+          }
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            onSubmit();
+          }
+        }}
+        onBlur={() => setTimeout(() => setQuery(null), 150)}
+        aria-label="Novo comentário"
+      />
+      {open ? (
+        <ul
+          id="mention-options"
+          role="listbox"
+          aria-label="Mencionar"
+          className="absolute top-full left-0 z-20 mt-1 w-64 max-w-full overflow-hidden rounded-lg border border-border bg-surface p-1 shadow-lg"
+        >
+          {options.map((m, i) => (
+            <li
+              key={m.membershipId}
+              id={`mention-${m.membershipId}`}
+              role="option"
+              aria-selected={i === active}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                insert(m);
+              }}
+              className={cn(
+                "flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm",
+                i === active ? "bg-surface-2" : "hover:bg-surface-2",
+              )}
+            >
+              <Avatar name={m.name} src={m.image} size="xs" />
+              <span className="truncate">{m.name}</span>
+              {i === active ? <AtSign className="ml-auto size-3.5 text-fg-subtle" /> : null}
+            </li>
+          ))}
+        </ul>
       ) : null}
     </div>
   );
