@@ -103,8 +103,13 @@ function baseProps(o: DesignObject, ctx: RenderContext) {
     evented: selectable,
     hoverCursor: selectable ? "move" : "default",
     strokeUniform: true,
+    // Formas e textos sem sombra desenham mais rápido direto: o cache do Fabric usa bitmaps de no mínimo
+    // 256 px por objeto, caros de redesenhar girados quando o navegador não tem aceleração de vídeo.
+    objectCaching: !SIMPLE.has(o.type) || !!o.shadow,
   };
 }
+
+const SIMPLE = new Set(["rect", "ellipse", "triangle", "polygon", "line", "text"]);
 
 const SERIF = /serif|playfair|merriweather|lora|georgia|times|garamond|baskerville|bodoni|cormorant|crimson/i;
 

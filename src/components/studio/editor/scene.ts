@@ -101,7 +101,8 @@ export class Scene {
       selectionLineWidth: 1,
       controlsAboveOverlay: true,
       fireRightClick: true,
-      stopContextMenu: true,
+      // O menu de contexto é do editor (o React recebe o evento).
+      stopContextMenu: false,
       enableRetinaScaling: true,
       targetFindTolerance: 4,
       uniformScaling: true,
@@ -209,7 +210,6 @@ export class Scene {
           selectable: false,
           evented: false,
           objectCaching: false,
-          shadow: new fabric.Shadow({ color: "rgba(0,0,0,0.12)", blur: 24, offsetX: 0, offsetY: 4 }),
         }) as FObj;
         board.__pageId = page.id;
         e = { sig, obj: board };
@@ -477,6 +477,7 @@ export class Scene {
 
   /** Fim de uma transformação com o mouse/toque: vira um lote de operações. */
   private onModified(target: FObj, action?: string) {
+    if (!target.canvas) return;
     const doc = this.store.doc;
     const objs = (
       target.type === "activeselection" ? (target as unknown as FabricNS.ActiveSelection).getObjects() : [target]
@@ -535,7 +536,9 @@ export class Scene {
       if (this.editing && t === this.editing) return;
       this.snapLines = [];
       this.snapCache = null;
-      this.onModified(t, (e as { action?: string }).action ?? e.transform?.action);
+      const action = (e as { action?: string }).action ?? e.transform?.action;
+      // Depois que o Fabric termina o próprio evento (o objeto pode ser redesenhado).
+      queueMicrotask(() => this.onModified(t, action));
     });
 
     c.on("object:moving", (e) => this.snapMoving(e.target as FObj, (e.e as MouseEvent | undefined)?.altKey));
@@ -591,7 +594,7 @@ export class Scene {
       if (!r) return;
       const next = this.readBack(t, loc.object, r);
       if (JSON.stringify(next) === JSON.stringify(loc.object)) return;
-      this.store.dispatch([{ op: "replace", id: id!, object: next }], { label: "Editar texto" });
+      queueMicrotask(() => this.store.dispatch([{ op: "replace", id: id!, object: next }], { label: "Editar texto" }));
     });
 
     c.on("path:created", (e) => this.onPathCreated((e as unknown as { path: FabricNS.Path }).path));
@@ -1022,6 +1025,16 @@ export class Scene {
       );
     } else for (const r of this.pages) ctx.rect(sx(r.x), sy(r.y), r.width * z, r.height * z);
     ctx.fill("evenodd");
+    // Contorno leve das pranchetas (sombra desfocada custa caro sem aceleração de vídeo).
+    ctx.strokeStyle = "rgba(0,0,0,0.14)";
+    ctx.lineWidth = 1;
+    for (const r of this.pages)
+      ctx.strokeRect(
+        Math.round(sx(r.x)) - 0.5,
+        Math.round(sy(r.y)) - 0.5,
+        Math.round(r.width * z) + 1,
+        Math.round(r.height * z) + 1,
+      );
 
     const active = this.pageRect(this.store.activePageId);
     // Carrossel: divisórias entre os slides.
@@ -1270,11 +1283,9 @@ export class Scene {
     if (!r) throw new Error("Página não encontrada.");
     const carousel = !!this.store.doc.meta?.carousel;
     const board = this.artboards.get(pageId)?.obj;
-    const shadows = [...this.artboards.values()].map((e) => [e.obj, e.obj.shadow] as const);
     const active = this.canvas.getActiveObject();
     this.exporting = true;
     try {
-      for (const [o] of shadows) o.shadow = null;
       const z = this.zoom;
       const v = this.canvas.viewportTransform;
       const out = this.canvas.toCanvasElement(scale / z, {
@@ -1299,7 +1310,6 @@ export class Scene {
       ctx.drawImage(out, 0, 0);
       return flat;
     } finally {
-      for (const [o, s] of shadows) o.shadow = s;
       this.exporting = false;
       if (active && !this.canvas.getActiveObject()) this.canvas.setActiveObject(active);
       this.canvas.requestRenderAll();

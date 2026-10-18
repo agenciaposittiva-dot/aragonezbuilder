@@ -285,7 +285,9 @@ describe("servidor do editor", () => {
       createDesign(s, { name: "Modelo geral", width: 1080, height: 1080, isTemplate: true }),
     );
     await expect(
-      as(a.actor, (s) => createDesign(s, { name: "B", width: 100, height: 100, clientId: clientB, templateId: tplA.id })),
+      as(a.actor, (s) =>
+        createDesign(s, { name: "B", width: 100, height: 100, clientId: clientB, templateId: tplA.id }),
+      ),
     ).rejects.toThrow(/exclusivo de outro cliente/);
     const okA = await as(a.actor, (s) =>
       createDesign(s, { name: "A", width: 100, height: 100, clientId: clientA, templateId: tplA.id }),

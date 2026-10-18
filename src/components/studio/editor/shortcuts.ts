@@ -73,9 +73,12 @@ export function useShortcuts(o: {
       if (typing(e) || dialogOpen()) return;
       if (scene?.isEditingText()) return;
       const mod = e.metaKey || e.ctrlKey;
-      const k = e.key.toLowerCase();
+      // Com Alt, alguns teclados trocam a letra (AltGr): usa a tecla física.
+      const k = e.altKey && /^Key[A-Z]$/.test(e.code) ? e.code.slice(3).toLowerCase() : e.key.toLowerCase();
       const run = (fn: () => void) => {
+        // Atalho do editor não chega aos atalhos globais (ex.: Ctrl+Alt+K não abre a busca).
         e.preventDefault();
+        e.stopPropagation();
         fn();
       };
 
@@ -145,11 +148,11 @@ export function useShortcuts(o: {
       e.preventDefault();
       void ref.current.actions.paste(e.clipboardData);
     }
-    window.addEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
     window.addEventListener("keyup", onKeyUp);
     window.addEventListener("paste", onPaste);
     return () => {
-      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keydown", onKey, true);
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("paste", onPaste);
     };

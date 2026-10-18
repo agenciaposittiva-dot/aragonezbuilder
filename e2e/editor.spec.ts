@@ -163,7 +163,7 @@ test.describe("editor profissional", () => {
   }) => {
     await enter(page);
     await newDesign(page, `Editor ${Date.now().toString(36)}`, "ig-portrait");
-    let d = await doc(page);
+    const d = await doc(page);
     expect(d.schema).toBe("aragonez.design/2");
     expect(d.pages[0]).toMatchObject({ width: 1080, height: 1350 });
     // Sem seleção, o painel mostra a página (formato escolhido).
