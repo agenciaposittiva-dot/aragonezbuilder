@@ -175,6 +175,14 @@ export async function runSetupChecks(): Promise<{ checks: Check[]; ready: boolea
         : "Sem SMTP: convites e recuperação de senha não são enviados por e-mail.",
     });
     checks.push({
+      label: "Instagram (Radar de Marca)",
+      status: config.META_APP_ID && config.META_APP_SECRET ? "ok" : "warn",
+      detail:
+        config.META_APP_ID && config.META_APP_SECRET
+          ? "App da Meta configurado: a conexão oficial com o Instagram está disponível."
+          : "Sem META_APP_ID/META_APP_SECRET: o Radar de Marca funciona só com a entrada manual.",
+    });
+    checks.push({
       label: "Rotinas agendadas",
       status: config.CRON_SECRET ? "ok" : "warn",
       detail: config.CRON_SECRET ? "CRON_SECRET definido." : "Defina CRON_SECRET para proteger /api/cron/tick.",

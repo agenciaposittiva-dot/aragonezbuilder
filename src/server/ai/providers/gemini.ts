@@ -57,7 +57,17 @@ export function createGeminiProvider(apiKey: string): AiProvider {
       headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: req.system }] },
-        contents: [{ role: "user", parts: [{ text: req.prompt }] }],
+        contents: [
+          {
+            role: "user",
+            parts: [
+              ...(req.images ?? []).map((img) => ({
+                inlineData: { mimeType: img.mediaType, data: img.data.toString("base64") },
+              })),
+              { text: req.prompt },
+            ],
+          },
+        ],
         generationConfig: {
           maxOutputTokens: req.maxTokens,
           ...(req.jsonSchema ? { responseMimeType: "application/json" } : {}),

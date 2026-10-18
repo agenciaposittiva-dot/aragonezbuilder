@@ -2,10 +2,15 @@ import type { ModelCaps } from "@/lib/ai-tasks";
 
 export type AiProviderId = "anthropic" | "openai" | "gemini" | "demo";
 
+/** Imagem enviada junto com o pedido (só para modelos que leem imagens). */
+export type AiImageInput = { mediaType: "image/png" | "image/jpeg" | "image/webp" | "image/gif"; data: Buffer };
+
 export type GenerateRequest = {
   model: string;
   system: string;
   prompt: string;
+  /** Imagens de referência (ex.: capturas de tela). O texto vai depois das imagens. */
+  images?: AiImageInput[];
   maxTokens: number;
   /** Quando definido, pede JSON válido (saída estruturada). */
   jsonSchema?: Record<string, unknown>;
