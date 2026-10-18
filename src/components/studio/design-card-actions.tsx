@@ -1,6 +1,7 @@
 "use client";
 
-import { Archive, ArchiveRestore, Copy, LayoutTemplate, MoreHorizontal, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Copy, Eye, LayoutTemplate, MoreHorizontal, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
@@ -60,6 +61,13 @@ export function DesignCardActions({
             ) : null
           ) : (
             <>
+              {!isTemplate ? (
+                <DropdownMenuItem asChild>
+                  <Link href={`/w/${orgSlug}/studio/${id}/preview`}>
+                    <Eye /> Visualizar publicação
+                  </Link>
+                </DropdownMenuItem>
+              ) : null}
               <DropdownMenuItem onSelect={() => duplicate.run({ id })}>
                 <Copy /> Duplicar
               </DropdownMenuItem>

@@ -1,4 +1,4 @@
-import { Download, Upload } from "lucide-react";
+import { Download, Eye, Upload } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -22,6 +22,7 @@ import { requireActor } from "@/server/auth/session";
 import { NotFoundError } from "@/server/errors";
 import { fileApprovals } from "@/server/services/approvals";
 import { listComments } from "@/server/services/comments";
+import { contentsForFile } from "@/server/services/content-preview";
 import { fileHistory, getFile, listFolders, maxUploadBytes } from "@/server/services/files";
 
 export const metadata: Metadata = { title: "Arquivo" };
@@ -39,6 +40,7 @@ export default async function FileDetailPage({ params }: PageProps<"/w/[org]/fil
         history: await fileHistory(s, id),
         folders: await listFolders(s, detail.file.clientId ? { clientId: detail.file.clientId } : {}),
         maxBytes: maxUploadBytes(s),
+        contents: await contentsForFile(s, id),
       };
     } catch (e) {
       if (e instanceof NotFoundError) return null;
@@ -93,6 +95,13 @@ export default async function FileDetailPage({ params }: PageProps<"/w/[org]/fil
           </div>
           {current ? (
             <div className="flex flex-wrap gap-2">
+              {data.contents[0] ? (
+                <Button asChild variant="secondary">
+                  <Link href={`${base}/content/${data.contents[0].id}/preview`}>
+                    <Eye /> Visualizar publicação
+                  </Link>
+                </Button>
+              ) : null}
               {canWrite ? (
                 <UploadDialog
                   newVersionOf={{ id: file.id, name: file.name }}

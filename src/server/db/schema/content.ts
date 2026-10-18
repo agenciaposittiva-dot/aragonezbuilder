@@ -86,6 +86,9 @@ export const contentItems = pgTable(
     slides: jsonb().$type<ContentSlide[]>().notNull().default([]),
     /** Data planejada (calendário editorial). */
     plannedDate: date({ mode: "string" }),
+    /** Rede e formato de destino escolhidos na pré-visualização (ver src/lib/social-specs.ts). */
+    network: text().notNull().default("instagram"),
+    placement: text(),
     createdByUserId: text().references(() => user.id, { onDelete: "set null" }),
     updatedByUserId: text().references(() => user.id, { onDelete: "set null" }),
     ...timestamps,

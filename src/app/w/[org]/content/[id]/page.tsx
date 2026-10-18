@@ -1,4 +1,4 @@
-import { ExternalLink, FileImage, Palette } from "lucide-react";
+import { ExternalLink, Eye, FileImage, Palette } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -61,6 +61,13 @@ export default async function ContentItemPage({ params }: PageProps<"/w/[org]/co
               {c.clientName}
             </Link>
           </span>
+        }
+        actions={
+          <Button asChild variant="primary" size="sm">
+            <Link href={`${w}/content/${it.id}/preview`}>
+              <Eye /> Visualizar publicação
+            </Link>
+          </Button>
         }
       />
 

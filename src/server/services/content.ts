@@ -432,7 +432,7 @@ export function buildDesignDocument(
   });
 }
 
-async function brandForDesign(s: Scope, clientId: string): Promise<DesignBrand> {
+export async function brandForDesign(s: Scope, clientId: string): Promise<DesignBrand> {
   const [b] = await s.db
     .select({ colors: brandProfiles.colors, fonts: brandProfiles.fonts })
     .from(brandProfiles)

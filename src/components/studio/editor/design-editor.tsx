@@ -3,6 +3,7 @@
 import {
   ArrowLeft,
   Download,
+  Eye,
   History,
   ImagePlus,
   Keyboard,
@@ -99,11 +100,14 @@ export function DesignEditor({
   brand,
   canWrite,
   canManageTemplates = false,
+  focus,
 }: {
   design: EditorDesign;
   brand: EditorBrand;
   canWrite: boolean;
   canManageTemplates?: boolean;
+  /** Abre numa página (e camada) específica — atalho vindo da pré-visualização. */
+  focus?: { pageId?: string; objectId?: string };
 }) {
   const ws = useWorkspace();
   const initial = useMemo(() => readDesignDocument(design.document, design), [design]);
@@ -216,6 +220,11 @@ export function DesignEditor({
       s.setSize(sizeRef.current!.width, sizeRef.current!.height);
       s.sync();
       s.fit(store.doc.meta?.carousel && store.doc.pages.length <= 4 ? "all" : "page");
+      if (focus?.pageId && store.doc.pages.some((p) => p.id === focus.pageId)) {
+        store.setActivePage(focus.pageId);
+        if (focus.objectId && locate(store.doc, focus.objectId)) store.setSelection([focus.objectId]);
+        s.fit(focus.objectId && store.selection.length ? "selection" : "page");
+      }
       setReady(true);
       if (missing) toast.warning(`${missing} imagem(ns) desta arte não estão mais disponíveis na nuvem.`);
       for (const n of initial.notes) toast.info(n);
@@ -660,6 +669,11 @@ export function DesignEditor({
             {canManageTemplates && !design.isTemplate ? (
               <DropdownMenuItem onSelect={() => void duplicateDesign(true)}>Salvar como template</DropdownMenuItem>
             ) : null}
+            <DropdownMenuItem asChild>
+              <Link href={`/w/${ws.orgSlug}/studio/${design.id}/preview`}>
+                <Eye /> Visualizar publicação
+              </Link>
+            </DropdownMenuItem>
             {design.outputFileId ? (
               <DropdownMenuItem asChild>
                 <Link href={`/w/${ws.orgSlug}/files/${design.outputFileId}`}>

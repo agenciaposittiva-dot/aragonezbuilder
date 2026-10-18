@@ -194,9 +194,9 @@ describe("acesso somente por convite", () => {
     const bogus = randomBytes(32).toString("base64url");
     const h = reqHeaders();
     for (let i = 0; i < 6; i++) {
-      await expect(signUpWithInvitation(bogus, { name: "Xavier", password: "senha-x-12345" }, h)).rejects.toBeInstanceOf(
-        NotFoundError,
-      );
+      await expect(
+        signUpWithInvitation(bogus, { name: "Xavier", password: "senha-x-12345" }, h),
+      ).rejects.toBeInstanceOf(NotFoundError);
     }
     await expect(signUpWithInvitation(bogus, { name: "Xavier", password: "senha-x-12345" }, h)).rejects.toBeInstanceOf(
       LimitError,
