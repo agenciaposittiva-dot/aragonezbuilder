@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { Logo, LogoMark } from "@/components/brand/logo";
+import { useChatUnread } from "@/components/chat/chat-unread";
 import { OrgAvatar } from "@/components/brand/org-avatar";
 import {
   DropdownMenu,
@@ -43,6 +44,8 @@ export function SidebarNav({
   const groups = getNav(nav);
   const pathname = usePathname();
   const { permissions } = useWorkspace();
+  // Não lidas do chat: valor ao vivo (sincronização) quando disponível.
+  const chatUnread = useChatUnread();
   return (
     <nav className="grid gap-5" aria-label="Navegação principal">
       {groups.map((group, gi) => {
@@ -59,7 +62,8 @@ export function SidebarNav({
               const href = base + item.path;
               const active =
                 item.path === "" ? pathname === base : pathname === href || pathname.startsWith(href + "/");
-              const badge = item.badgeKey ? badges[item.badgeKey] : 0;
+              const badge =
+                item.badgeKey === "chat" && chatUnread ? chatUnread.count : item.badgeKey ? badges[item.badgeKey] : 0;
               const link = (
                 <Link
                   key={item.key}

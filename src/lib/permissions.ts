@@ -52,6 +52,8 @@ export const PERMISSIONS = {
   "finance.write": "Lançar e editar registros financeiros",
   "costs.read": "Ver custos internos (custo/hora, rentabilidade)",
   "audit.read": "Ver histórico de auditoria",
+  "chat.use": "Usar o Chat da Equipe",
+  "chat.manage_channels": "Criar canais da equipe e moderar conversas",
   "portal.access": "Acessar a área do cliente",
   "portal.comment": "Comentar na área do cliente",
   "portal.invite": "Convidar pessoas do mesmo cliente (quando a agência permitir)",
@@ -95,6 +97,8 @@ export const INTERNAL_ONLY: Permission[] = [
   "finance.write",
   "costs.read",
   "audit.read",
+  "chat.use",
+  "chat.manage_channels",
 ];
 
 export type RoleKind = "internal" | "client";
@@ -144,6 +148,7 @@ const CREATIVE: Permission[] = [
   "designs.read",
   "designs.write",
   "reports.read",
+  "chat.use",
 ];
 
 export const SYSTEM_ROLES: RoleDef[] = [
@@ -207,6 +212,8 @@ export const SYSTEM_ROLES: RoleDef[] = [
       "finance.read",
       "costs.read",
       "audit.read",
+      "chat.use",
+      "chat.manage_channels",
     ],
   },
   {
@@ -239,6 +246,7 @@ export const SYSTEM_ROLES: RoleDef[] = [
       "designs.read",
       "reports.read",
       "automations.read",
+      "chat.use",
     ],
   },
   {
@@ -288,6 +296,7 @@ export const SYSTEM_ROLES: RoleDef[] = [
       "finance.read",
       "finance.write",
       "costs.read",
+      "chat.use",
     ],
   },
   {
@@ -308,6 +317,7 @@ export const SYSTEM_ROLES: RoleDef[] = [
       "comments.internal",
       "designs.read",
       "designs.write",
+      "chat.use",
     ],
   },
   {
@@ -419,6 +429,7 @@ export const PERMISSION_GROUPS: { label: string; permissions: Permission[] }[] =
     ],
   },
   { label: "Inteligência artificial", permissions: ["ai.use", "ai.settings"] },
+  { label: "Chat da Equipe", permissions: ["chat.use", "chat.manage_channels"] },
   {
     label: "Gestão",
     permissions: [

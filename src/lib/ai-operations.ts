@@ -13,7 +13,7 @@ export type AiOperation = {
   key: string;
   label: string;
   description: string;
-  group: "Planejamento" | "Conteúdo" | "Gestão";
+  group: "Planejamento" | "Conteúdo" | "Gestão" | "Chat";
   fields: AiField[];
   /** Saída estruturada (lista de tarefas) que exige revisão antes de criar registros. */
   structured?: boolean;
@@ -172,6 +172,65 @@ export const AI_OPERATIONS: AiOperation[] = [
   },
 ];
 
+/*
+ * Operações do Chat da Equipe. Não aparecem no Assistente IA: o servidor monta
+ * a conversa (só mensagens que a pessoa pode ver) e chama a geração.
+ */
+const transcript: AiField = { key: "transcript", label: "Conversa", type: "textarea", required: true };
+
+export const CHAT_AI_OPERATIONS: AiOperation[] = [
+  {
+    key: "chat_summary",
+    label: "Resumo da conversa",
+    description: "Pontos principais, decisões e pendências.",
+    group: "Chat",
+    fields: [transcript],
+  },
+  {
+    key: "chat_catch_up",
+    label: "Resumo desde a última visita",
+    description: "O que aconteceu enquanto você esteve fora.",
+    group: "Chat",
+    fields: [transcript],
+  },
+  {
+    key: "chat_decisions",
+    label: "Decisões e pendências",
+    description: "Organiza o que foi decidido e o que falta fazer.",
+    group: "Chat",
+    fields: [transcript],
+  },
+  {
+    key: "chat_tasks",
+    label: "Tarefas sugeridas da conversa",
+    description: "Tarefas extraídas da discussão (você revisa antes de criar).",
+    group: "Chat",
+    structured: true,
+    fields: [transcript],
+  },
+  {
+    key: "chat_reply",
+    label: "Sugestão de resposta",
+    description: "Rascunho de resposta para a conversa.",
+    group: "Chat",
+    fields: [transcript, { key: "draft", label: "O que você quer dizer", type: "textarea" }],
+  },
+  {
+    key: "chat_rewrite",
+    label: "Reescrever mensagem",
+    description: "Mais clara e cordial, sem mudar o sentido.",
+    group: "Chat",
+    fields: [{ key: "draft", label: "Mensagem", type: "textarea", required: true }],
+  },
+  {
+    key: "chat_ask",
+    label: "Pergunta sobre as conversas",
+    description: "Responde com base nas mensagens que você pode ver.",
+    group: "Chat",
+    fields: [transcript, { key: "question", label: "Pergunta", type: "textarea", required: true }],
+  },
+];
+
 export function getOperation(key: string) {
-  return AI_OPERATIONS.find((o) => o.key === key);
+  return AI_OPERATIONS.find((o) => o.key === key) ?? CHAT_AI_OPERATIONS.find((o) => o.key === key);
 }

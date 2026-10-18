@@ -107,6 +107,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps<"/
             ...(can(actor, "files.read") ? [{ label: "Arquivos", href: `${pBase}/files` }] : []),
             ...(can(actor, "files.read") ? [{ label: "Aprovações", href: `${pBase}/approvals` }] : []),
             ...(can(actor, "costs.read") ? [{ label: "Rentabilidade", href: `${pBase}/finance` }] : []),
+            ...(can(actor, "chat.use") ? [{ label: "Chat", href: `${pBase}/chat` }] : []),
             { label: "Histórico", href: `${pBase}/history` },
           ]}
         />

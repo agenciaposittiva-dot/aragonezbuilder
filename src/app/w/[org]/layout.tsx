@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { AppHeader } from "@/components/shell/app-header";
+import { ChatUnreadProvider } from "@/components/chat/chat-unread";
 import { CommandMenu } from "@/components/shell/command-menu";
 import { RememberOrg } from "@/components/shell/remember-org";
 import { Sidebar } from "@/components/shell/sidebar";
 import { WorkspaceProvider } from "@/components/shell/workspace-context";
-import { inOrg } from "@/server/authz";
+import { can, inOrg } from "@/server/authz";
 import { listUserOrganizations } from "@/server/authz/actor";
 import { requireActor } from "@/server/auth/session";
 import { getShellCounts } from "@/server/services/shell";
@@ -43,28 +44,30 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps<
       }}
     >
       <RememberOrg slug={actor.orgSlug} />
-      <div className="flex min-h-dvh">
-        <Sidebar
-          nav="workspace"
-          base={base}
-          badges={counts.badges}
-          orgs={orgs.map((o) => ({ slug: o.slug, name: o.name, logoUrl: o.logoSrc, kind: o.kind }))}
-          defaultCollapsed={collapsed}
-        />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <AppHeader
+      <ChatUnreadProvider org={actor.orgSlug} enabled={can(actor, "chat.use")} initial={counts.badges.chat}>
+        <div className="flex min-h-dvh">
+          <Sidebar
             nav="workspace"
             base={base}
             badges={counts.badges}
             orgs={orgs.map((o) => ({ slug: o.slug, name: o.name, logoUrl: o.logoSrc, kind: o.kind }))}
-            unread={counts.unread}
-            accountHref={`${base}/account`}
+            defaultCollapsed={collapsed}
           />
-          <main id="conteudo" className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 sm:px-6 lg:px-8">
-            {children}
-          </main>
+          <div className="flex min-w-0 flex-1 flex-col">
+            <AppHeader
+              nav="workspace"
+              base={base}
+              badges={counts.badges}
+              orgs={orgs.map((o) => ({ slug: o.slug, name: o.name, logoUrl: o.logoSrc, kind: o.kind }))}
+              unread={counts.unread}
+              accountHref={`${base}/account`}
+            />
+            <main id="conteudo" className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 sm:px-6 lg:px-8">
+              {children}
+            </main>
+          </div>
         </div>
-      </div>
+      </ChatUnreadProvider>
       <CommandMenu nav="workspace" base={base} />
     </WorkspaceProvider>
   );

@@ -2,6 +2,7 @@ import { sql, type SQL } from "drizzle-orm";
 import { withSystem } from "@/server/db";
 import { auditLogs, domainEvents, invoices } from "@/server/db/schema";
 import { nextCounter } from "@/server/services/finance";
+import { cleanupPendingChatAttachments } from "@/server/services/chat-attachments";
 import { purgeExpiredTrash } from "@/server/services/trash";
 
 /*
@@ -255,6 +256,7 @@ export async function runDueSchedules() {
     recurringInvoices: await generateRecurringInvoices(),
     approvalReminders: await remindPendingApprovals(),
     trash: await purgeExpiredTrash(),
+    chatAttachments: await cleanupPendingChatAttachments(),
   };
 }
 
@@ -273,5 +275,11 @@ export const SCHEDULES = [
     cron: "0 9,15 * * 1-5",
     run: remindPendingApprovals,
     label: "Lembretes de aprovação",
+  },
+  {
+    name: "cron-chat-attachments",
+    cron: "40 3 * * *",
+    run: () => cleanupPendingChatAttachments(),
+    label: "Anexos de chat não enviados",
   },
 ] as const;

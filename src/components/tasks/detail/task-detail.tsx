@@ -1,4 +1,5 @@
 import { FileAttachments } from "@/components/files/file-attachments";
+import { OpenChatButton } from "@/components/chat/open-chat-button";
 import { Comments } from "@/components/app/comments";
 import { HistoryList } from "@/components/app/history-list";
 import { TaskDoneCheckbox } from "@/components/tasks/task-done-checkbox";
@@ -101,6 +102,7 @@ export async function TaskDetail({ actor, id, variant }: { actor: Actor; id: str
             </div>
           </div>
           {can(actor, "ai.use") ? <TaskAiMenu taskId={id} isSubtask={!!task.parentTaskId} canWrite={canWrite} /> : null}
+          <OpenChatButton kind="task" id={id} />
           <TaskActions
             taskId={id}
             title={task.title}
