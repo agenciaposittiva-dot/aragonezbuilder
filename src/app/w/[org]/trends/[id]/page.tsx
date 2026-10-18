@@ -59,6 +59,10 @@ export default async function TrendPage({ params, searchParams }: PageProps<"/w/
   const c = detail.classification;
   const base = `/w/${actor.orgSlug}`;
   const type = t.platform === "calendar" ? "sazonal" : c?.trendType;
+  // Só a análise mais recente de cada cliente (a lista vem da mais nova para a mais antiga).
+  const fits = detail.clientFits.filter(
+    (f, i, all) => all.findIndex((x) => x.analysis.clientId === f.analysis.clientId) === i,
+  );
 
   return (
     <>
@@ -291,9 +295,9 @@ export default async function TrendPage({ params, searchParams }: PageProps<"/w/
 
           <div className="grid gap-2 border-t border-border pt-3">
             <h3 className="text-xs font-medium text-fg-muted">Análises por cliente</h3>
-            {detail.clientFits.length ? (
+            {fits.length ? (
               <ul className="grid gap-2">
-                {detail.clientFits.map(({ analysis: a, clientName }) => (
+                {fits.map(({ analysis: a, clientName }) => (
                   <li key={a.id} className="text-xs">
                     <p className="flex flex-wrap items-center gap-1.5">
                       <span className="font-medium">{clientName}</span>

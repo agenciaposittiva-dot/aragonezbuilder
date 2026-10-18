@@ -38,7 +38,11 @@ function privateAddress(ip: string) {
 /** Recusa hosts que resolvem para rede interna (proteção contra SSRF em feeds informados pela agência). */
 async function assertPublicHost(url: URL) {
   const host = url.hostname.replace(/^\[|\]$/g, "");
-  const addrs = isIP(host) ? [{ address: host }] : await lookup(host, { all: true }).catch(() => []);
+  // DNS com tempo limite: uma resolução travada não pode segurar a coleta (nem a trava da fonte).
+  const timeout = new Promise<{ address: string }[]>((resolve) => setTimeout(() => resolve([]), 5000).unref());
+  const addrs = isIP(host)
+    ? [{ address: host }]
+    : await Promise.race([lookup(host, { all: true }).catch(() => []), timeout]);
   if (!addrs.length) throw new ConnectorError(`Não foi possível resolver ${host}.`);
   if (addrs.some((a) => privateAddress(a.address)))
     throw new ConnectorError("Endereços de rede interna não são permitidos.");

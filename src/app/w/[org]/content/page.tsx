@@ -170,7 +170,7 @@ export default async function ContentPage({ params, searchParams }: PageProps<"/
               return (
                 <li
                   key={day}
-                  className={`grid content-start gap-1.5 rounded-lg border p-2 ${day === today ? "border-accent" : "border-border"} bg-surface`}
+                  className={`grid min-w-0 content-start gap-1.5 rounded-lg border p-2 ${day === today ? "border-accent" : "border-border"} bg-surface`}
                 >
                   <p className="text-xs font-medium text-fg-muted">
                     {WEEKDAYS[i]} · {day.slice(8)}/{day.slice(5, 7)}
@@ -179,7 +179,7 @@ export default async function ContentPage({ params, searchParams }: PageProps<"/
                     <Link
                       key={r.id}
                       href={`${base}/${r.id}`}
-                      className="rounded-md bg-surface-2 px-2 py-1 text-xs hover:bg-surface-2/70"
+                      className="block min-w-0 rounded-md bg-surface-2 px-2 py-1 text-xs hover:bg-surface-2/70"
                     >
                       <span className="block truncate font-medium">{r.title}</span>
                       <span className="block truncate text-fg-subtle">{r.clientName}</span>

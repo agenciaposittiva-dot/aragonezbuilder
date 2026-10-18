@@ -68,7 +68,8 @@ export default async function TrendsPage({ params, searchParams }: PageProps<"/w
     .map((x) => x.lastSuccessAt)
     .filter((d): d is Date => !!d)
     .sort((a, b) => b.getTime() - a.getTime())[0];
-  const failing = data.sources.filter((x) => x.enabled && x.lastError);
+  // Indisponível (ex.: sem chave) não é erro de coleta: aparece como tal na lista de fontes.
+  const failing = data.sources.filter((x) => x.enabled && x.available && x.lastError);
   const activeCollection = data.collections.find((c) => c.id === filters.collectionId);
   const tabHref = (tab: string) => (tab === "all" ? base : `${base}?tab=${tab}`);
 

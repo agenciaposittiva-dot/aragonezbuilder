@@ -162,7 +162,8 @@ export function ClientFitPanel({
           restrições), explica por que combinam e o que evitar. Temas arriscados ou incompatíveis não são recomendados.
         </p>
       </div>
-      <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+      {/* Coluna estreita (barra lateral do Radar): cliente em largura total; período e botão na linha de baixo. */}
+      <div className="grid gap-2">
         <Field label="Cliente" htmlFor="fit-client">
           <NativeSelect id="fit-client" value={clientId} onChange={(e) => setClientId(e.target.value)}>
             <option value="">Escolha um cliente</option>
@@ -173,23 +174,25 @@ export function ClientFitPanel({
             ))}
           </NativeSelect>
         </Field>
-        <Field label="Período" htmlFor="fit-period">
-          <NativeSelect id="fit-period" value={period} onChange={(e) => setPeriod(e.target.value as "7d" | "30d")}>
-            <option value="7d">Esta semana</option>
-            <option value="30d">Últimos 30 dias</option>
-          </NativeSelect>
-        </Field>
-        <Button
-          variant="primary"
-          disabled={!clientId}
-          loading={action.pending}
-          onClick={() => {
-            setResult(null);
-            void action.run({ clientId, period, selection });
-          }}
-        >
-          <Sparkles /> Perguntar
-        </Button>
+        <div className="grid grid-cols-[1fr_auto] items-end gap-2">
+          <Field label="Período" htmlFor="fit-period">
+            <NativeSelect id="fit-period" value={period} onChange={(e) => setPeriod(e.target.value as "7d" | "30d")}>
+              <option value="7d">Esta semana</option>
+              <option value="30d">Últimos 30 dias</option>
+            </NativeSelect>
+          </Field>
+          <Button
+            variant="primary"
+            disabled={!clientId}
+            loading={action.pending}
+            onClick={() => {
+              setResult(null);
+              void action.run({ clientId, period, selection });
+            }}
+          >
+            <Sparkles /> Perguntar
+          </Button>
+        </div>
       </div>
       <details className="text-sm">
         <summary className="cursor-pointer text-xs text-fg-muted">Modelo de IA</summary>
