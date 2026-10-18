@@ -1,4 +1,4 @@
-import { Archive, ImageUp, LayoutTemplate, Palette, Plus } from "lucide-react";
+import { Archive, ImageUp, LayoutTemplate, Palette, Plus, Sparkles } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { FilterBar, SearchFilter, SelectFilter } from "@/components/app/filters";
@@ -26,12 +26,13 @@ export default async function StudioPage({ params, searchParams }: PageProps<"/w
   const tab = sp.tab === "templates" ? "templates" : sp.tab === "archived" ? "archived" : "designs";
   const q = typeof sp.q === "string" ? sp.q : undefined;
   const clientId = typeof sp.clientId === "string" ? sp.clientId : undefined;
+  const canAi = can(actor, "ai.use");
   const data = await inOrg(actor, async (s) => ({
     items: await listDesigns(s, { q, clientId, templates: tab === "templates", archived: tab === "archived" }),
     templates: await listDesigns(s, { templates: true }),
     clients: await clientOptions(s),
     projects: await projectOptions(s),
-    picker: can(actor, "ai.use") && can(actor, "designs.write") ? await getPickerData(s) : null,
+    picker: canAi && can(actor, "designs.write") ? await getPickerData(s) : null,
   }));
   const base = `/w/${actor.orgSlug}/studio`;
   const canWrite = can(actor, "designs.write");
@@ -62,6 +63,13 @@ export default async function StudioPage({ params, searchParams }: PageProps<"/w
         actions={
           canWrite ? (
             <>
+              {canAi ? (
+                <Button asChild variant="secondary">
+                  <Link href={`${base}/gerar`}>
+                    <Sparkles /> Gerar carrossel com IA
+                  </Link>
+                </Button>
+              ) : null}
               <ImportTemplateDialog
                 trigger={
                   <Button variant="secondary">

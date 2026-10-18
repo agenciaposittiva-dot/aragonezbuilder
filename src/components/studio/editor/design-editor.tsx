@@ -14,6 +14,7 @@ import {
   Redo2,
   Send,
   SlidersHorizontal,
+  Sparkles,
   Undo2,
   ZoomIn,
   ZoomOut,
@@ -56,6 +57,7 @@ import {
 import { DesignConflictDialog, DesignHistory } from "../design-history";
 import { createActions, type EditorBrand } from "./actions";
 import { CanvasArea } from "./canvas-area";
+import { CarouselAiDialog, type CarouselAiMode } from "./carousel-ai";
 import { downloadExport, sendExportToFiles, type ExportOptions } from "./export";
 import { ExportDialog } from "./export-dialog";
 import { ensureFonts, whenFontLoads } from "./fonts";
@@ -119,12 +121,14 @@ export function DesignEditor({
   const [exporting, setExporting] = useState<"download" | "send" | null>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [name, setName] = useState(design.name);
+  const [carouselAi, setCarouselAi] = useState<CarouselAiMode | null>(null);
   const [, setEditingText] = useState(false);
 
   const canUndo = useEditor(store, (s) => s.canUndo);
   const canRedo = useEditor(store, (s) => s.canRedo);
   const selection = useEditor(store, (s) => s.selection);
   const view = useEditor(store, (s) => s.view);
+  const generated = useEditor(store, (s) => !!s.doc.meta?.generator);
 
   const actions = useMemo(
     () =>
@@ -544,6 +548,24 @@ export function DesignEditor({
             <DropdownMenuItem className="sm:hidden" onSelect={() => setExportOpen(true)}>
               <Download /> Exportar…
             </DropdownMenuItem>
+            {generated ? (
+              <>
+                <DropdownMenuLabel>Gerador de carrosséis</DropdownMenuLabel>
+                {canWrite ? (
+                  <>
+                    <DropdownMenuItem onSelect={() => setCarouselAi("slide")}>
+                      <Sparkles /> Regenerar este slide…
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setCarouselAi("direction")}>
+                      Nova direção visual…
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setCarouselAi("variant")}>Gerar segunda versão…</DropdownMenuItem>
+                  </>
+                ) : null}
+                <DropdownMenuItem onSelect={() => setCarouselAi("plan")}>Plano e dados a confirmar</DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            ) : null}
             {canWrite ? (
               <DropdownMenuItem onSelect={() => void duplicateDesign(false)}>Duplicar arte</DropdownMenuItem>
             ) : null}
@@ -720,6 +742,16 @@ export function DesignEditor({
         onSend={(o) => void doSend(o)}
       />
       <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+      <CarouselAiDialog
+        mode={carouselAi}
+        onClose={() => setCarouselAi(null)}
+        store={store}
+        designId={design.id}
+        orgSlug={ws.orgSlug}
+        getRevision={() => revisionRef.current}
+        setRevision={(r) => (revisionRef.current = r)}
+        flush={flushOrWarn}
+      />
       <DesignHistory
         open={historyOpen}
         onOpenChange={setHistoryOpen}

@@ -1,9 +1,12 @@
+import { Sparkles } from "lucide-react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ClientHeaderActions } from "@/components/clients/client-header-actions";
 import { ClientStatusBadge } from "@/components/clients/client-status";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
+import { Button } from "@/components/ui/button";
 import { UnderlineTabs } from "@/components/ui/underline-tabs";
 import { can, inOrg } from "@/server/authz";
 import { requireActor } from "@/server/auth/session";
@@ -54,26 +57,35 @@ export default async function ClientLayout({ children, params }: LayoutProps<"/w
               </p>
             </div>
           </div>
-          <ClientHeaderActions
-            client={{
-              id: client.id,
-              name: client.name,
-              legalName: client.legalName,
-              document: client.document,
-              email: client.email,
-              phone: client.phone,
-              website: client.website,
-              industry: client.industry,
-              address: client.address,
-              status: client.status,
-              notesInternal: client.notesInternal,
-              archived: !!client.archivedAt,
-            }}
-            members={data.members.map((m) => ({ membershipId: m.membershipId, name: m.name }))}
-            canWrite={can(actor, "clients.write")}
-            canArchive={can(actor, "clients.archive")}
-            canDelete={can(actor, "clients.delete")}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            {can(actor, "designs.write") && can(actor, "ai.use") ? (
+              <Button asChild variant="secondary" size="sm">
+                <Link href={`/w/${actor.orgSlug}/studio/gerar?clientId=${client.id}`}>
+                  <Sparkles /> Gerar carrossel
+                </Link>
+              </Button>
+            ) : null}
+            <ClientHeaderActions
+              client={{
+                id: client.id,
+                name: client.name,
+                legalName: client.legalName,
+                document: client.document,
+                email: client.email,
+                phone: client.phone,
+                website: client.website,
+                industry: client.industry,
+                address: client.address,
+                status: client.status,
+                notesInternal: client.notesInternal,
+                archived: !!client.archivedAt,
+              }}
+              members={data.members.map((m) => ({ membershipId: m.membershipId, name: m.name }))}
+              canWrite={can(actor, "clients.write")}
+              canArchive={can(actor, "clients.archive")}
+              canDelete={can(actor, "clients.delete")}
+            />
+          </div>
         </div>
       </div>
       <div className="border-b border-border">
