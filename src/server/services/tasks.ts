@@ -32,6 +32,8 @@ import {
   taskChecklistItems,
   taskCollaborators,
   taskDependencies,
+  taskLabelLinks,
+  taskLabels,
   tasks,
   timeEntries,
   user,
@@ -120,6 +122,9 @@ export async function listTasks(s: Scope, raw: z.input<typeof taskListParams>) {
     p.from ? gte(tasks.dueDate, p.from) : undefined,
     p.to ? lte(tasks.dueDate, p.to) : undefined,
     p.q ? ilike(tasks.title, ESC(p.q)) : undefined,
+    p.label
+      ? sql`exists (select 1 from ${taskLabelLinks} ll where ll.task_id = ${tasks.id} and ll.label_id = ${p.label})`
+      : undefined,
     assignee,
   );
 
@@ -150,6 +155,9 @@ export async function listTasks(s: Scope, raw: z.input<typeof taskListParams>) {
       checklistTotal: sql<number>`(select count(*)::int from ${taskChecklistItems} ci where ci.task_id = ${tasks.id})`,
       checklistDone: sql<number>`(select count(*)::int from ${taskChecklistItems} ci where ci.task_id = ${tasks.id} and ci.done)`,
       blocked: sql<boolean>`${blockedExpr}`,
+      labels: sql<
+        { id: string; name: string; color: string }[]
+      >`coalesce((select json_agg(json_build_object('id', l.id, 'name', l.name, 'color', l.color) order by lower(l.name)) from ${taskLabelLinks} ll join ${taskLabels} l on l.id = ll.label_id where ll.task_id = ${tasks.id}), '[]'::json)`,
       updatedAt: tasks.updatedAt,
     })
     .from(tasks)
@@ -330,6 +338,13 @@ export async function getTask(s: Scope, id: string) {
     .from(timeEntries)
     .where(eq(timeEntries.taskId, id));
 
+  const labels = await s.db
+    .select({ id: taskLabels.id, name: taskLabels.name, color: taskLabels.color })
+    .from(taskLabelLinks)
+    .innerJoin(taskLabels, eq(taskLabels.id, taskLabelLinks.labelId))
+    .where(eq(taskLabelLinks.taskId, id))
+    .orderBy(asc(sql`lower(${taskLabels.name})`));
+
   return {
     task: row.task,
     status: row.status,
@@ -346,6 +361,7 @@ export async function getTask(s: Scope, id: string) {
     dependsOn,
     blocking,
     stages,
+    labels,
     trackedMinutes: time?.minutes ?? 0,
   };
 }
@@ -821,6 +837,15 @@ export async function duplicateTask(s: Scope, taskId: string, opts: { withSubtas
         .values(
           items.map((i) => ({ organizationId: s.actor.orgId, taskId: id, title: i.title, position: i.position })),
         );
+    }
+    const labelIds = await s.db
+      .select({ labelId: taskLabelLinks.labelId })
+      .from(taskLabelLinks)
+      .where(eq(taskLabelLinks.taskId, from.id));
+    if (labelIds.length) {
+      await s.db
+        .insert(taskLabelLinks)
+        .values(labelIds.map((l) => ({ organizationId: s.actor.orgId, taskId: id, labelId: l.labelId })));
     }
     return id;
   };

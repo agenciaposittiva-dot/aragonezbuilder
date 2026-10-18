@@ -4,6 +4,7 @@ import { DueDate } from "@/components/app/due-date";
 import { PriorityIcon } from "@/components/app/priority";
 import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { LabelList } from "./task-labels";
 
 export type TaskCardData = {
   id: string;
@@ -19,6 +20,7 @@ export type TaskCardData = {
   subtasksDone: number;
   checklistTotal: number;
   checklistDone: number;
+  labels?: { id: string; name: string; color: string }[];
 };
 
 export function TaskCard({
@@ -54,6 +56,11 @@ export function TaskCard({
           {task.clientName} · {task.projectName}
         </p>
       )}
+      {task.labels?.length ? (
+        <div className="mt-1.5">
+          <LabelList labels={task.labels} />
+        </div>
+      ) : null}
       <div className="mt-2.5 flex items-center gap-2.5">
         <PriorityIcon priority={task.priority} />
         <DueDate date={task.dueDate} done={!!task.completedAt} />

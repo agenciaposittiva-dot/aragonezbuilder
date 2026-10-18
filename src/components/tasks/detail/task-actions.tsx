@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, ArchiveRestore, Copy, CopyPlus, MoreHorizontal, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Copy, CopyPlus, LayoutTemplate, MoreHorizontal, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { DeleteDialog } from "@/components/app/delete-dialog";
@@ -15,6 +15,7 @@ import {
 import { useWorkspace } from "@/components/shell/workspace-context";
 import { useOrgAction } from "@/hooks/use-action";
 import { archiveTaskAction, deleteTaskAction, duplicateTaskAction } from "@/server/actions/tasks";
+import { templateFromTaskAction } from "@/server/actions/task-organization";
 import { restoreFromTrashAction } from "@/server/actions/trash";
 
 export function TaskActions({
@@ -44,6 +45,10 @@ export function TaskActions({
     success: "Cópia criada",
     onSuccess: (d) => router.push(`/w/${orgSlug}/tasks/${d.id}`),
   });
+  const saveAsTemplate = useOrgAction(templateFromTaskAction, {
+    success: "Modelo criado a partir da tarefa",
+    onSuccess: (d) => router.push(`/w/${orgSlug}/task-templates?modelo=${d.id}`),
+  });
   if (!canWrite && !canDelete) return null;
   return (
     <>
@@ -62,6 +67,11 @@ export function TaskActions({
               {!isSubtask && hasSubtasks ? (
                 <DropdownMenuItem onSelect={() => duplicate.run({ id: taskId, withSubtasks: true })}>
                   <CopyPlus /> Duplicar com subtarefas
+                </DropdownMenuItem>
+              ) : null}
+              {!isSubtask ? (
+                <DropdownMenuItem onSelect={() => saveAsTemplate.run({ taskId })}>
+                  <LayoutTemplate /> Salvar como modelo
                 </DropdownMenuItem>
               ) : null}
               <DropdownMenuItem onSelect={() => archive.run({ id: taskId, archived: !archived })}>

@@ -18,6 +18,7 @@ import { can, inOrg } from "@/server/authz";
 import type { Actor } from "@/server/authz/actor";
 import { NotFoundError } from "@/server/errors";
 import { listComments, taskMentionables } from "@/server/services/comments";
+import { listLabels } from "@/server/services/task-labels";
 import { listInternalMembers } from "@/server/services/members";
 import { getTask, projectTaskOptions, taskHistory } from "@/server/services/tasks";
 import { getRunningTimer, listTimeEntries } from "@/server/services/time-entries";
@@ -40,6 +41,7 @@ export async function TaskDetail({ actor, id, variant }: { actor: Actor; id: str
         options: await projectTaskOptions(s, detail.task.projectId, id),
         comments: await listComments(s, { taskId: id }),
         mentionables: await taskMentionables(s, id),
+        labels: await listLabels(s),
         history: await taskHistory(s, id),
         entries: await listTimeEntries(s, id),
         running: await getRunningTimer(s),
@@ -228,6 +230,10 @@ export async function TaskDetail({ actor, id, variant }: { actor: Actor; id: str
                 }
                 request={detail.request}
                 trackedMinutes={detail.trackedMinutes}
+                labels={{
+                  available: data.labels.map((l) => ({ id: l.id, name: l.name, color: l.color })),
+                  selected: detail.labels,
+                }}
                 canWrite={canWrite}
               />
             </CardContent>

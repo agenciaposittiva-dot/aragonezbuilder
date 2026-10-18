@@ -14,6 +14,7 @@ import { formatMinutes } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { parseDuration } from "@/lib/validators/tasks";
 import { changeTaskStatusAction, setTaskCollaboratorsAction, updateTaskAction } from "@/server/actions/tasks";
+import { TaskLabelsPicker, type LabelLite } from "../task-labels";
 
 type Props = {
   task: {
@@ -37,6 +38,7 @@ type Props = {
   request: { id: string; number: number | null; title: string | null } | null;
   trackedMinutes: number;
   canWrite: boolean;
+  labels?: { available: LabelLite[]; selected: LabelLite[] };
 };
 
 const selectCls = cn(fieldBase, "h-8 appearance-none px-2 text-[13px]");
@@ -128,6 +130,16 @@ export function TaskProperties(p: Props) {
           ))}
         </select>
       </Row>
+      {p.labels ? (
+        <Row label="Etiquetas">
+          <TaskLabelsPicker
+            taskId={p.task.id}
+            labels={p.labels.available}
+            value={p.labels.selected}
+            canWrite={p.canWrite}
+          />
+        </Row>
+      ) : null}
       <Row label="Início">
         <input
           type="date"
