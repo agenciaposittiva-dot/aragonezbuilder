@@ -12,6 +12,7 @@ const WHAT = {
   project:
     "O projeto, as tarefas, os comentários e as horas registradas serão apagados. Arquivos, artes, solicitações e faturas continuam no cliente, sem o vínculo com o projeto.",
   design: "A arte será apagada. Arquivos já exportados continuam na central de arquivos.",
+  file: "O arquivo, todas as versões, aprovações e comentários serão apagados, inclusive do armazenamento em nuvem.",
 } as const;
 
 export function TrashItemActions({

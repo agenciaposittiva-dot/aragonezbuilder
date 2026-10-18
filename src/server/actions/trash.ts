@@ -17,7 +17,7 @@ import {
 import { orgAction, toActionError, type ActionResult } from "./safe-action";
 
 const id = z.object({ id: z.uuid() });
-const item = z.object({ kind: z.enum(["client", "project", "design"]), id: z.uuid() });
+const item = z.object({ kind: z.enum(["client", "project", "design", "file"]), id: z.uuid() });
 
 // Consultas de impacto (para a confirmação): não re-renderizam a página.
 export const clientDeletionImpactAction = orgAction(id, (s, i) => clientDeletionImpact(s, i.id), { refresh: false });

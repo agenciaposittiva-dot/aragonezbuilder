@@ -266,7 +266,7 @@ export async function trashDesign(s: Scope, designId: string) {
 /* Lixeira: listar, restaurar, excluir definitivamente                 */
 /* ------------------------------------------------------------------ */
 
-export type TrashKind = "client" | "project" | "design";
+export type TrashKind = "client" | "project" | "design" | "file";
 
 export type TrashItem = {
   kind: TrashKind;
@@ -285,7 +285,11 @@ export type TrashItem = {
 /** Quem pode ver/agir sobre um item da lixeira: acesso total aos dados ou quem excluiu. */
 function trashOwnerFilter(
   actor: Actor,
-  column: typeof clients.deletedByUserId | typeof projects.deletedByUserId | typeof designs.deletedByUserId,
+  column:
+    | typeof clients.deletedByUserId
+    | typeof projects.deletedByUserId
+    | typeof designs.deletedByUserId
+    | typeof files.deletedByUserId,
 ) {
   return actor.dataAll ? undefined : eq(column, actor.userId);
 }
@@ -380,6 +384,49 @@ export async function listTrash(s: Scope): Promise<TrashItem[]> {
       })),
     );
   }
+  if (can(s.actor, "files.delete")) {
+    // Arquivos de um cliente que foi para a lixeira aparecem dentro do cliente, não aqui.
+    const rows = await s.db
+      .select({
+        id: files.id,
+        name: files.name,
+        clientName: clients.name,
+        projectName: projects.name,
+        projectDeletedAt: projects.deletedAt,
+        deletedAt: files.deletedAt,
+        sizeBytes: fileVersions.sizeBytes,
+        by: user.name,
+      })
+      .from(files)
+      .leftJoin(clients, eq(clients.id, files.clientId))
+      .leftJoin(projects, eq(projects.id, files.projectId))
+      .leftJoin(fileVersions, eq(fileVersions.id, files.currentVersionId))
+      .leftJoin(user, eq(user.id, files.deletedByUserId))
+      .where(
+        and(
+          isNotNull(files.deletedAt),
+          sql`(${files.clientId} is null or ${clients.deletedAt} is null)`,
+          trashOwnerFilter(s.actor, files.deletedByUserId),
+        ),
+      )
+      .orderBy(desc(files.deletedAt))
+      .limit(300);
+    out.push(
+      ...rows.map((r) => ({
+        kind: "file" as const,
+        id: r.id,
+        name: r.name,
+        detail: `Arquivo${r.clientName ? ` · ${r.clientName}` : ""}${r.projectName ? ` · ${r.projectName}` : ""}`,
+        deletedAt: r.deletedAt!,
+        purgeAt: purgeDate(r.deletedAt!),
+        daysLeft: daysUntil(purgeDate(r.deletedAt!)),
+        deletedByName: r.by,
+        blockedBy: r.projectDeletedAt
+          ? `O projeto ${r.projectName} está na lixeira. Restaure-o primeiro.`
+          : null,
+      })),
+    );
+  }
   return out.sort((a, b) => b.deletedAt.getTime() - a.deletedAt.getTime());
 }
 
@@ -387,6 +434,7 @@ const KIND_PERMISSION = {
   client: "clients.delete",
   project: "projects.delete",
   design: "designs.delete",
+  file: "files.delete",
 } as const;
 
 /** Localiza um item na lixeira respeitando permissão e dono da exclusão. */
@@ -418,6 +466,8 @@ export async function restoreFromTrash(s: Scope, kind: TrashKind, id: string) {
     await s.db.update(clients).set({ deletedAt: null, deletedByUserId: null }).where(eq(clients.id, id));
   } else if (kind === "project") {
     await s.db.update(projects).set({ deletedAt: null, deletedByUserId: null }).where(eq(projects.id, id));
+  } else if (kind === "file") {
+    await s.db.update(files).set({ deletedAt: null, deletedByUserId: null }).where(eq(files.id, id));
   } else {
     await s.db.update(designs).set({ deletedAt: null, deletedByUserId: null }).where(eq(designs.id, id));
   }
@@ -438,7 +488,9 @@ export async function purgeFromTrash(s: Scope, kind: TrashKind, id: string) {
       ? await hardDeleteClient(s.db, id)
       : kind === "project"
         ? await hardDeleteProject(s.db, id)
-        : await hardDeleteDesign(s.db, id);
+        : kind === "file"
+          ? await hardDeleteFile(s.db, id)
+          : await hardDeleteDesign(s.db, id);
   await queueStoragePurge(s.db, s.actor.orgId, keys);
   await recordActivity(s, {
     action: "purged",
@@ -551,6 +603,17 @@ export async function hardDeleteProject(tx: Tx, projectId: string): Promise<stri
 export async function hardDeleteDesign(tx: Tx, designId: string): Promise<string[]> {
   await tx.delete(designs).where(eq(designs.id, designId));
   return [];
+}
+
+/**
+ * Apaga o arquivo com todas as versões, aprovações e comentários. Artes que
+ * apontavam para ele como "arquivo exportado" perdem só esse vínculo.
+ */
+export async function hardDeleteFile(tx: Tx, fileId: string): Promise<string[]> {
+  const keys = await storageKeysWhere(tx, eq(fileVersions.fileId, fileId));
+  await tx.update(designs).set({ outputFileId: null }).where(eq(designs.outputFileId, fileId));
+  await tx.delete(files).where(eq(files.id, fileId));
+  return keys;
 }
 
 /* ------------------------------------------------------------------ */
@@ -673,7 +736,7 @@ export async function restoreOrganization(userId: string, orgId: string) {
 
 export async function purgeExpiredTrash(now = new Date()) {
   const cutoff = new Date(now.getTime() - TRASH_DAYS * DAY);
-  const result = { organizations: 0, clients: 0, projects: 0, designs: 0, storageErrors: 0 };
+  const result = { organizations: 0, clients: 0, projects: 0, designs: 0, files: 0, storageErrors: 0 };
 
   const expiredOrgs = await withSystem((tx) =>
     tx
@@ -733,6 +796,19 @@ export async function purgeExpiredTrash(now = new Date()) {
       .returning({ id: designs.id });
     return rows.length;
   });
+
+  // Só arquivos excluídos com a Lixeira (autor registrado) são apagados de vez:
+  // exclusões antigas, feitas quando a regra era "preservar versões", ficam como estavam.
+  const expiredFiles = await withSystem((tx) =>
+    tx
+      .select({ id: files.id, orgId: files.organizationId })
+      .from(files)
+      .where(and(isNotNull(files.deletedAt), isNotNull(files.deletedByUserId), lt(files.deletedAt, cutoff))),
+  );
+  for (const f of expiredFiles) {
+    await withOrg(f.orgId, async (tx) => queueStoragePurge(tx, f.orgId, await hardDeleteFile(tx, f.id)));
+    result.files++;
+  }
   return result;
 }
 

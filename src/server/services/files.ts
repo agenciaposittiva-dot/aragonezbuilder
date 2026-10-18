@@ -3,16 +3,21 @@ import { and, asc, count, desc, eq, ilike, inArray, isNull, ne, or, sql } from "
 import sharp from "sharp";
 import type { z } from "zod";
 import {
+  FILE_KINDS,
   fileListParams,
+  filePatchInput,
   fileUpdateInput,
   folderInput,
   uploadMetaInput,
   type FileCategory,
+  type FileTypeGroup,
 } from "@/lib/validators/files";
 import {
   approvals,
   auditLogs,
   clients,
+  designs,
+  designVersions,
   domainEvents,
   fileFavorites,
   files,
@@ -37,7 +42,7 @@ import {
 } from "@/server/authz";
 import { inSequence } from "@/server/db/sequence";
 import { env } from "@/server/env";
-import { ForbiddenError, NotFoundError, ValidationError } from "@/server/errors";
+import { ForbiddenError, LimitError, NotFoundError, ValidationError } from "@/server/errors";
 import { getStorage, versionKey } from "@/server/storage";
 import { diff, recordActivity } from "./activity";
 import { isAllowedType, isImage, sniffFileType } from "./file-type";
@@ -145,6 +150,7 @@ export async function storeUpload(s: Scope, input: UploadInput, rawMeta: z.input
   }
 
   const sniffed = validateUpload(s, input);
+  await assertQuota(s, input.buffer.length);
   const originalName = input.originalName.trim().slice(0, 200) || `arquivo.${sniffed.ext}`;
   const checksum = createHash("sha256").update(input.buffer).digest("hex");
   const { width, height } = await imageSize(input.buffer, sniffed.mime);
@@ -271,6 +277,27 @@ export async function storeUpload(s: Scope, input: UploadInput, rawMeta: z.input
 /* Consulta                                                            */
 /* ------------------------------------------------------------------ */
 
+/** Filtro por formato real (tipo MIME da versão atual). */
+function typeCondition(t: FileTypeGroup) {
+  const mime = fileVersions.mimeType;
+  switch (t) {
+    case "image":
+      return sql`${mime} like 'image/%'`;
+    case "video":
+      return sql`${mime} like 'video/%'`;
+    case "audio":
+      return sql`${mime} like 'audio/%'`;
+    case "pdf":
+      return eq(mime, "application/pdf");
+    case "document":
+      return sql`(${mime} like 'application/vnd.openxmlformats-officedocument.%' or ${mime} like 'application/vnd.ms-%' or ${mime} in ('application/msword', 'text/plain', 'text/csv'))`;
+    case "archive":
+      return sql`${mime} in ('application/zip', 'application/x-zip-compressed')`;
+    case "other":
+      return sql`(${mime} is null or not (${mime} like 'image/%' or ${mime} like 'video/%' or ${mime} like 'audio/%' or ${mime} = 'application/pdf' or ${mime} like 'application/vnd.%' or ${mime} in ('application/msword', 'text/plain', 'text/csv', 'application/zip')))`;
+  }
+}
+
 export async function listFiles(s: Scope, raw: z.input<typeof fileListParams>) {
   assertCan(s.actor, "files.read");
   const p = fileListParams.parse(raw);
@@ -285,12 +312,29 @@ export async function listFiles(s: Scope, raw: z.input<typeof fileListParams>) {
     p.category ? eq(files.category, p.category) : undefined,
     p.categories?.length ? inArray(files.category, p.categories) : undefined,
     p.status ? eq(files.status, p.status) : undefined,
-    p.status ? undefined : ne(files.status, "archived"),
+    p.status || p.section === "archived" ? undefined : ne(files.status, "archived"),
+    p.section === "archived" ? eq(files.status, "archived") : undefined,
+    p.section === "recent" ? sql`${files.updatedAt} >= now() - interval '30 days'` : undefined,
+    p.section === "shared" ? eq(files.sharedWithClient, true) : undefined,
+    p.section === "internal" ? and(isNull(files.clientId), isNull(files.projectId)) : undefined,
+    p.section === "templates" ? eq(files.category, "template") : undefined,
+    p.kind ? inArray(files.category, [...FILE_KINDS[p.kind].categories]) : undefined,
+    p.type ? typeCondition(p.type) : undefined,
+    p.from ? sql`${files.updatedAt} >= ${p.from}::date` : undefined,
+    p.to ? sql`${files.updatedAt} < ${p.to}::date + 1` : undefined,
     p.final ? inArray(files.status, ["approved", "final"]) : undefined,
     p.tag ? sql`${p.tag} = any(${files.tags})` : undefined,
     p.favorites ? favoriteExpr : undefined,
     p.q ? or(ilike(files.name, ESC(p.q)), sql`${p.q.toLowerCase()} = any(${files.tags})`) : undefined,
   );
+  const order =
+    p.sort === "oldest"
+      ? [asc(files.updatedAt)]
+      : p.sort === "name"
+        ? [asc(files.name)]
+        : p.sort === "size"
+          ? [sql`${fileVersions.sizeBytes} desc nulls last`, desc(files.updatedAt)]
+          : [desc(files.updatedAt)];
 
   const [rows, [total]] = await inSequence(
     () =>
@@ -322,10 +366,15 @@ export async function listFiles(s: Scope, raw: z.input<typeof fileListParams>) {
         .leftJoin(clients, eq(clients.id, files.clientId))
         .leftJoin(projects, eq(projects.id, files.projectId))
         .where(where)
-        .orderBy(desc(files.updatedAt))
+        .orderBy(...order)
         .limit(p.pageSize)
         .offset((p.page - 1) * p.pageSize),
-    () => s.db.select({ n: count() }).from(files).where(where),
+    () =>
+      s.db
+        .select({ n: count() })
+        .from(files)
+        .leftJoin(fileVersions, eq(fileVersions.id, files.currentVersionId))
+        .where(where),
   );
   return {
     rows: rows.map(({ thumbnailKey, projectVisible, ...r }) =>
@@ -523,14 +572,43 @@ export async function toggleFavorite(s: Scope, fileId: string) {
   return { favorite: true };
 }
 
-/** Exclusão lógica: o arquivo some das listas, mas versões e histórico são preservados. */
-export async function deleteFile(s: Scope, fileId: string) {
+/**
+ * Artes do Estúdio que usam alguma versão deste arquivo (imagens inseridas
+ * no editor guardam a referência /api/files/<versão>, não a imagem em si).
+ */
+export async function designsUsingFile(s: Scope, fileId: string) {
+  const versions = await s.db.select({ id: fileVersions.id }).from(fileVersions).where(eq(fileVersions.fileId, fileId));
+  if (!versions.length) return [];
+  const refs = versions.map((v) => sql`${designs.document}::text like ${`%/api/files/${v.id}%`}`);
+  return s.db
+    .select({ id: designs.id, name: designs.name })
+    .from(designs)
+    .where(and(isNull(designs.deletedAt), or(...refs)))
+    .limit(20);
+}
+
+/**
+ * Exclusão lógica: o arquivo vai para a Lixeira (some das listas, versões e
+ * histórico preservados; restaurável por 30 dias). Se alguma arte usa o
+ * arquivo, a exclusão só acontece com confirmação explícita (`force`).
+ */
+export async function deleteFile(s: Scope, fileId: string, opts: { force?: boolean } = {}) {
   assertInternal(s.actor);
   assertCan(s.actor, "files.delete");
   await assertFileAccess(s, fileId);
+  if (!opts.force) {
+    const used = await designsUsingFile(s, fileId);
+    if (used.length) {
+      const names = used.map((d) => `“${d.name}”`).join(", ");
+      throw new ValidationError(
+        `Este arquivo é usado em ${used.length === 1 ? "uma arte" : `${used.length} artes`} do Estúdio (${names}). Se excluir, a imagem deixa de aparecer nelas.`,
+        { inUse: used.map((d) => d.name) },
+      );
+    }
+  }
   const [row] = await s.db
     .update(files)
-    .set({ deletedAt: new Date() })
+    .set({ deletedAt: new Date(), deletedByUserId: s.actor.userId })
     .where(eq(files.id, fileId))
     .returning({ name: files.name });
   await s.db
@@ -545,6 +623,200 @@ export async function deleteFile(s: Scope, fileId: string) {
     event: false,
   });
 }
+
+/** Renomear e/ou mover para outra pasta (null = raiz). */
+export async function patchFile(s: Scope, raw: z.input<typeof filePatchInput>) {
+  assertInternal(s.actor);
+  assertCan(s.actor, "files.write");
+  const data = filePatchInput.parse(raw);
+  await assertFileAccess(s, data.id);
+  const [before] = await s.db.select().from(files).where(eq(files.id, data.id));
+  if (!before) throw new NotFoundError();
+  if (data.folderId) {
+    const [f] = await s.db
+      .select({ clientId: folders.clientId, projectId: folders.projectId })
+      .from(folders)
+      .where(eq(folders.id, data.folderId));
+    if (!f) throw new NotFoundError("Pasta não encontrada.");
+    if (f.clientId && f.clientId !== before.clientId) {
+      throw new ValidationError("A pasta pertence a outro cliente.");
+    }
+    if (f.projectId && f.projectId !== before.projectId) {
+      throw new ValidationError("A pasta pertence a outro projeto.");
+    }
+  }
+  const patch: { name?: string; folderId?: string | null } = {};
+  if (data.name !== undefined) patch.name = data.name;
+  if (data.folderId !== undefined) patch.folderId = data.folderId;
+  const changes = diff(before, patch);
+  if (!Object.keys(changes).length) return;
+  await s.db.update(files).set(patch).where(eq(files.id, data.id));
+  await recordActivity(s, {
+    action: changes.folderId ? "moved" : "renamed",
+    entityType: "file",
+    entityId: data.id,
+    summary: changes.folderId ? `Arquivo movido: ${before.name}` : `Arquivo renomeado para ${data.name}`,
+    changes,
+    event: false,
+  });
+}
+
+/** Duplica a versão atual em um novo arquivo (o objeto é copiado no armazenamento). */
+export async function duplicateFile(s: Scope, fileId: string) {
+  assertInternal(s.actor);
+  assertCan(s.actor, "files.write");
+  await assertFileAccess(s, fileId);
+  const [row] = await s.db
+    .select({ file: files, version: fileVersions })
+    .from(files)
+    .innerJoin(fileVersions, eq(fileVersions.id, files.currentVersionId))
+    .where(eq(files.id, fileId));
+  if (!row) throw new NotFoundError("Arquivo não encontrado.");
+  await assertQuota(s, row.version.sizeBytes);
+  const storage = getStorage();
+  const newFileId = randomUUID();
+  const versionId = randomUUID();
+  const dot = row.file.name.lastIndexOf(".");
+  const name = (
+    dot > 0 ? `${row.file.name.slice(0, dot)} (cópia)${row.file.name.slice(dot)}` : `${row.file.name} (cópia)`
+  ).slice(0, 200);
+  const key = versionKey(s.actor.orgId, newFileId, versionId, row.version.originalName);
+  await storage.put(key, await storage.get(row.version.storageKey), { contentType: row.version.mimeType });
+  try {
+    await s.db.insert(files).values({
+      id: newFileId,
+      organizationId: s.actor.orgId,
+      clientId: row.file.clientId,
+      projectId: row.file.projectId,
+      folderId: row.file.folderId,
+      name,
+      description: row.file.description,
+      category: row.file.category,
+      tags: row.file.tags,
+      status: "draft",
+      sharedWithClient: false,
+      createdByUserId: s.actor.userId,
+    });
+    await s.db.insert(fileVersions).values({
+      id: versionId,
+      organizationId: s.actor.orgId,
+      fileId: newFileId,
+      versionNumber: 1,
+      storageKey: key,
+      originalName: row.version.originalName,
+      mimeType: row.version.mimeType,
+      sizeBytes: row.version.sizeBytes,
+      checksumSha256: row.version.checksumSha256,
+      width: row.version.width,
+      height: row.version.height,
+      note: `Cópia de ${row.file.name}`,
+      source: "upload",
+      uploadedByUserId: s.actor.userId,
+    });
+    await s.db.update(files).set({ currentVersionId: versionId }).where(eq(files.id, newFileId));
+    const payload = { fileId: newFileId, versionId, versionNumber: 1, clientId: row.file.clientId, name };
+    // file.version_uploaded gera a miniatura da cópia.
+    await recordActivity(s, {
+      action: "duplicated",
+      entityType: "file",
+      entityId: newFileId,
+      summary: `Cópia criada de ${row.file.name}`,
+      event: { type: "file.version_uploaded", payload },
+    });
+    return { fileId: newFileId };
+  } catch (err) {
+    await storage.delete(key).catch(() => undefined);
+    throw err;
+  }
+}
+
+const RESTORABLE_STATUSES = ["draft", "in_review", "changes_requested", "approved", "final"] as const;
+
+/** Arquivar tira o arquivo das listas; desarquivar devolve o status que ele tinha. */
+export async function setFileArchived(s: Scope, fileId: string, archived: boolean) {
+  assertInternal(s.actor);
+  assertCan(s.actor, "files.write");
+  await assertFileAccess(s, fileId);
+  const [file] = await s.db.select({ status: files.status, name: files.name }).from(files).where(eq(files.id, fileId));
+  if (!file) throw new NotFoundError();
+  if (archived === (file.status === "archived")) return;
+  let next: (typeof files.$inferSelect)["status"] = "archived";
+  if (!archived) {
+    const [last] = await s.db
+      .select({ metadata: auditLogs.metadata })
+      .from(auditLogs)
+      .where(and(eq(auditLogs.entityType, "file"), eq(auditLogs.entityId, fileId), eq(auditLogs.action, "archived")))
+      .orderBy(desc(auditLogs.createdAt))
+      .limit(1);
+    const previous = (last?.metadata as { previousStatus?: string } | null)?.previousStatus;
+    next = RESTORABLE_STATUSES.find((v) => v === previous) ?? "draft";
+  }
+  await s.db.update(files).set({ status: next }).where(eq(files.id, fileId));
+  await recordActivity(s, {
+    action: archived ? "archived" : "unarchived",
+    entityType: "file",
+    entityId: fileId,
+    summary: archived ? `Arquivo arquivado: ${file.name}` : `Arquivo desarquivado: ${file.name}`,
+    metadata: archived ? { previousStatus: file.status } : undefined,
+    event: false,
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Uso do armazenamento e cota                                         */
+/* ------------------------------------------------------------------ */
+
+/** Bytes guardados pela organização (todas as versões, inclusive na lixeira até a exclusão definitiva). */
+async function usedBytes(s: Scope) {
+  const [row] = await s.db.select({ n: sql<string>`coalesce(sum(${fileVersions.sizeBytes}), 0)` }).from(fileVersions);
+  return Number(row?.n ?? 0);
+}
+
+/** Recusa o envio se ele passar da cota que a agência definiu (sem cota = só o limite do provedor). */
+async function assertQuota(s: Scope, incoming: number) {
+  const quota = s.actor.settings.storage.quotaBytes;
+  if (!quota) return;
+  const used = await usedBytes(s);
+  if (used + incoming > quota) {
+    throw new LimitError(
+      "O armazenamento da agência chegou ao limite definido. Libere espaço (Lixeira) ou aumente a cota em Configurações.",
+    );
+  }
+}
+
+export async function storageUsage(s: Scope) {
+  assertCan(s.actor, "files.read");
+  const [[active], [versions], [designBytes], [trash]] = await inSequence(
+    () => s.db.select({ n: count() }).from(files).where(isNull(files.deletedAt)),
+    () =>
+      s.db.select({ n: count(), bytes: sql<string>`coalesce(sum(${fileVersions.sizeBytes}), 0)` }).from(fileVersions),
+    () => s.db.select({ bytes: sql<string>`coalesce(sum(${designVersions.sizeBytes}), 0)` }).from(designVersions),
+    () =>
+      s.db
+        .select({ bytes: sql<string>`coalesce(sum(${fileVersions.sizeBytes}), 0)` })
+        .from(fileVersions)
+        .innerJoin(files, eq(files.id, fileVersions.fileId))
+        .where(sql`${files.deletedAt} is not null`),
+  );
+  const used = Number(versions?.bytes ?? 0);
+  const quota = s.actor.settings.storage.quotaBytes;
+  const alertPercent = s.actor.settings.storage.alertPercent;
+  const percent = quota ? Math.min(100, Math.round((used / quota) * 100)) : null;
+  return {
+    usedBytes: used,
+    trashBytes: Number(trash?.bytes ?? 0),
+    designHistoryBytes: Number(designBytes?.bytes ?? 0),
+    files: active?.n ?? 0,
+    versions: versions?.n ?? 0,
+    quotaBytes: quota,
+    alertPercent,
+    percent,
+    alert: percent !== null && percent >= alertPercent,
+    driver: getStorage().name,
+  };
+}
+
+export type StorageUsage = Awaited<ReturnType<typeof storageUsage>>;
 
 /* ------------------------------------------------------------------ */
 /* Pastas                                                              */

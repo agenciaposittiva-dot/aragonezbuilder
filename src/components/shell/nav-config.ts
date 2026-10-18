@@ -83,7 +83,7 @@ export const WORKSPACE_NAV: NavGroup[] = [
         label: "Lixeira",
         path: "/trash",
         icon: Trash2,
-        permission: ["clients.delete", "projects.delete", "designs.delete"],
+        permission: ["clients.delete", "projects.delete", "designs.delete", "files.delete"],
       },
     ],
   },

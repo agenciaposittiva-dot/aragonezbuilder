@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
-import { boolean, foreignKey, index, integer, jsonb, pgTable, text, unique, uuid } from "drizzle-orm/pg-core";
-import { id, timestamps, tstz } from "./_helpers";
+import { boolean, foreignKey, index, integer, jsonb, pgEnum, pgTable, text, unique, uuid } from "drizzle-orm/pg-core";
+import { createdAt, id, timestamps, tstz } from "./_helpers";
 import { user } from "./auth";
 import { clients } from "./clients";
 import { organizations } from "./core";
@@ -64,5 +64,47 @@ export const designs = pgTable(
     index("designs_trash_idx")
       .on(t.organizationId, t.deletedAt)
       .where(sql`${t.deletedAt} is not null`),
+  ],
+);
+
+export const designVersionKind = pgEnum("design_version_kind", ["auto", "named", "restore", "conflict"]);
+
+/**
+ * Histórico de versões de uma arte. Não é gravado a cada salvamento: o
+ * serviço cria pontos de controle agrupados (por tempo e por número de
+ * revisões), versões nomeadas pelo usuário, antes/depois de restaurar e as
+ * duas versões de um conflito de edição. Versões automáticas antigas são
+ * podadas pela política de retenção da organização; nomeadas são mantidas.
+ */
+export const designVersions = pgTable(
+  "design_versions",
+  {
+    id: id(),
+    organizationId: uuid()
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    designId: uuid().notNull(),
+    versionNumber: integer().notNull(),
+    kind: designVersionKind().notNull().default("auto"),
+    /** Nome dado pelo usuário (versões nomeadas) ou descrição automática. */
+    label: text(),
+    /** Revisão da arte que esta versão reproduz. */
+    revision: integer().notNull(),
+    document: jsonb().$type<Record<string, unknown>>().notNull(),
+    width: integer().notNull(),
+    height: integer().notNull(),
+    thumbnail: text(),
+    sizeBytes: integer().notNull().default(0),
+    createdByUserId: text().references(() => user.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique().on(t.organizationId, t.id),
+    unique().on(t.designId, t.versionNumber),
+    foreignKey({
+      columns: [t.organizationId, t.designId],
+      foreignColumns: [designs.organizationId, designs.id],
+    }).onDelete("cascade"),
+    index().on(t.organizationId, t.designId, t.createdAt.desc()),
   ],
 );

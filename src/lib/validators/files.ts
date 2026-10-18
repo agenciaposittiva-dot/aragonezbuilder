@@ -63,6 +63,48 @@ export const fileUpdateInput = z.object({
   folderId: optionalUuid,
 });
 
+/** Grupos de categorias usados nas pastas lógicas da Minha Nuvem. */
+export const FILE_KINDS = {
+  brand: { label: "Identidade visual", categories: ["brand_logo", "brand_asset", "brand_guideline"] },
+  art: { label: "Artes e entregas", categories: ["deliverable"] },
+  docs: { label: "Documentos", categories: ["document"] },
+  refs: { label: "Referências", categories: ["reference"] },
+  templates: { label: "Templates", categories: ["template"] },
+  other: { label: "Outros", categories: ["general"] },
+} as const satisfies Record<string, { label: string; categories: readonly FileCategory[] }>;
+export type FileKind = keyof typeof FILE_KINDS;
+
+/** Tipos de arquivo (pelo formato real da versão atual). */
+export const FILE_TYPES = {
+  image: "Imagens",
+  video: "Vídeos",
+  audio: "Áudios",
+  pdf: "PDF",
+  document: "Documentos",
+  archive: "Compactados",
+  other: "Outros",
+} as const;
+export type FileTypeGroup = keyof typeof FILE_TYPES;
+
+/** Seções da Minha Nuvem. */
+export const CLOUD_SECTIONS = {
+  recent: "Recentes",
+  shared: "Compartilhados com clientes",
+  internal: "Projetos internos",
+  templates: "Templates",
+  archived: "Arquivados",
+} as const;
+export type CloudSection = keyof typeof CLOUD_SECTIONS;
+
+export const FILE_SORTS = {
+  recent: "Alterados recentemente",
+  oldest: "Mais antigos",
+  name: "Nome (A–Z)",
+  size: "Maior tamanho",
+} as const;
+
+const isoDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
 export const fileListParams = z.object({
   q: z.string().trim().max(100).optional(),
   clientId: z.uuid().optional(),
@@ -76,10 +118,23 @@ export const fileListParams = z.object({
   tag: z.string().trim().toLowerCase().max(40).optional(),
   favorites: z.coerce.boolean().optional(),
   final: z.coerce.boolean().optional(),
+  kind: z.enum(Object.keys(FILE_KINDS) as [FileKind, ...FileKind[]]).optional(),
+  type: z.enum(Object.keys(FILE_TYPES) as [FileTypeGroup, ...FileTypeGroup[]]).optional(),
+  section: z.enum(Object.keys(CLOUD_SECTIONS) as [CloudSection, ...CloudSection[]]).optional(),
+  from: isoDay.optional(),
+  to: isoDay.optional(),
+  sort: z.enum(["recent", "oldest", "name", "size"]).default("recent"),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(6).max(200).default(48),
 });
 export type FileListParams = z.input<typeof fileListParams>;
+
+export const filePatchInput = z.object({
+  id: uuid,
+  name: requiredText("o nome", 200).optional(),
+  /** null = raiz (sem pasta). */
+  folderId: z.uuid().nullable().optional(),
+});
 
 export const folderInput = z.object({
   id: optionalUuid,
