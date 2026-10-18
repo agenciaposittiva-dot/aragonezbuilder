@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { optionalText, optionalUuid, uuid } from "@/lib/validators/common";
 import { clients, designs, files, projects, user } from "@/server/db/schema";
@@ -53,10 +53,20 @@ export const designMetaInput = z.object({
   templateCategory: optionalText(60),
 });
 
-/** Artes visíveis: sem cliente (internas) ou de clientes no escopo do ator. */
+/**
+ * Artes visíveis: fora da lixeira, sem cliente (internas) ou de clientes no
+ * escopo do ator, e cujo projeto (se houver) também não está na lixeira.
+ */
 function designScope(s: Scope) {
   const visibleClients = s.db.select({ id: clients.id }).from(clients).where(clientScope(s.actor));
-  return or(isNull(designs.clientId), inArray(designs.clientId, visibleClients));
+  return and(
+    isNull(designs.deletedAt),
+    or(
+      isNull(designs.projectId),
+      sql`exists (select 1 from ${projects} where ${projects.id} = ${designs.projectId} and ${projects.deletedAt} is null)`,
+    ),
+    or(isNull(designs.clientId), inArray(designs.clientId, visibleClients)),
+  );
 }
 
 async function assertLinks(
@@ -79,7 +89,10 @@ async function assertLinks(
   return { clientId, projectId: d.projectId ?? null, taskId: d.taskId ?? null };
 }
 
-export async function listDesigns(s: Scope, opts: { q?: string; templates?: boolean; clientId?: string } = {}) {
+export async function listDesigns(
+  s: Scope,
+  opts: { q?: string; templates?: boolean; clientId?: string; archived?: boolean } = {},
+) {
   assertInternal(s.actor);
   assertCan(s.actor, "designs.read");
   return s.db
@@ -104,8 +117,8 @@ export async function listDesigns(s: Scope, opts: { q?: string; templates?: bool
     .where(
       and(
         designScope(s),
-        isNull(designs.archivedAt),
-        eq(designs.isTemplate, !!opts.templates),
+        opts.archived ? isNotNull(designs.archivedAt) : isNull(designs.archivedAt),
+        opts.archived ? undefined : eq(designs.isTemplate, !!opts.templates),
         opts.clientId ? eq(designs.clientId, opts.clientId) : undefined,
         opts.q ? ilike(designs.name, `%${opts.q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`) : undefined,
       ),
@@ -260,6 +273,26 @@ export async function archiveDesign(s: Scope, id: string) {
     entityType: "design",
     entityId: id,
     summary: `Arte "${d.design.name}" arquivada`,
+    event: false,
+  });
+}
+
+/** Devolve ao Estúdio uma arte arquivada. */
+export async function unarchiveDesign(s: Scope, id: string) {
+  assertInternal(s.actor);
+  assertCan(s.actor, "designs.write");
+  const [d] = await s.db
+    .select({ name: designs.name, isTemplate: designs.isTemplate })
+    .from(designs)
+    .where(and(eq(designs.id, id), designScope(s), isNotNull(designs.archivedAt)));
+  if (!d) throw new NotFoundError("Arte não encontrada.");
+  if (d.isTemplate && !can(s.actor, "templates.manage")) throw new ForbiddenError();
+  await s.db.update(designs).set({ archivedAt: null }).where(eq(designs.id, id));
+  await recordActivity(s, {
+    action: "restored",
+    entityType: "design",
+    entityId: id,
+    summary: `Arte "${d.name}" desarquivada`,
     event: false,
   });
 }

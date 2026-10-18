@@ -213,13 +213,13 @@ export async function ruleBuilderOptions(s: Scope) {
       s.db
         .select({ id: clients.id, name: clients.name })
         .from(clients)
-        .where(sql`${clients.archivedAt} is null`)
+        .where(sql`${clients.archivedAt} is null and ${clients.deletedAt} is null`)
         .orderBy(asc(clients.name)),
     () =>
       s.db
         .select({ id: projects.id, name: projects.name })
         .from(projects)
-        .where(sql`${projects.archivedAt} is null`)
+        .where(sql`${projects.archivedAt} is null and ${projects.deletedAt} is null`)
         .orderBy(asc(projects.name)),
   );
   return {

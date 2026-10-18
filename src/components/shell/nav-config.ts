@@ -10,6 +10,7 @@ import {
   ListChecks,
   Palette,
   Settings,
+  Trash2,
   Users,
   Users2,
   Wallet,
@@ -77,6 +78,13 @@ export const WORKSPACE_NAV: NavGroup[] = [
       { key: "automations", label: "Automações", path: "/automations", icon: Workflow, permission: "automations.read" },
       { key: "team", label: "Equipe", path: "/team", icon: Users, permission: "members.read" },
       { key: "settings", label: "Configurações", path: "/settings", icon: Settings, permission: "org.manage" },
+      {
+        key: "trash",
+        label: "Lixeira",
+        path: "/trash",
+        icon: Trash2,
+        permission: ["clients.delete", "projects.delete", "designs.delete"],
+      },
     ],
   },
 ];

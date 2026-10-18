@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { withSystem } from "@/server/db";
 import { clientAccess, memberships, organizations, roles, user } from "@/server/db/schema";
 import { parseOrgSettings, type OrgSettings } from "@/lib/org-settings";
@@ -44,7 +44,15 @@ export async function resolveActor(userId: string, orgSlug: string): Promise<Act
       .innerJoin(organizations, eq(organizations.id, memberships.organizationId))
       .innerJoin(roles, eq(roles.id, memberships.roleId))
       .innerJoin(user, eq(user.id, memberships.userId))
-      .where(and(eq(memberships.userId, userId), eq(organizations.slug, orgSlug), eq(memberships.status, "active")))
+      .where(
+        and(
+          eq(memberships.userId, userId),
+          eq(organizations.slug, orgSlug),
+          eq(memberships.status, "active"),
+          // Agência na lixeira: ninguém entra até o proprietário restaurar.
+          isNull(organizations.deletedAt),
+        ),
+      )
       .limit(1);
     if (!row) return null;
 
@@ -104,7 +112,7 @@ export async function listUserOrganizations(userId: string): Promise<UserOrganiz
       .from(memberships)
       .innerJoin(organizations, eq(organizations.id, memberships.organizationId))
       .innerJoin(roles, eq(roles.id, memberships.roleId))
-      .where(and(eq(memberships.userId, userId), eq(memberships.status, "active")))
+      .where(and(eq(memberships.userId, userId), eq(memberships.status, "active"), isNull(organizations.deletedAt)))
       .orderBy(organizations.name),
   );
 }

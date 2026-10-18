@@ -325,7 +325,15 @@ export async function resolvePublicPortal(orgSlug: string, clientSlug: string) {
       .from(clients)
       .innerJoin(organizations, eq(organizations.id, clients.organizationId))
       .leftJoin(clientPortalSettings, eq(clientPortalSettings.clientId, clients.id))
-      .where(and(eq(organizations.slug, orgSlug), eq(clients.slug, clientSlug), isNull(clients.archivedAt)));
+      .where(
+        and(
+          eq(organizations.slug, orgSlug),
+          eq(clients.slug, clientSlug),
+          isNull(clients.archivedAt),
+          isNull(clients.deletedAt),
+          isNull(organizations.deletedAt),
+        ),
+      );
     if (!row) return null;
     const settings = row.published ? parsePortalSettings(row.published) : DEFAULT_PORTAL_SETTINGS;
     return {
@@ -353,14 +361,18 @@ export async function resolvePortalAsset(clientId: string, key: PortalAssetKey, 
         orgId: clients.organizationId,
         clientLogoFileId: clients.logoFileId,
         archivedAt: clients.archivedAt,
+        deletedAt: clients.deletedAt,
+        orgDeletedAt: organizations.deletedAt,
         draft: clientPortalSettings.draft,
         published: clientPortalSettings.published,
         loginEnabled: clientPortalSettings.loginEnabled,
       })
       .from(clients)
+      .innerJoin(organizations, eq(organizations.id, clients.organizationId))
       .leftJoin(clientPortalSettings, eq(clientPortalSettings.clientId, clients.id))
       .where(eq(clients.id, clientId));
-    if (!row) return null;
+    // Cliente ou agência na lixeira: nenhuma imagem do portal é entregue.
+    if (!row || row.deletedAt || row.orgDeletedAt) return null;
     const settings = parsePortalSettings(opts.draft ? (row.draft ?? row.published) : row.published);
     let fileId = assetFileId(settings, key);
     if (!fileId && key === "logo") fileId = row.clientLogoFileId;

@@ -43,7 +43,14 @@ const loadPortal = cache(async (orgSlug: string, clientSlug: string): Promise<Po
     s.db
       .select({ id: clients.id, slug: clients.slug, name: clients.name, logoFileId: clients.logoFileId })
       .from(clients)
-      .where(and(eq(clients.slug, clientSlug), inArray(clients.id, [...actor.clientIds]), isNull(clients.archivedAt))),
+      .where(
+        and(
+          eq(clients.slug, clientSlug),
+          inArray(clients.id, [...actor.clientIds]),
+          isNull(clients.archivedAt),
+          isNull(clients.deletedAt),
+        ),
+      ),
   );
   const narrowed = client ? narrowActorToClient(actor, client.id) : null;
   if (!client || !narrowed) redirect(`${entrar}?negado=1`);

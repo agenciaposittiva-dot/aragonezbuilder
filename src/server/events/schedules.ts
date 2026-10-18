@@ -1,7 +1,8 @@
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 import { withSystem } from "@/server/db";
 import { auditLogs, domainEvents, invoices } from "@/server/db/schema";
 import { nextCounter } from "@/server/services/finance";
+import { purgeExpiredTrash } from "@/server/services/trash";
 
 /*
  * Rotinas agendadas (worker via pg-boss; ou /api/cron/tick em plataformas sem
@@ -19,6 +20,11 @@ function todayISO() {
   );
 }
 
+/** A organização não está na lixeira (rotinas não agem sobre agências excluídas). */
+function orgAlive(orgIdColumn: SQL) {
+  return sql`exists (select 1 from organizations o where o.id = ${orgIdColumn} and o.deleted_at is null)`;
+}
+
 /** Emite `task.overdue` uma vez por dia para cada tarefa aberta e atrasada. */
 export async function scanOverdueTasks(): Promise<number> {
   const res = await withSystem((tx) =>
@@ -34,6 +40,8 @@ export async function scanOverdueTasks(): Promise<number> {
       join workflow_statuses ws on ws.id = t.status_id and ws.organization_id = t.organization_id
       where t.completed_at is null
         and t.archived_at is null
+        and p.deleted_at is null
+        and ${orgAlive(sql`t.organization_id`)}
         and ws.category not in ('done', 'cancelled')
         and t.due_date < ${todaySql}
         and not exists (
@@ -54,6 +62,8 @@ export async function markOverdueInvoices(): Promise<number> {
       with upd as (
         update invoices set status = 'overdue', updated_at = now()
         where status = 'open' and due_date < ${todaySql}
+          and ${orgAlive(sql`invoices.organization_id`)}
+          and not exists (select 1 from clients c where c.id = invoices.client_id and c.deleted_at is not null)
         returning id, organization_id, client_id, number, amount_cents, due_date
       ), audit as (
         insert into audit_logs (organization_id, action, entity_type, entity_id, summary)
@@ -98,6 +108,8 @@ export async function generateRecurringInvoices(today = todayISO()): Promise<num
       join clients c on c.id = s.client_id and c.organization_id = s.organization_id
       where s.status = 'active' and s.billing_type = 'monthly' and s.billing_day is not null and s.amount_cents > 0
         and c.archived_at is null
+        and c.deleted_at is null
+        and ${orgAlive(sql`s.organization_id`)}
         and (s.starts_on is null or s.starts_on <= ${today}::date)
         and (s.ends_on is null or s.ends_on >= ${today}::date)
         and s.billing_day <= ${day}
@@ -179,6 +191,10 @@ export async function remindPendingApprovals(): Promise<number> {
       from approvals a
       join files f on f.id = a.file_id and f.organization_id = a.organization_id
       where a.status = 'pending'
+        and f.deleted_at is null
+        and ${orgAlive(sql`a.organization_id`)}
+        and (f.client_id is null or not exists (select 1 from clients c where c.id = f.client_id and c.deleted_at is not null))
+        and (f.project_id is null or not exists (select 1 from projects p where p.id = f.project_id and p.deleted_at is not null))
         and a.requested_at < now() - interval '2 days'
         and not exists (
           select 1 from domain_events e
@@ -198,6 +214,7 @@ export async function runDueSchedules() {
     overdueInvoices: await markOverdueInvoices(),
     recurringInvoices: await generateRecurringInvoices(),
     approvalReminders: await remindPendingApprovals(),
+    trash: await purgeExpiredTrash(),
   };
 }
 

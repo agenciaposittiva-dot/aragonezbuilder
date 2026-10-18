@@ -2,6 +2,7 @@ import { and, asc, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { withSystem } from "@/server/db";
 import { domainEvents } from "@/server/db/schema";
 import { processFileVersion } from "@/server/services/file-processing";
+import { purgeStorageKeys } from "@/server/services/trash";
 import { runAutomations } from "./automation-engine";
 import { applyNotifications, type DomainEvent } from "./notifications";
 
@@ -14,6 +15,8 @@ async function sideEffects(ev: DomainEvent) {
     const versionId = (ev.payload as { versionId?: string })?.versionId;
     if (versionId) await processFileVersion(ev.organizationId, versionId);
   }
+  // Exclusão definitiva: o banco já confirmou; agora os objetos saem do armazenamento.
+  if (ev.type === "storage.purge") await purgeStorageKeys((ev.payload as { keys?: unknown })?.keys);
 }
 
 export type DispatchResult = { processed: number; failed: number; skipped: number };

@@ -182,7 +182,7 @@ export async function setClientAccess(s: Scope, raw: z.input<typeof clientAccess
   const found = await s.db
     .select({ id: clients.id })
     .from(clients)
-    .where(and(inArray(clients.id, ids), isNull(clients.archivedAt)));
+    .where(and(inArray(clients.id, ids), isNull(clients.archivedAt), isNull(clients.deletedAt)));
   if (found.length !== ids.length) throw new ValidationError("Um dos clientes selecionados é inválido.");
   await s.db.delete(clientAccess).where(eq(clientAccess.membershipId, data.membershipId));
   await eachInSequence(ids, (clientId) =>

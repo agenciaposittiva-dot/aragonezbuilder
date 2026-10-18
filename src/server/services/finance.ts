@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gte, ilike, lte, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, isNull, lte, or, sql, type SQL } from "drizzle-orm";
 import type { z } from "zod";
 import {
   expenseInput,
@@ -45,7 +45,10 @@ function financeWrite(s: Scope) {
 async function assertLinks(s: Scope, clientId: string, projectId: string | null, serviceId: string | null) {
   await assertClientAccess(s, clientId);
   if (projectId) {
-    const [p] = await s.db.select({ clientId: projects.clientId }).from(projects).where(eq(projects.id, projectId));
+    const [p] = await s.db
+      .select({ clientId: projects.clientId })
+      .from(projects)
+      .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)));
     if (!p) throw new NotFoundError("Projeto não encontrado.");
     if (p.clientId !== clientId)
       throw new ValidationError("O projeto não pertence a este cliente.", { projectId: ["Projeto de outro cliente"] });
@@ -67,6 +70,9 @@ async function assertLinks(s: Scope, clientId: string, projectId: string | null,
 /* Visão geral                                                         */
 /* ------------------------------------------------------------------ */
 
+/** Faturas e contratos de clientes na lixeira ficam fora dos números (SQL bruto, coluna client_id). */
+const LIVE_CLIENT = sql.raw("client_id not in (select id from clients where deleted_at is not null)");
+
 export async function financeOverview(s: Scope) {
   financeRead(s);
   const [kpis] = (
@@ -83,17 +89,17 @@ export async function financeOverview(s: Scope) {
     }>(sql`
       select
         (select coalesce(sum(amount_cents), 0) from client_services
-          where status = 'active' and billing_type = 'monthly'
+          where ${LIVE_CLIENT} and status = 'active' and billing_type = 'monthly'
             and (starts_on is null or starts_on <= ${todaySql}) and (ends_on is null or ends_on >= ${todaySql})) as mrr,
         (select count(*)::int from client_services
-          where status = 'active' and billing_type = 'monthly'
+          where ${LIVE_CLIENT} and status = 'active' and billing_type = 'monthly'
             and (starts_on is null or starts_on <= ${todaySql}) and (ends_on is null or ends_on >= ${todaySql})) as contracts,
-        (select coalesce(sum(amount_cents), 0) from invoices where status = 'open') as open_sum,
-        (select count(*)::int from invoices where status = 'open') as open_count,
-        (select coalesce(sum(amount_cents), 0) from invoices where status = 'overdue') as overdue_sum,
-        (select count(*)::int from invoices where status = 'overdue') as overdue_count,
+        (select coalesce(sum(amount_cents), 0) from invoices where ${LIVE_CLIENT} and status = 'open') as open_sum,
+        (select count(*)::int from invoices where ${LIVE_CLIENT} and status = 'open') as open_count,
+        (select coalesce(sum(amount_cents), 0) from invoices where ${LIVE_CLIENT} and status = 'overdue') as overdue_sum,
+        (select count(*)::int from invoices where ${LIVE_CLIENT} and status = 'overdue') as overdue_count,
         (select coalesce(sum(amount_cents), 0) from invoices
-          where status = 'paid' and date_trunc('month', paid_at at time zone ${TZ}) = date_trunc('month', now() at time zone ${TZ})) as received_month,
+          where ${LIVE_CLIENT} and status = 'paid' and date_trunc('month', paid_at at time zone ${TZ}) = date_trunc('month', now() at time zone ${TZ})) as received_month,
         (select coalesce(sum(amount_cents), 0) from expenses
           where status <> 'cancelled' and date_trunc('month', due_date) = date_trunc('month', ${todaySql})) as expenses_month,
         (select coalesce(sum(amount_cents), 0) from expenses where status = 'pending') as expenses_pending
@@ -104,7 +110,7 @@ export async function financeOverview(s: Scope) {
     await s.db.execute<{ days: number; inflow: string; outflow: string }>(sql`
       select d.days,
         (select coalesce(sum(amount_cents), 0) from invoices
-          where status in ('open', 'overdue') and due_date <= ${todaySql} + d.days) as inflow,
+          where ${LIVE_CLIENT} and status in ('open', 'overdue') and due_date <= ${todaySql} + d.days) as inflow,
         (select coalesce(sum(amount_cents), 0) from expenses
           where status = 'pending' and due_date <= ${todaySql} + d.days) as outflow
       from (values (30), (60), (90)) as d(days)
@@ -128,7 +134,7 @@ export async function financeOverview(s: Scope) {
       )
       select to_char(m.month, 'YYYY-MM') as month,
         (select coalesce(sum(amount_cents), 0) from invoices
-          where status = 'paid' and date_trunc('month', paid_at at time zone ${TZ})::date = m.month) as received,
+          where ${LIVE_CLIENT} and status = 'paid' and date_trunc('month', paid_at at time zone ${TZ})::date = m.month) as received,
         (select coalesce(sum(amount_cents), 0) from expenses
           where status <> 'cancelled' and date_trunc('month', due_date)::date = m.month) as expenses
       from months m
@@ -159,6 +165,7 @@ export async function currentMrr(s: Scope): Promise<number> {
     .from(clientServices)
     .where(
       and(
+        sql`${clientServices.clientId} not in (select id from ${clients} where deleted_at is not null)`,
         eq(clientServices.status, "active"),
         eq(clientServices.billingType, "monthly"),
         sql`(${clientServices.startsOn} is null or ${clientServices.startsOn} <= ${todaySql})`,
@@ -178,6 +185,7 @@ export async function listInvoices(s: Scope, raw: z.input<typeof invoiceListPara
   const clientId = fixedClientId ?? p.clientId;
   const asNumber = p.q ? Number(p.q.replace(/^#/, "")) : NaN;
   const where = and(
+    isNull(clients.deletedAt),
     p.status ? eq(invoices.status, p.status) : undefined,
     clientId ? eq(invoices.clientId, clientId) : undefined,
     p.from ? gte(invoices.dueDate, p.from) : undefined,
@@ -481,7 +489,7 @@ export async function saveExpense(s: Scope, raw: z.input<typeof expenseInput>) {
     const [p] = await s.db
       .select({ clientId: projects.clientId })
       .from(projects)
-      .where(eq(projects.id, data.projectId));
+      .where(and(eq(projects.id, data.projectId), isNull(projects.deletedAt)));
     if (!p) throw new NotFoundError("Projeto não encontrado.");
     if (clientId && clientId !== p.clientId)
       throw new ValidationError("O projeto não pertence ao cliente informado.", {
@@ -583,6 +591,7 @@ export async function listContracts(s: Scope) {
     })
     .from(clientServices)
     .innerJoin(clients, eq(clients.id, clientServices.clientId))
+    .where(isNull(clients.deletedAt))
     .orderBy(asc(clientServices.status), asc(clients.name), asc(clientServices.name));
 }
 
@@ -636,6 +645,7 @@ export async function profitability(s: Scope, raw: z.input<typeof profitabilityP
               (select coalesce(sum(te.minutes), 0) from time_entries te join tasks t on t.id = te.task_id where t.project_id = pr.id ${tePeriod}) as minutes,
               (select coalesce(sum(e.amount_cents), 0) from expenses e where e.project_id = pr.id and e.status <> 'cancelled' ${expPeriod}) as expenses
             from projects pr join clients c on c.id = pr.client_id
+            where pr.deleted_at is null
           ) x
           where revenue <> 0 or labor <> 0 or expenses <> 0
           order by revenue desc, name
@@ -659,6 +669,7 @@ export async function profitability(s: Scope, raw: z.input<typeof profitabilityP
                 where e.status <> 'cancelled' ${expPeriod}
                   and (e.client_id = c.id or e.project_id in (select id from projects where client_id = c.id))) as expenses
             from clients c
+            where c.deleted_at is null
           ) x
           where revenue <> 0 or labor <> 0 or expenses <> 0
           order by revenue desc, name
@@ -718,13 +729,13 @@ export async function financeFormOptions(s: Scope) {
       s.db
         .select({ id: clients.id, name: clients.name })
         .from(clients)
-        .where(sql`${clients.archivedAt} is null`)
+        .where(sql`${clients.archivedAt} is null and ${clients.deletedAt} is null`)
         .orderBy(asc(clients.name)),
     () =>
       s.db
         .select({ id: projects.id, name: projects.name, clientId: projects.clientId })
         .from(projects)
-        .where(sql`${projects.archivedAt} is null`)
+        .where(sql`${projects.archivedAt} is null and ${projects.deletedAt} is null`)
         .orderBy(asc(projects.name)),
     () =>
       s.db

@@ -85,7 +85,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps<"/
               </div>
               {tasks.overdue ? <p className="mt-1 text-xs text-danger">{tasks.overdue} atrasada(s)</p> : null}
             </div>
-            {can(actor, "projects.archive") || can(actor, "projects.write") ? (
+            {can(actor, "projects.archive") || can(actor, "projects.write") || can(actor, "projects.delete") ? (
               <ProjectMoreMenu
                 projectId={id}
                 name={project.name}
@@ -93,6 +93,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps<"/
                 portalVisible={project.portalVisible}
                 canArchive={can(actor, "projects.archive")}
                 canWrite={can(actor, "projects.write")}
+                canDelete={can(actor, "projects.delete")}
               />
             ) : null}
           </div>

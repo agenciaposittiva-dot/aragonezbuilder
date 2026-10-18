@@ -27,6 +27,9 @@ export const organizations = pgTable("organizations", {
   slug: text().notNull().unique(),
   logoUrl: text(),
   settings: jsonb().$type<Partial<OrgSettings>>().notNull().default({}),
+  /** Lixeira: agência excluída pelo proprietário; inacessível e apagada de vez depois de 30 dias. */
+  deletedAt: tstz(),
+  deletedByUserId: text().references(() => user.id, { onDelete: "set null" }),
   ...timestamps,
 });
 

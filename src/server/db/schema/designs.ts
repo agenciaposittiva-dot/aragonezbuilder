@@ -36,6 +36,9 @@ export const designs = pgTable(
     createdByUserId: text().references(() => user.id, { onDelete: "set null" }),
     updatedByUserId: text().references(() => user.id, { onDelete: "set null" }),
     archivedAt: tstz(),
+    /** Lixeira: preenchido ao excluir; some das listas e é apagado de vez depois de 30 dias. */
+    deletedAt: tstz(),
+    deletedByUserId: text().references(() => user.id, { onDelete: "set null" }),
     ...timestamps,
   },
   (t) => [
@@ -58,5 +61,6 @@ export const designs = pgTable(
     }),
     index().on(t.organizationId, t.isTemplate, t.updatedAt.desc()),
     index("designs_name_trgm").using("gin", sql`${t.name} gin_trgm_ops`),
+    index("designs_trash_idx").on(t.organizationId, t.deletedAt).where(sql`${t.deletedAt} is not null`),
   ],
 );

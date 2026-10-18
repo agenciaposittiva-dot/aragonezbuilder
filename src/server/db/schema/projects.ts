@@ -41,6 +41,9 @@ export const projects = pgTable(
     /** Visível na área do cliente (projetos ocultos não aparecem para os convidados). */
     portalVisible: boolean().notNull().default(true),
     archivedAt: tstz(),
+    /** Lixeira (também preenchido, com a mesma data, quando o cliente vai para a lixeira); some das listas e é apagado de vez depois de 30 dias. */
+    deletedAt: tstz(),
+    deletedByUserId: text().references(() => user.id, { onDelete: "set null" }),
     createdByUserId: text().references(() => user.id, { onDelete: "set null" }),
     ...timestamps,
   },
@@ -62,6 +65,7 @@ export const projects = pgTable(
     index().on(t.organizationId, t.statusId),
     index().on(t.organizationId, t.dueDate),
     index("projects_name_trgm").using("gin", sql`${t.name} gin_trgm_ops`),
+    index("projects_trash_idx").on(t.organizationId, t.deletedAt).where(sql`${t.deletedAt} is not null`),
   ],
 );
 

@@ -12,7 +12,7 @@ import {
   user,
   workflowStatuses,
 } from "@/server/db/schema";
-import { assertInternal, can, projectScope, taskScope, type Scope } from "@/server/authz";
+import { assertInternal, can, fileScope, projectScope, taskScope, type Scope } from "@/server/authz";
 import { currentMrr } from "./finance";
 
 const TZ = "America/Sao_Paulo";
@@ -51,14 +51,23 @@ async function myTasks(s: Scope) {
     .innerJoin(projects, eq(projects.id, tasks.projectId))
     .innerJoin(clients, eq(clients.id, projects.clientId))
     .innerJoin(workflowStatuses, eq(workflowStatuses.id, tasks.statusId))
-    .where(and(openTask, eq(tasks.assigneeMembershipId, s.actor.membershipId), lte(tasks.dueDate, addDays(today, 7))))
+    .where(
+      and(
+        openTask,
+        taskScope(s.actor),
+        eq(tasks.assigneeMembershipId, s.actor.membershipId),
+        lte(tasks.dueDate, addDays(today, 7)),
+      ),
+    )
     .orderBy(asc(tasks.dueDate), desc(tasks.priority))
     .limit(30);
   const [noDue] = await s.db
     .select({ n: sql<number>`count(*)::int` })
     .from(tasks)
     .innerJoin(workflowStatuses, eq(workflowStatuses.id, tasks.statusId))
-    .where(and(openTask, eq(tasks.assigneeMembershipId, s.actor.membershipId), isNull(tasks.dueDate)));
+    .where(
+      and(openTask, taskScope(s.actor), eq(tasks.assigneeMembershipId, s.actor.membershipId), isNull(tasks.dueDate)),
+    );
   return {
     overdue: rows.filter((r) => r.dueDate! < today),
     today: rows.filter((r) => r.dueDate === today),
@@ -89,6 +98,7 @@ async function approvalsWaiting(s: Scope) {
       and(
         eq(approvals.status, "pending"),
         eq(approvals.stage, "internal"),
+        fileScope(s.actor),
         or(isNull(files.projectId), projectScope(s.actor) ?? sql`true`),
       ),
     )
@@ -110,7 +120,7 @@ async function requestsToTriage(s: Scope) {
     })
     .from(requests)
     .innerJoin(clients, eq(clients.id, requests.clientId))
-    .where(inArray(requests.status, ["submitted", "triage"]))
+    .where(and(inArray(requests.status, ["submitted", "triage"]), isNull(clients.deletedAt)))
     .orderBy(
       sql`case ${requests.priority} when 'urgent' then 0 when 'high' then 1 when 'medium' then 2 else 3 end`,
       asc(requests.createdAt),
@@ -201,13 +211,19 @@ async function managerKpis(s: Scope) {
         .select({ n: sql<number>`count(*)::int` })
         .from(projects)
         .innerJoin(workflowStatuses, eq(workflowStatuses.id, projects.statusId))
-        .where(and(isNull(projects.archivedAt), sql`${workflowStatuses.category} not in ('done','cancelled')`)),
+        .where(
+          and(
+            isNull(projects.archivedAt),
+            isNull(projects.deletedAt),
+            sql`${workflowStatuses.category} not in ('done','cancelled')`,
+          ),
+        ),
     () =>
       s.db
         .select({ n: sql<number>`count(*)::int` })
         .from(tasks)
         .innerJoin(workflowStatuses, eq(workflowStatuses.id, tasks.statusId))
-        .where(and(openTask, sql`${tasks.dueDate} < ${today}::date`)),
+        .where(and(openTask, taskScope(s.actor), sql`${tasks.dueDate} < ${today}::date`)),
     () =>
       s.db
         .select({
@@ -215,7 +231,8 @@ async function managerKpis(s: Scope) {
           client: sql<number>`count(*) filter (where ${approvals.stage} = 'client')::int`,
         })
         .from(approvals)
-        .where(eq(approvals.status, "pending")),
+        .innerJoin(files, eq(files.id, approvals.fileId))
+        .where(and(eq(approvals.status, "pending"), fileScope(s.actor))),
   );
   const mrr = can(s.actor, "finance.read") ? await currentMrr(s) : null;
   const [{ n: team } = { n: 0 }] = await s.db

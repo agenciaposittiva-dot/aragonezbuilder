@@ -72,6 +72,7 @@ export default async function ClientLayout({ children, params }: LayoutProps<"/w
             members={data.members.map((m) => ({ membershipId: m.membershipId, name: m.name }))}
             canWrite={can(actor, "clients.write")}
             canArchive={can(actor, "clients.archive")}
+            canDelete={can(actor, "clients.delete")}
           />
         </div>
       </div>

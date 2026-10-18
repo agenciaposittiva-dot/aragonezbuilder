@@ -1,4 +1,4 @@
-import { LayoutTemplate, Palette, Plus } from "lucide-react";
+import { Archive, LayoutTemplate, Palette, Plus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { FilterBar, SearchFilter, SelectFilter } from "@/components/app/filters";
@@ -21,11 +21,11 @@ export default async function StudioPage({ params, searchParams }: PageProps<"/w
   const { org } = await params;
   const sp = await searchParams;
   const actor = await requireActor(org, { kind: "internal", permission: "designs.read" });
-  const tab = sp.tab === "templates" ? "templates" : "designs";
+  const tab = sp.tab === "templates" ? "templates" : sp.tab === "archived" ? "archived" : "designs";
   const q = typeof sp.q === "string" ? sp.q : undefined;
   const clientId = typeof sp.clientId === "string" ? sp.clientId : undefined;
   const data = await inOrg(actor, async (s) => ({
-    items: await listDesigns(s, { q, clientId, templates: tab === "templates" }),
+    items: await listDesigns(s, { q, clientId, templates: tab === "templates", archived: tab === "archived" }),
     templates: await listDesigns(s, { templates: true }),
     clients: await clientOptions(s),
     projects: await projectOptions(s),
@@ -33,6 +33,7 @@ export default async function StudioPage({ params, searchParams }: PageProps<"/w
   const base = `/w/${actor.orgSlug}/studio`;
   const canWrite = can(actor, "designs.write");
   const canTemplates = can(actor, "templates.manage");
+  const canDelete = can(actor, "designs.delete");
   const dialog = (trigger: React.ReactNode, templateId?: string) => (
     <NewDesignDialog
       trigger={trigger}
@@ -71,6 +72,7 @@ export default async function StudioPage({ params, searchParams }: PageProps<"/w
             items={[
               { label: "Artes", href: base, value: "designs", icon: <Palette /> },
               { label: "Templates", href: `${base}?tab=templates`, value: "templates", icon: <LayoutTemplate /> },
+              { label: "Arquivadas", href: `${base}?tab=archived`, value: "archived", icon: <Archive /> },
             ]}
           />
           <FilterBar>
@@ -87,15 +89,23 @@ export default async function StudioPage({ params, searchParams }: PageProps<"/w
       {data.items.length === 0 ? (
         <div className="rounded-xl border border-border bg-surface">
           <EmptyState
-            icon={tab === "templates" ? LayoutTemplate : Palette}
-            title={tab === "templates" ? "Nenhum template ainda" : "Nenhuma arte ainda"}
+            icon={tab === "templates" ? LayoutTemplate : tab === "archived" ? Archive : Palette}
+            title={
+              tab === "templates"
+                ? "Nenhum template ainda"
+                : tab === "archived"
+                  ? "Nada arquivado"
+                  : "Nenhuma arte ainda"
+            }
             description={
               tab === "templates"
                 ? "Templates aceleram a produção: crie um a partir de uma arte aprovada."
-                : "Crie uma arte em branco ou a partir de um template."
+                : tab === "archived"
+                  ? "Artes arquivadas ficam aqui e podem voltar ao Estúdio quando você quiser."
+                  : "Crie uma arte em branco ou a partir de um template."
             }
             action={
-              canWrite
+              canWrite && tab !== "archived"
                 ? dialog(
                     <Button variant="primary">
                       <Plus /> Nova arte
@@ -133,13 +143,15 @@ export default async function StudioPage({ params, searchParams }: PageProps<"/w
                   <p className="truncate text-[11px] text-fg-subtle">Editado {relativeFromNow(d.updatedAt)}</p>
                 </div>
               </Link>
-              {canWrite ? (
+              {canWrite || canDelete ? (
                 <div className="absolute top-2 right-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
                   <DesignCardActions
                     id={d.id}
                     name={d.name}
                     isTemplate={d.isTemplate}
                     canManageTemplates={canTemplates}
+                    canDelete={canDelete}
+                    archived={tab === "archived"}
                   />
                 </div>
               ) : null}

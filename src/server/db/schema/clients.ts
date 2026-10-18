@@ -42,6 +42,9 @@ export const clients = pgTable(
     notesInternal: text(),
     createdByUserId: text().references(() => user.id, { onDelete: "set null" }),
     archivedAt: tstz(),
+    /** Lixeira: preenchido ao excluir; some das listas e é apagado de vez depois de 30 dias. */
+    deletedAt: tstz(),
+    deletedByUserId: text().references(() => user.id, { onDelete: "set null" }),
     ...timestamps,
   },
   (t) => [
@@ -49,6 +52,7 @@ export const clients = pgTable(
     unique("clients_org_slug_unique").on(t.organizationId, t.slug),
     index().on(t.organizationId, t.status),
     index("clients_name_trgm").using("gin", sql`${t.name} gin_trgm_ops`),
+    index("clients_trash_idx").on(t.organizationId, t.deletedAt).where(sql`${t.deletedAt} is not null`),
   ],
 );
 

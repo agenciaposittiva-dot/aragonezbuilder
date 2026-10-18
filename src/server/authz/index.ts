@@ -48,44 +48,61 @@ const FALSE = sql`false`;
 /* Escopo de dados                                                     */
 /* ------------------------------------------------------------------ */
 
+/*
+ * Lixeira: clientes, projetos e artes excluídos ficam com `deleted_at`
+ * preenchido até serem apagados de vez. Os escopos abaixo os escondem de
+ * todas as consultas; quando um cliente vai para a lixeira, os projetos dele
+ * vão junto (mesma data), então "projeto ativo" basta para tarefas e arquivos.
+ */
+const projectAlive = isNull(projects.deletedAt);
+const clientAlive = isNull(clients.deletedAt);
+
+/** Arquivo cujo projeto/cliente não está na lixeira. */
+const fileOwnerAlive = sql`(${files.projectId} is null or exists (select 1 from ${projects} where ${projects.id} = ${files.projectId} and ${projects.deletedAt} is null)) and (${files.clientId} is null or exists (select 1 from ${clients} where ${clients.id} = ${files.clientId} and ${clients.deletedAt} is null))`;
+
 /**
  * Condição SQL sobre `projects` que limita aos projetos visíveis para o ator.
- * `undefined` = sem restrição adicional (o RLS ainda limita à organização).
+ * Projetos na lixeira nunca entram (o RLS ainda limita à organização).
  */
 export function projectScope(actor: Actor): SQL | undefined {
   if (actor.kind === "client") {
     // Convidados só veem projetos marcados como visíveis no portal.
     return actor.clientIds.length
-      ? and(inArray(projects.clientId, [...actor.clientIds]), eq(projects.portalVisible, true))
+      ? and(projectAlive, inArray(projects.clientId, [...actor.clientIds]), eq(projects.portalVisible, true))
       : FALSE;
   }
-  if (actor.dataAll) return undefined;
-  return or(
-    eq(projects.ownerMembershipId, actor.membershipId),
-    sql`exists (select 1 from ${projectMembers} where ${projectMembers.projectId} = ${projects.id} and ${projectMembers.membershipId} = ${actor.membershipId})`,
-    sql`exists (select 1 from ${tasks} where ${tasks.projectId} = ${projects.id} and (${tasks.assigneeMembershipId} = ${actor.membershipId} or exists (select 1 from ${taskCollaborators} where ${taskCollaborators.taskId} = ${tasks.id} and ${taskCollaborators.membershipId} = ${actor.membershipId})))`,
+  if (actor.dataAll) return projectAlive;
+  return and(
+    projectAlive,
+    or(
+      eq(projects.ownerMembershipId, actor.membershipId),
+      sql`exists (select 1 from ${projectMembers} where ${projectMembers.projectId} = ${projects.id} and ${projectMembers.membershipId} = ${actor.membershipId})`,
+      sql`exists (select 1 from ${tasks} where ${tasks.projectId} = ${projects.id} and (${tasks.assigneeMembershipId} = ${actor.membershipId} or exists (select 1 from ${taskCollaborators} where ${taskCollaborators.taskId} = ${tasks.id} and ${taskCollaborators.membershipId} = ${actor.membershipId})))`,
+    ),
   );
 }
 
 /** Condição SQL sobre `clients`. */
 export function clientScope(actor: Actor): SQL | undefined {
   if (actor.kind === "client") {
-    return actor.clientIds.length ? inArray(clients.id, [...actor.clientIds]) : FALSE;
+    return actor.clientIds.length ? and(clientAlive, inArray(clients.id, [...actor.clientIds])) : FALSE;
   }
-  if (actor.dataAll) return undefined;
+  if (actor.dataAll) return clientAlive;
   const visibleProjects = projectScope(actor);
-  return or(
-    sql`exists (select 1 from ${clientMembers} where ${clientMembers.clientId} = ${clients.id} and ${clientMembers.membershipId} = ${actor.membershipId})`,
-    sql`exists (select 1 from ${projects} where ${projects.clientId} = ${clients.id} and ${visibleProjects ?? sql`true`})`,
+  return and(
+    clientAlive,
+    or(
+      sql`exists (select 1 from ${clientMembers} where ${clientMembers.clientId} = ${clients.id} and ${clientMembers.membershipId} = ${actor.membershipId})`,
+      sql`exists (select 1 from ${projects} where ${projects.clientId} = ${clients.id} and ${visibleProjects ?? sql`true`})`,
+    ),
   );
 }
 
 /** Condição SQL sobre `tasks`. Clientes não veem tarefas internas. */
 export function taskScope(actor: Actor): SQL | undefined {
   if (actor.kind === "client") return FALSE;
-  if (actor.dataAll) return undefined;
-  const visibleProjects = projectScope(actor);
-  return sql`exists (select 1 from ${projects} where ${projects.id} = ${tasks.projectId} and ${visibleProjects ?? sql`true`})`;
+  const visibleProjects = projectScope(actor) ?? projectAlive;
+  return sql`exists (select 1 from ${projects} where ${projects.id} = ${tasks.projectId} and ${visibleProjects})`;
 }
 
 /**
@@ -107,7 +124,7 @@ export function canReadRequests(actor: Actor): boolean {
 
 /** Condição SQL sobre `files`. Clientes veem apenas o que foi compartilhado explicitamente. */
 export function fileScope(actor: Actor): SQL | undefined {
-  const notDeleted = isNull(files.deletedAt);
+  const notDeleted = and(isNull(files.deletedAt), fileOwnerAlive)!;
   if (actor.kind === "client") {
     if (!actor.clientIds.length) return FALSE;
     return and(

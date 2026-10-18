@@ -140,7 +140,7 @@ export async function createInvitation(s: Scope, raw: z.input<typeof invitationI
     const found = await s.db
       .select({ id: clients.id })
       .from(clients)
-      .where(and(inArray(clients.id, clientIds), isNull(clients.archivedAt)));
+      .where(and(inArray(clients.id, clientIds), isNull(clients.archivedAt), isNull(clients.deletedAt)));
     if (found.length !== clientIds.length) throw new ValidationError("Um dos clientes selecionados é inválido.");
   }
 
@@ -288,7 +288,7 @@ export async function getInvitationByToken(token: string): Promise<InvitationPre
       .from(invitations)
       .innerJoin(organizations, eq(organizations.id, invitations.organizationId))
       .innerJoin(roles, eq(roles.id, invitations.roleId))
-      .where(eq(invitations.tokenHash, hashToken(token)))
+      .where(and(eq(invitations.tokenHash, hashToken(token)), isNull(organizations.deletedAt)))
       .limit(1);
     if (!row) return null;
     const [existing] = await tx
@@ -371,7 +371,10 @@ export async function acceptInvitation(token: string, sessionUser: { id: string;
     }
 
     if (role.kind === "client" && inv.clientIds.length) {
-      const valid = await tx.select({ id: clients.id }).from(clients).where(inArray(clients.id, inv.clientIds));
+      const valid = await tx
+        .select({ id: clients.id })
+        .from(clients)
+        .where(and(inArray(clients.id, inv.clientIds), isNull(clients.deletedAt)));
       await eachInSequence(valid, (c) =>
         tx
           .insert(clientAccess)

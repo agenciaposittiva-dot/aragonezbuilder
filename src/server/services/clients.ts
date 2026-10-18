@@ -66,7 +66,7 @@ export async function listClients(s: Scope, raw: z.input<typeof clientListParams
           createdAt: clients.createdAt,
           leadName: lead.name,
           leadImage: lead.image,
-          activeProjects: sql<number>`(select count(*)::int from ${projects} where ${projects.clientId} = ${clients.id} and ${projects.archivedAt} is null and ${projects.completedAt} is null)`,
+          activeProjects: sql<number>`(select count(*)::int from ${projects} where ${projects.clientId} = ${clients.id} and ${projects.archivedAt} is null and ${projects.deletedAt} is null and ${projects.completedAt} is null)`,
           openRequests: sql<number>`(select count(*)::int from ${requests} where ${requests.clientId} = ${clients.id} and ${requests.status} in ('submitted','triage','in_progress'))`,
         })
         .from(clients)
@@ -498,13 +498,14 @@ export async function clientStats(s: Scope, clientId: string) {
     }>(
       sql`
     select
-      (select count(*)::int from ${projects} p where p.client_id = ${clientId} and p.archived_at is null and p.completed_at is null) as active_projects,
-      (select count(*)::int from ${projects} p where p.client_id = ${clientId} and p.completed_at is not null) as done_projects,
+      (select count(*)::int from ${projects} p where p.client_id = ${clientId} and p.archived_at is null and p.deleted_at is null and p.completed_at is null) as active_projects,
+      (select count(*)::int from ${projects} p where p.client_id = ${clientId} and p.deleted_at is null and p.completed_at is not null) as done_projects,
       (select count(*)::int from ${requests} r where r.client_id = ${clientId} and r.status in ('submitted','triage','in_progress')) as open_requests,
       (select count(*)::int from tasks t join ${projects} p on p.id = t.project_id
-        where p.client_id = ${clientId} and t.completed_at is null and t.archived_at is null and t.due_date < current_date) as overdue_tasks,
+        where p.client_id = ${clientId} and p.deleted_at is null and t.completed_at is null and t.archived_at is null and t.due_date < current_date) as overdue_tasks,
       (select count(*)::int from approvals a join files f on f.id = a.file_id
-        where f.client_id = ${clientId} and a.status = 'pending') as pending_approvals
+        where f.client_id = ${clientId} and f.deleted_at is null and a.status = 'pending'
+          and (f.project_id is null or exists (select 1 from ${projects} p where p.id = f.project_id and p.deleted_at is null))) as pending_approvals
   `,
     )
     .then((r) => r.rows);
