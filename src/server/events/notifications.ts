@@ -341,7 +341,7 @@ export async function applyNotifications(tx: Tx, ev: DomainEvent): Promise<numbe
       let link: string | null = null;
       if (r.kind === "client") {
         if (internalComment || d.portalPath === undefined || d.portalPath === null) continue;
-        link = `/portal/${slug}${d.portalPath}`;
+        link = `/portal/${slug}/ir${d.portalPath}`;
       } else {
         if (d.internalPath === undefined || d.internalPath === null) continue;
         link = `/w/${slug}${d.internalPath}`;

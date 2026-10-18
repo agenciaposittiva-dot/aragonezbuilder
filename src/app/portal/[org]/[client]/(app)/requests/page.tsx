@@ -9,24 +9,28 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { REQUEST_STATUS_LABEL, REQUEST_STATUSES } from "@/lib/validators/requests";
 import { can, inOrg } from "@/server/authz";
-import { requireActor } from "@/server/auth/session";
+import { requirePortal } from "@/server/auth/portal";
 import { clientOptions } from "@/server/services/clients";
 import { listRequests } from "@/server/services/requests";
 import { parseRequestFilters } from "@/server/services/requests-page";
 
 export const metadata: Metadata = { title: "Solicitações" };
 
-export default async function PortalRequestsPage({ params, searchParams }: PageProps<"/portal/[org]/requests">) {
-  const { org } = await params;
+export default async function PortalRequestsPage({
+  params,
+  searchParams,
+}: PageProps<"/portal/[org]/[client]/requests">) {
+  const { org, client: clientSlug } = await params;
   const sp = await searchParams;
-  const actor = await requireActor(org, { kind: "client", permission: "requests.read" });
+  const portal = await requirePortal(org, clientSlug, { permission: ["requests.read", "requests.write"] });
+  const { actor } = portal;
   // O cliente não filtra por responsável da agência.
   const filters = { ...parseRequestFilters(sp), assigneeId: undefined };
   const data = await inOrg(actor, async (s) => ({
     list: await listRequests(s, filters),
     clients: actor.clientIds.length > 1 ? await clientOptions(s) : [],
   }));
-  const base = `/portal/${actor.orgSlug}/requests`;
+  const base = `${portal.base}/requests`;
   const canCreate = can(actor, "requests.write") && actor.settings.portal.allowRequestCreation;
   const newButton = canCreate ? (
     <Button asChild variant="primary">

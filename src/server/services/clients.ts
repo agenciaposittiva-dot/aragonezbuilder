@@ -24,6 +24,7 @@ import { assertCan, assertClientAccess, assertInternal, can, clientScope, type S
 import { inSequence } from "@/server/db/sequence";
 import { NotFoundError } from "@/server/errors";
 import { diff, recordActivity } from "./activity";
+import { uniqueClientSlug } from "./client-slug";
 import { assertActiveMembers } from "./members";
 
 const ESC = (q: string) => `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
@@ -151,6 +152,7 @@ export async function createClient(s: Scope, raw: z.input<typeof clientInput>) {
     .values({
       organizationId: s.actor.orgId,
       name: data.name,
+      slug: await uniqueClientSlug(s.db, s.actor.orgId, data.name),
       legalName: data.legalName,
       document: data.document,
       email: data.email,

@@ -4,7 +4,7 @@ import { Paperclip, Plus } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { useWorkspace } from "@/components/shell/workspace-context";
+import { useWorkspace, workspaceBase } from "@/components/shell/workspace-context";
 import { formatBytes } from "@/lib/format";
 import { listAttachmentsAction } from "@/server/actions/files";
 import type { FileListRow } from "@/server/services/files";
@@ -47,7 +47,7 @@ export function FileAttachments({
     load();
   }, [load]);
 
-  const base = ws.kind === "client" ? `/portal/${ws.orgSlug}/files` : `/w/${ws.orgSlug}/files`;
+  const base = `${workspaceBase(ws)}/files`;
 
   return (
     <div className="grid gap-3">

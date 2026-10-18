@@ -5,7 +5,7 @@ import Link from "next/link";
 import { DueDate } from "@/components/app/due-date";
 import { FileThumb } from "@/components/files/file-thumb";
 import { EmptyState } from "@/components/ui/empty-state";
-import { useWorkspace } from "@/components/shell/workspace-context";
+import { useWorkspace, workspaceBase } from "@/components/shell/workspace-context";
 import { formatDateTime } from "@/lib/format";
 import { APPROVAL_STAGE_LABEL } from "@/lib/validators/approvals";
 import type { ApprovalRow } from "@/server/services/approvals";
@@ -24,7 +24,7 @@ export function ApprovalList({
 }) {
   const ws = useWorkspace();
   const isClient = ws.kind === "client";
-  const base = isClient ? `/portal/${ws.orgSlug}` : `/w/${ws.orgSlug}`;
+  const base = workspaceBase(ws);
   if (!rows.length) return <EmptyState icon={CheckCheck} title={emptyTitle} description={emptyDescription} />;
   return (
     <ul className="divide-y divide-border">

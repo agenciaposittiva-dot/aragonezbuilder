@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { navAllowed } from "./nav-config";
 import { getNav, type NavKey } from "./nav-registry";
 import { useWorkspace } from "./workspace-context";
 
@@ -44,7 +45,7 @@ export function SidebarNav({
   return (
     <nav className="grid gap-5" aria-label="Navegação principal">
       {groups.map((group, gi) => {
-        const items = group.items.filter((i) => !i.permission || permissions.includes(i.permission));
+        const items = group.items.filter((i) => navAllowed(i, permissions));
         if (!items.length) return null;
         return (
           <div key={gi} className="grid gap-0.5">

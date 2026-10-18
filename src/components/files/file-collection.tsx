@@ -3,7 +3,7 @@
 import { Share2 } from "lucide-react";
 import Link from "next/link";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
-import { useWorkspace } from "@/components/shell/workspace-context";
+import { useWorkspace, workspaceBase } from "@/components/shell/workspace-context";
 import { formatBytes, formatDate } from "@/lib/format";
 import { FILE_CATEGORY_LABEL, type FileCategory, type FileStatus } from "@/lib/validators/files";
 import { FavoriteButton } from "./favorite-button";
@@ -38,7 +38,7 @@ export function FileCollection({
   basePath?: string;
 }) {
   const ws = useWorkspace();
-  const base = basePath ?? (ws.kind === "client" ? `/portal/${ws.orgSlug}/files` : `/w/${ws.orgSlug}/files`);
+  const base = basePath ?? `${workspaceBase(ws)}/files`;
   const internal = ws.kind === "internal";
 
   if (view === "list") {

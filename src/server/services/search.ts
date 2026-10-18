@@ -19,7 +19,7 @@ export async function globalSearch(s: Scope, rawQuery: string): Promise<SearchHi
   const q = rawQuery.trim();
   if (q.length < 2) return [];
   const like = `%${escapeLike(q)}%`;
-  const base = s.actor.kind === "client" ? `/portal/${s.actor.orgSlug}` : `/w/${s.actor.orgSlug}`;
+  const base = s.actor.kind === "client" ? `/portal/${s.actor.orgSlug}/ir` : `/w/${s.actor.orgSlug}`;
   const hits: SearchHit[] = [];
   const internal = s.actor.kind === "internal";
 

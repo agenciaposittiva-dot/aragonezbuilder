@@ -9,6 +9,7 @@ import { Kbd } from "@/components/ui/kbd";
 import { Spinner } from "@/components/ui/spinner";
 import { searchAction } from "@/server/actions/shell";
 import type { SearchHit } from "@/server/services/search";
+import { navAllowed } from "./nav-config";
 import { getNav, type NavKey } from "./nav-registry";
 import { useWorkspace } from "./workspace-context";
 
@@ -70,7 +71,7 @@ export function CommandMenu({ nav, base }: { nav: NavKey; base: string }) {
     router.push(href);
   }
 
-  const navItems = groups.flatMap((g) => g.items).filter((i) => !i.permission || permissions.includes(i.permission));
+  const navItems = groups.flatMap((g) => g.items).filter((i) => navAllowed(i, permissions));
   const visibleHits = query.trim().length >= 2 ? hits : [];
   const grouped = visibleHits.reduce<Record<string, SearchHit[]>>((acc, h) => {
     (acc[h.type] ??= []).push(h);

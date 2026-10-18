@@ -27,6 +27,8 @@ export const clients = pgTable(
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
     name: text().notNull(),
+    /** Endereço público estável do portal do cliente (único na organização). */
+    slug: text().notNull(),
     legalName: text(),
     document: text(),
     email: text(),
@@ -44,6 +46,7 @@ export const clients = pgTable(
   },
   (t) => [
     unique().on(t.organizationId, t.id),
+    unique("clients_org_slug_unique").on(t.organizationId, t.slug),
     index().on(t.organizationId, t.status),
     index("clients_name_trgm").using("gin", sql`${t.name} gin_trgm_ops`),
   ],

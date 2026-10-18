@@ -50,6 +50,8 @@ export const PERMISSIONS = {
   "costs.read": "Ver custos internos (custo/hora, rentabilidade)",
   "audit.read": "Ver histórico de auditoria",
   "portal.access": "Acessar a área do cliente",
+  "portal.comment": "Comentar na área do cliente",
+  "portal.invite": "Convidar pessoas do mesmo cliente (quando a agência permitir)",
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -102,7 +104,11 @@ export type SystemRoleKey =
   | "traffic"
   | "finance"
   | "collaborator"
-  | "client";
+  | "client"
+  | "client_admin"
+  | "client_requester"
+  | "client_approver"
+  | "client_viewer";
 
 type RoleDef = {
   key: SystemRoleKey;
@@ -111,6 +117,9 @@ type RoleDef = {
   kind: RoleKind;
   permissions: Permission[];
 };
+
+/** Permissões que só fazem sentido para usuários de cliente. */
+const CLIENT_ONLY: Permission[] = ["approvals.decide_client", "portal.access", "portal.comment", "portal.invite"];
 
 const CREATIVE: Permission[] = [
   "data.all",
@@ -137,14 +146,14 @@ export const SYSTEM_ROLES: RoleDef[] = [
     name: "Proprietário",
     description: "Acesso total, inclusive cobrança e exclusão da organização.",
     kind: "internal",
-    permissions: ALL_PERMISSIONS.filter((p) => p !== "approvals.decide_client" && p !== "portal.access"),
+    permissions: ALL_PERMISSIONS.filter((p) => !CLIENT_ONLY.includes(p)),
   },
   {
     key: "admin",
     name: "Administrador",
     description: "Gerencia equipe, papéis, configurações e todos os módulos.",
     kind: "internal",
-    permissions: ALL_PERMISSIONS.filter((p) => p !== "approvals.decide_client" && p !== "portal.access"),
+    permissions: ALL_PERMISSIONS.filter((p) => !CLIENT_ONLY.includes(p)),
   },
   {
     key: "manager",
@@ -294,7 +303,7 @@ export const SYSTEM_ROLES: RoleDef[] = [
   },
   {
     key: "client",
-    name: "Cliente",
+    name: "Cliente (acesso completo)",
     description: "Área do cliente: solicitações, aprovações e materiais compartilhados.",
     kind: "client",
     permissions: [
@@ -305,7 +314,46 @@ export const SYSTEM_ROLES: RoleDef[] = [
       "requests.write",
       "files.read",
       "approvals.decide_client",
+      "portal.comment",
     ],
+  },
+  {
+    key: "client_admin",
+    name: "Administrador do cliente",
+    description: "Projetos, solicitações, aprovações e materiais; convida colegas quando a agência permite.",
+    kind: "client",
+    permissions: [
+      "portal.access",
+      "clients.read",
+      "projects.read",
+      "requests.read",
+      "requests.write",
+      "files.read",
+      "approvals.decide_client",
+      "portal.comment",
+      "portal.invite",
+    ],
+  },
+  {
+    key: "client_requester",
+    name: "Solicitante",
+    description: "Abre demandas, envia arquivos e acompanha as próprias solicitações e os projetos.",
+    kind: "client",
+    permissions: ["portal.access", "clients.read", "projects.read", "requests.write", "files.read", "portal.comment"],
+  },
+  {
+    key: "client_approver",
+    name: "Aprovador",
+    description: "Revisa os materiais enviados para aprovação, aprova versões ou pede ajustes.",
+    kind: "client",
+    permissions: ["portal.access", "clients.read", "files.read", "approvals.decide_client", "portal.comment"],
+  },
+  {
+    key: "client_viewer",
+    name: "Visualizador",
+    description: "Consulta projetos e baixa os materiais compartilhados, sem criar demandas nem aprovar.",
+    kind: "client",
+    permissions: ["portal.access", "clients.read", "projects.read", "files.read"],
   },
 ];
 
@@ -374,5 +422,5 @@ export const PERMISSION_GROUPS: { label: string; permissions: Permission[] }[] =
       "costs.read",
     ],
   },
-  { label: "Área do cliente", permissions: ["portal.access"] },
+  { label: "Área do cliente", permissions: ["portal.access", "portal.comment", "portal.invite"] },
 ];

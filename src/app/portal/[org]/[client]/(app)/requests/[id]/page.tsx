@@ -15,16 +15,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { BRIEFING_CATEGORY_LABEL } from "@/lib/validators/briefings";
 import { can, inOrg } from "@/server/authz";
-import { requireActor } from "@/server/auth/session";
+import { requirePortal } from "@/server/auth/portal";
 import { NotFoundError } from "@/server/errors";
 import { listComments } from "@/server/services/comments";
 import { getRequest, requestHistory } from "@/server/services/requests";
 
 export const metadata: Metadata = { title: "Solicitação" };
 
-export default async function PortalRequestDetailPage({ params }: PageProps<"/portal/[org]/requests/[id]">) {
-  const { org, id } = await params;
-  const actor = await requireActor(org, { kind: "client", permission: "requests.read" });
+export default async function PortalRequestDetailPage({ params }: PageProps<"/portal/[org]/[client]/requests/[id]">) {
+  const { org, client: clientSlug, id } = await params;
+  const portal = await requirePortal(org, clientSlug, { permission: ["requests.read", "requests.write"] });
+  const { actor } = portal;
   const data = await inOrg(actor, async (s) => {
     try {
       return {
@@ -40,7 +41,7 @@ export default async function PortalRequestDetailPage({ params }: PageProps<"/po
   if (!data) notFound();
   const { detail } = data;
   const r = detail.request;
-  const base = `/portal/${actor.orgSlug}`;
+  const base = portal.base;
   const isAuthor = r.createdByUserId === actor.userId;
   const closed = ["delivered", "rejected", "cancelled"].includes(r.status);
 

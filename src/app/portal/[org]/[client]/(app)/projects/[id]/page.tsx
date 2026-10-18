@@ -9,14 +9,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { inOrg } from "@/server/authz";
-import { requireActor } from "@/server/auth/session";
+import { requirePortal } from "@/server/auth/portal";
 import { NotFoundError } from "@/server/errors";
 import { listComments } from "@/server/services/comments";
 import { getProject, projectHistory } from "@/server/services/projects";
 
-export default async function PortalProjectPage({ params }: PageProps<"/portal/[org]/projects/[id]">) {
-  const { org, id } = await params;
-  const actor = await requireActor(org, { kind: "client", permission: "projects.read" });
+export default async function PortalProjectPage({ params }: PageProps<"/portal/[org]/[client]/projects/[id]">) {
+  const { org, client: clientSlug, id } = await params;
+  const portal = await requirePortal(org, clientSlug, { permission: "projects.read" });
+  const { actor } = portal;
   const data = await inOrg(actor, async (s) => {
     try {
       return {
@@ -36,9 +37,7 @@ export default async function PortalProjectPage({ params }: PageProps<"/portal/[
   return (
     <div className="grid gap-6">
       <div>
-        <Breadcrumbs
-          items={[{ label: "Projetos", href: `/portal/${actor.orgSlug}/projects` }, { label: project.name }]}
-        />
+        <Breadcrumbs items={[{ label: "Projetos", href: `${portal.base}/projects` }, { label: project.name }]} />
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-xl font-semibold tracking-tight">{project.name}</h1>
           <StatusBadge name={status.name} color={status.color} />

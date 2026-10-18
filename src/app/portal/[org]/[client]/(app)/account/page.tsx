@@ -4,13 +4,14 @@ import { ProfileForm } from "@/components/account/profile-form";
 import { SessionsList } from "@/components/account/sessions-list";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
-import { requireActor } from "@/server/auth/session";
+import { requirePortal } from "@/server/auth/portal";
 
 export const metadata: Metadata = { title: "Minha conta" };
 
-export default async function PortalAccountPage({ params }: PageProps<"/portal/[org]/account">) {
-  const { org } = await params;
-  const actor = await requireActor(org, { kind: "client" });
+export default async function PortalAccountPage({ params }: PageProps<"/portal/[org]/[client]/account">) {
+  const { org, client: clientSlug } = await params;
+  const portal = await requirePortal(org, clientSlug);
+  const { actor } = portal;
   return (
     <>
       <PageHeader title="Minha conta" description={`Acesso à área do cliente de ${actor.orgName}`} />

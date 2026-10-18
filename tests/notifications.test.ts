@@ -147,10 +147,10 @@ describe("notificações geradas pelo despachante de eventos", () => {
       (n) => n.type === "approval.requested",
     );
     expect(clientNotes).toHaveLength(1);
-    expect(clientNotes[0]!.link).toBe(`/portal/${ctx.org.slug}/approvals`);
+    expect(clientNotes[0]!.link).toBe(`/portal/${ctx.org.slug}/ir/approvals`);
     const mails = await withSystem((tx) => tx.select().from(emailOutbox).where(eq(emailOutbox.to, clientUser.email)));
     expect(mails.length).toBeGreaterThanOrEqual(1);
-    expect(mails[0]!.text).toContain(`/portal/${ctx.org.slug}/approvals`);
+    expect(mails[0]!.text).toContain(`/portal/${ctx.org.slug}/ir/approvals`);
   });
 
   it("comentário interno nunca notifica o cliente; comentário visível da equipe notifica", async () => {
@@ -198,7 +198,7 @@ describe("notificações geradas pelo despachante de eventos", () => {
       (n) => n.type === "comment.created",
     );
     expect(clientComments).toHaveLength(1);
-    expect(clientComments[0]!.link).toBe(`/portal/${ctx.org.slug}/files/${fileId}`);
+    expect(clientComments[0]!.link).toBe(`/portal/${ctx.org.slug}/ir/files/${fileId}`);
   });
 
   it("comentário interno em tarefa não chega ao cliente mesmo se marcado como visível", async () => {

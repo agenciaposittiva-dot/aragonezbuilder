@@ -6,14 +6,15 @@ import { StatusBadge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { inOrg } from "@/server/authz";
-import { requireActor } from "@/server/auth/session";
+import { requirePortal } from "@/server/auth/portal";
 import { listProjects } from "@/server/services/projects";
 
 export const metadata: Metadata = { title: "Projetos" };
 
-export default async function PortalProjectsPage({ params }: PageProps<"/portal/[org]/projects">) {
-  const { org } = await params;
-  const actor = await requireActor(org, { kind: "client", permission: "projects.read" });
+export default async function PortalProjectsPage({ params }: PageProps<"/portal/[org]/[client]/projects">) {
+  const { org, client: clientSlug } = await params;
+  const portal = await requirePortal(org, clientSlug, { permission: "projects.read" });
+  const { actor } = portal;
   const { rows } = await inOrg(actor, (s) => listProjects(s, { view: "board" }));
   const showProgress = actor.settings.portal.showProjectProgress;
   const multiClient = actor.clientIds.length > 1;
@@ -35,7 +36,7 @@ export default async function PortalProjectsPage({ params }: PageProps<"/portal/
             return (
               <li key={p.id}>
                 <Link
-                  href={`/portal/${actor.orgSlug}/projects/${p.id}`}
+                  href={`${portal.base}/projects/${p.id}`}
                   className="block h-full rounded-xl border border-border bg-surface p-4 shadow-xs transition-shadow hover:shadow-md"
                 >
                   <div className="flex items-start justify-between gap-2">

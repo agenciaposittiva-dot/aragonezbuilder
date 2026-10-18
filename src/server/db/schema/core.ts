@@ -98,6 +98,8 @@ export const invitations = pgTable(
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
     email: text().notNull(),
+    /** Nome do convidado, quando informado. */
+    name: text(),
     roleId: uuid().notNull(),
     /** Para convites de clientes: os clientes que o usuário poderá acessar. */
     clientIds: uuid()

@@ -1,5 +1,17 @@
 import { sql } from "drizzle-orm";
-import { date, foreignKey, index, integer, pgEnum, pgTable, primaryKey, text, unique, uuid } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  date,
+  foreignKey,
+  index,
+  integer,
+  pgEnum,
+  pgTable,
+  primaryKey,
+  text,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { createdAt, id, timestamps, tstz } from "./_helpers";
 import { user } from "./auth";
 import { clients } from "./clients";
@@ -26,6 +38,8 @@ export const projects = pgTable(
     /** Orçamento previsto (centavos). Dado financeiro: oculto do cliente. */
     budgetCents: integer(),
     completedAt: tstz(),
+    /** Visível na área do cliente (projetos ocultos não aparecem para os convidados). */
+    portalVisible: boolean().notNull().default(true),
     archivedAt: tstz(),
     createdByUserId: text().references(() => user.id, { onDelete: "set null" }),
     ...timestamps,

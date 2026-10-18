@@ -16,7 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDateTime } from "@/lib/format";
 import { FILE_CATEGORY_LABEL } from "@/lib/validators/files";
 import { inOrg } from "@/server/authz";
-import { requireActor } from "@/server/auth/session";
+import { requirePortal } from "@/server/auth/portal";
 import { NotFoundError } from "@/server/errors";
 import { fileApprovals } from "@/server/services/approvals";
 import { listComments } from "@/server/services/comments";
@@ -24,9 +24,10 @@ import { fileHistory, getFile } from "@/server/services/files";
 
 export const metadata: Metadata = { title: "Material" };
 
-export default async function PortalFileDetailPage({ params }: PageProps<"/portal/[org]/files/[id]">) {
-  const { org, id } = await params;
-  const actor = await requireActor(org, { kind: "client", permission: "files.read" });
+export default async function PortalFileDetailPage({ params }: PageProps<"/portal/[org]/[client]/files/[id]">) {
+  const { org, client: clientSlug, id } = await params;
+  const portal = await requirePortal(org, clientSlug, { permission: "files.read" });
+  const { actor } = portal;
   const data = await inOrg(actor, async (s) => {
     try {
       const detail = await getFile(s, id);
@@ -45,7 +46,7 @@ export default async function PortalFileDetailPage({ params }: PageProps<"/porta
   const { detail } = data;
   const { file } = detail;
   const current = detail.versions.find((v) => v.id === file.currentVersionId) ?? detail.versions[0] ?? null;
-  const base = `/portal/${actor.orgSlug}`;
+  const base = portal.base;
 
   return (
     <div className="grid gap-6">

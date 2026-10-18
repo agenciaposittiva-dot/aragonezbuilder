@@ -163,7 +163,7 @@ async function notify(
       type: `automation.${ctx.rule.id}`,
       title: title.slice(0, 300),
       body: body ? body.slice(0, 1000) : null,
-      link: r.kind === "client" ? `/portal/${ctx.slug}${portalPath}` : `/w/${ctx.slug}${path}`,
+      link: r.kind === "client" ? `/portal/${ctx.slug}/ir${portalPath}` : `/w/${ctx.slug}${path}`,
       entityType: ctx.ev.entityType,
       entityId: ctx.ev.entityId,
     });
@@ -240,7 +240,7 @@ async function runAction(ctx: Ctx, action: AutomationAction): Promise<Record<str
       const body = action.body ? interpolate(action.body, p, ctx.ev.type) : undefined;
       const n = await notify(ctx, recipients, title, body, path, portalPath);
       const e = action.email
-        ? await queueEmails(ctx, recipients, title, body ?? "", `/portal/${ctx.slug}${portalPath}`)
+        ? await queueEmails(ctx, recipients, title, body ?? "", `/portal/${ctx.slug}/ir${portalPath}`)
         : 0;
       return { type: action.type, notified: n, emails: e };
     }
@@ -249,7 +249,7 @@ async function runAction(ctx: Ctx, action: AutomationAction): Promise<Record<str
       let link = path ? `/w/${ctx.slug}${path}` : "";
       if (action.to === "client_users") {
         recipients = await clientUsers(ctx.tx, org, (p.clientId as string | undefined) ?? null);
-        link = `/portal/${ctx.slug}${portalPathFor(ctx.ev.type, p)}`;
+        link = `/portal/${ctx.slug}/ir${portalPathFor(ctx.ev.type, p)}`;
       } else {
         const { assignee, owner } = await assigneeAndOwner(ctx);
         recipients = await membersByIds(ctx.tx, org, [action.to === "assignee" ? assignee : owner]);

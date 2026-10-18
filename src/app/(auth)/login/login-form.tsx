@@ -8,7 +8,20 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
 
-export function LoginForm({ next, reset }: { next: string; reset?: boolean }) {
+export function LoginForm({
+  next,
+  reset,
+  title = "Entrar",
+  description = "Acesse o painel da sua agência ou a área do cliente.",
+  showSignup = true,
+}: {
+  next: string;
+  reset?: boolean;
+  title?: string;
+  description?: string;
+  /** O portal do cliente não oferece cadastro: convidados entram por convite. */
+  showSignup?: boolean;
+}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -37,8 +50,8 @@ export function LoginForm({ next, reset }: { next: string; reset?: boolean }) {
   return (
     <div className="grid gap-6">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Entrar</h1>
-        <p className="mt-1 text-sm text-fg-muted">Acesse o painel da sua agência ou a área do cliente.</p>
+        <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+        <p className="mt-1 text-sm text-fg-muted">{description}</p>
       </div>
       {reset ? (
         <p className="rounded-md border border-border bg-success-soft px-3 py-2 text-sm text-success">
@@ -70,12 +83,18 @@ export function LoginForm({ next, reset }: { next: string; reset?: boolean }) {
           Entrar
         </Button>
       </form>
-      <p className="text-center text-sm text-fg-muted">
-        Ainda não tem conta?{" "}
-        <Link href="/signup" className="font-medium text-fg hover:underline">
-          Criar conta da agência
-        </Link>
-      </p>
+      {showSignup ? (
+        <p className="text-center text-sm text-fg-muted">
+          Ainda não tem conta?{" "}
+          <Link href="/signup" className="font-medium text-fg hover:underline">
+            Criar conta da agência
+          </Link>
+        </p>
+      ) : (
+        <p className="text-center text-xs text-fg-muted">
+          O acesso é feito por convite. Não recebeu o seu? Fale com a agência responsável.
+        </p>
+      )}
     </div>
   );
 }

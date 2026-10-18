@@ -4,18 +4,22 @@ import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { SegmentedNav } from "@/components/ui/segmented-nav";
 import { inOrg } from "@/server/authz";
-import { requireActor } from "@/server/auth/session";
+import { requirePortal } from "@/server/auth/portal";
 import { listApprovals } from "@/server/services/approvals";
 
 export const metadata: Metadata = { title: "Aprovações" };
 
-export default async function PortalApprovalsPage({ params, searchParams }: PageProps<"/portal/[org]/approvals">) {
-  const { org } = await params;
+export default async function PortalApprovalsPage({
+  params,
+  searchParams,
+}: PageProps<"/portal/[org]/[client]/approvals">) {
+  const { org, client: clientSlug } = await params;
   const sp = await searchParams;
-  const actor = await requireActor(org, { kind: "client", permission: "approvals.decide_client" });
+  const portal = await requirePortal(org, clientSlug, { permission: "approvals.decide_client" });
+  const { actor } = portal;
   const tab = sp.tab === "decided" ? "decided" : "client";
   const rows = await inOrg(actor, (s) => listApprovals(s, { tab }));
-  const base = `/portal/${actor.orgSlug}/approvals`;
+  const base = `${portal.base}/approvals`;
   return (
     <>
       <PageHeader

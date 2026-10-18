@@ -54,7 +54,7 @@ describe("isolamento entre organizações", () => {
 
   it("o RLS do banco bloqueia inserção em outra organização", async () => {
     const err = await withOrg(b.org.id, (tx) =>
-      tx.insert(clients).values({ organizationId: a.org.id, name: "Injetado" }),
+      tx.insert(clients).values({ organizationId: a.org.id, name: "Injetado", slug: "injetado" }),
     ).catch((e: Error & { cause?: Error }) => e);
     expect(err).toBeInstanceOf(Error);
     expect(String((err as Error & { cause?: Error }).cause?.message)).toMatch(/row-level security/i);

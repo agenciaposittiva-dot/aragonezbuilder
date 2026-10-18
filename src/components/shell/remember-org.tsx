@@ -9,3 +9,11 @@ export function RememberOrg({ slug }: { slug: string }) {
   }, [slug]);
   return null;
 }
+
+/** Lembra o último portal de cliente aberto na organização (usado nos links genéricos /ir). */
+export function RememberPortalClient({ orgSlug, clientSlug }: { orgSlug: string; clientSlug: string }) {
+  useEffect(() => {
+    document.cookie = `pc_${encodeURIComponent(orgSlug)}=${encodeURIComponent(clientSlug)}; path=/portal/${encodeURIComponent(orgSlug)}; max-age=31536000; samesite=lax`;
+  }, [orgSlug, clientSlug]);
+  return null;
+}

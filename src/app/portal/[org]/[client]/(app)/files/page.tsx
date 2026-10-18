@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { cn } from "@/lib/utils";
 import { FILE_CATEGORIES, FILE_CATEGORY_LABEL } from "@/lib/validators/files";
 import { inOrg } from "@/server/authz";
-import { requireActor } from "@/server/auth/session";
+import { requirePortal } from "@/server/auth/portal";
 import { clientOptions } from "@/server/services/clients";
 import { listFiles } from "@/server/services/files";
 import { parseFileFilters } from "@/server/services/files-page";
@@ -19,10 +19,11 @@ export const metadata: Metadata = { title: "Materiais" };
 
 const FILTER_KEYS = ["q", "category", "final", "clientId"];
 
-export default async function PortalFilesPage({ params, searchParams }: PageProps<"/portal/[org]/files">) {
-  const { org } = await params;
+export default async function PortalFilesPage({ params, searchParams }: PageProps<"/portal/[org]/[client]/files">) {
+  const { org, client: clientSlug } = await params;
   const sp = await searchParams;
-  const actor = await requireActor(org, { kind: "client", permission: "files.read" });
+  const portal = await requirePortal(org, clientSlug, { permission: "files.read" });
+  const { actor } = portal;
   // Pastas, status internos e favoritos são da organização da agência; o cliente
   // filtra só por nome, categoria, marca e materiais aprovados.
   const f = parseFileFilters(sp);
@@ -31,7 +32,7 @@ export default async function PortalFilesPage({ params, searchParams }: PageProp
     list: await listFiles(s, filters),
     clients: actor.clientIds.length > 1 ? await clientOptions(s) : [],
   }));
-  const base = `/portal/${actor.orgSlug}/files`;
+  const base = `${portal.base}/files`;
   const view = sp.view === "list" ? "list" : "grid";
   const filtered = FILTER_KEYS.some((k) => sp[k]);
   const viewHref = (v: "grid" | "list") => {

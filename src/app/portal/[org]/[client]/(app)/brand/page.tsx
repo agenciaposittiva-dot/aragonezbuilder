@@ -4,14 +4,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { inOrg } from "@/server/authz";
-import { requireActor } from "@/server/auth/session";
+import { requirePortal } from "@/server/auth/portal";
 import { getBrandProfile, getClient } from "@/server/services/clients";
 
 export const metadata: Metadata = { title: "Marca" };
 
-export default async function PortalBrandPage({ params }: PageProps<"/portal/[org]/brand">) {
-  const { org } = await params;
-  const actor = await requireActor(org, { kind: "client", permission: "clients.read" });
+export default async function PortalBrandPage({ params }: PageProps<"/portal/[org]/[client]/brand">) {
+  const { org, client: clientSlug } = await params;
+  const portal = await requirePortal(org, clientSlug, { permission: "clients.read" });
+  const { actor } = portal;
   const brands = await inOrg(actor, async (s) => {
     const out = [];
     for (const clientId of actor.clientIds) {

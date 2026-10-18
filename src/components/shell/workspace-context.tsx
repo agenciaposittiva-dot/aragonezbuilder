@@ -16,7 +16,16 @@ export type WorkspaceInfo = {
   roleName: string;
   kind: RoleKind;
   permissions: Permission[];
+  /** Na área do cliente: endereço base do portal do cliente atual (ex.: /portal/agencia/cliente). */
+  portalBase?: string;
+  /** Na área do cliente: cliente cujo portal está aberto. */
+  portalClient?: { id: string; slug: string; name: string };
 };
+
+/** Base dos links de páginas compartilhadas (portal do cliente ou área interna). */
+export function workspaceBase(ws: WorkspaceInfo) {
+  return ws.kind === "client" ? (ws.portalBase ?? `/portal/${ws.orgSlug}/ir`) : `/w/${ws.orgSlug}`;
+}
 
 const Ctx = createContext<WorkspaceInfo | null>(null);
 
