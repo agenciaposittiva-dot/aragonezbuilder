@@ -3,6 +3,7 @@ import { z } from "zod";
 import { ChatApp } from "@/components/chat/chat-app";
 import { can, inOrg } from "@/server/authz";
 import { requireActor } from "@/server/auth/session";
+import { env } from "@/server/env";
 import { getPickerData } from "@/server/services/ai-models";
 import { chatMembers, listConversations, myStatus } from "@/server/services/chat";
 import { listInternalMembers } from "@/server/services/members";
@@ -38,6 +39,7 @@ export default async function ChatPage({ params, searchParams }: PageProps<"/w/[
   return (
     <ChatApp
       org={actor.orgSlug}
+      photoMaxBytes={env.CHAT_PHOTO_MAX_BYTES}
       me={{ userId: actor.userId, membershipId: actor.membershipId }}
       initial={{
         conversations: data.conversations,

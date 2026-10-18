@@ -29,7 +29,7 @@ async function saveDialog(page: Page) {
   const res = await saved;
   expect(res.ok()).toBe(true);
   await expect(dialog).toBeHidden();
-  await expect(page.getByTestId("profile-photo-status")).toHaveText(/Foto salva/);
+  await expect(page.getByTestId("profile-photo-status")).toHaveText(/Foto de perfil salva/);
   return page.getByTestId("profile-photo-current").getAttribute("src") as Promise<string>;
 }
 
@@ -111,7 +111,7 @@ test.describe("foto de perfil", () => {
     );
     await dialog.getByRole("button", { name: "Salvar foto" }).click();
     await expect(dialog.getByRole("alert")).toHaveText(/Falha simulada no servidor\. A foto anterior foi mantida\./);
-    await expect(page.getByTestId("profile-photo-status")).not.toHaveText(/Foto salva/);
+    await expect(page.getByTestId("profile-photo-status")).not.toHaveText(/Foto de perfil salva/);
     await page.unroute("**/api/user-avatar");
 
     // Envio real: arquivo gravado, perfil atualizado e avatar do menu trocado sem recarregar.

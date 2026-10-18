@@ -1,10 +1,11 @@
-import { and, count, desc, eq, isNull } from "drizzle-orm";
+import { and, count, desc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
-import { notifications } from "@/server/db/schema";
+import { conversationImage } from "@/lib/chat-photo";
+import { chatConversations, chatParticipants, notifications, user } from "@/server/db/schema";
 import type { Scope } from "@/server/authz";
 
 export async function listNotifications(s: Scope, limit = 20) {
-  return s.db
+  const rows = await s.db
     .select({
       id: notifications.id,
       type: notifications.type,
@@ -13,11 +14,41 @@ export async function listNotifications(s: Scope, limit = 20) {
       link: notifications.link,
       readAt: notifications.readAt,
       createdAt: notifications.createdAt,
+      // Avisos do chat mostram a imagem atual da conversa (foto do grupo ou de quem escreveu na direta).
+      chatId: chatConversations.id,
+      chatKind: chatConversations.kind,
+      chatName: chatConversations.name,
+      chatImageHash: chatConversations.imageHash,
+      chatOther: sql<{ name: string; image: string | null } | null>`(
+        select json_build_object('name', u.name, 'image', u.image) from ${chatParticipants} p
+        join ${user} u on u.id = p.user_id
+        where p.conversation_id = ${chatConversations.id} and p.user_id <> ${s.actor.userId}
+          and ${chatConversations.kind} = 'direct'
+        limit 1)`,
     })
     .from(notifications)
+    .leftJoin(
+      chatConversations,
+      and(eq(notifications.entityType, "chat_conversation"), eq(chatConversations.id, notifications.entityId)),
+    )
     .where(eq(notifications.userId, s.actor.userId))
     .orderBy(desc(notifications.createdAt))
     .limit(limit);
+  return rows.map(({ chatId, chatKind, chatName, chatImageHash, chatOther, ...n }) => ({
+    ...n,
+    chat: chatId
+      ? {
+          kind: chatKind!,
+          name: chatOther?.name ?? chatName ?? n.title,
+          image: conversationImage({
+            id: chatId,
+            kind: chatKind!,
+            imageHash: chatImageHash,
+            otherImage: chatOther?.image,
+          }),
+        }
+      : null,
+  }));
 }
 
 export async function unreadCount(s: Scope) {

@@ -4,6 +4,8 @@ import {
   aiUsage,
   approvals,
   auditLogs,
+  chatAttachments,
+  chatConversations,
   clientAccess,
   clients,
   clientServices,
@@ -573,7 +575,7 @@ export async function purgeFromTrash(s: Scope, kind: TrashKind, id: string) {
 /* ------------------------------------------------------------------ */
 
 /** Os objetos do armazenamento só são apagados depois que o banco confirmou (evento processado após o commit). */
-async function queueStoragePurge(tx: Tx, orgId: string, keys: string[]) {
+export async function queueStoragePurge(tx: Tx, orgId: string, keys: string[]) {
   if (!keys.length) return;
   await tx.insert(domainEvents).values({
     organizationId: orgId,
@@ -818,6 +820,16 @@ export async function purgeExpiredTrash(now = new Date()) {
         .from(organizations)
         .where(eq(organizations.id, org.id));
       if (logo?.key) k.push(logo.key);
+      // Anexos e fotos de grupo do chat (arquivos exclusivos da agência).
+      const att = await tx
+        .select({ key: chatAttachments.storageKey })
+        .from(chatAttachments)
+        .where(eq(chatAttachments.organizationId, org.id));
+      const photos = await tx
+        .select({ key: chatConversations.imageKey })
+        .from(chatConversations)
+        .where(and(eq(chatConversations.organizationId, org.id), isNotNull(chatConversations.imageKey)));
+      k.push(...att.map((a) => a.key), ...photos.map((p) => p.key!));
       await tx.delete(organizations).where(eq(organizations.id, org.id));
       return k;
     });

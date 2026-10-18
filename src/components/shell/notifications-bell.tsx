@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ConversationIcon } from "@/components/chat/conversation-icon";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -18,6 +19,8 @@ type Item = {
   link: string | null;
   readAt: Date | null;
   createdAt: Date;
+  /** Avisos do chat: imagem atual da conversa. */
+  chat?: { kind: string; name: string; image: string | null } | null;
 };
 
 export function NotificationsBell({ initialUnread }: { initialUnread: number }) {
@@ -113,6 +116,9 @@ export function NotificationsBell({ initialUnread }: { initialUnread: number }) 
                       className={cn("mt-1.5 size-2 shrink-0 rounded-full", n.readAt ? "bg-transparent" : "bg-accent")}
                       aria-hidden="true"
                     />
+                    {n.chat ? (
+                      <ConversationIcon kind={n.chat.kind} name={n.chat.name} image={n.chat.image} className="mt-0.5" />
+                    ) : null}
                     <div className="min-w-0 flex-1">
                       <p className={cn("text-sm", n.readAt ? "text-fg-muted" : "font-medium text-fg")}>{n.title}</p>
                       {n.body ? <p className="mt-0.5 line-clamp-2 text-xs text-fg-muted">{n.body}</p> : null}

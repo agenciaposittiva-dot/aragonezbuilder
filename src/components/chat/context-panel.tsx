@@ -31,8 +31,10 @@ import {
   taskSummaryAction,
   updateConversationAction,
 } from "@/server/actions/chat";
-import { attachmentUrl, type ConversationView, type Presence } from "./api";
+import { PhotoEditor, postPhoto } from "@/components/brand/photo-editor";
+import { attachmentUrl, chatSend, type ConversationView, type Presence } from "./api";
 import type { Member } from "./chat-dialogs";
+import { ConversationIcon } from "./conversation-icon";
 import { presenceText } from "./conversation-pane";
 
 type Ok<F extends (...args: never[]) => Promise<unknown>> =
@@ -43,7 +45,7 @@ type Ok<F extends (...args: never[]) => Promise<unknown>> =
     : never;
 type PanelData = Ok<typeof conversationPanelAction>;
 
-const ROLE_LABEL: Record<string, string> = { owner: "Criador(a)", admin: "Administra", member: "" };
+const ROLE_LABEL: Record<string, string> = { owner: "Criador(a)", admin: "Administra", member: "Participante" };
 
 export function ContextPanel({
   org,
@@ -52,6 +54,7 @@ export function ContextPanel({
   members,
   presence,
   refreshKey,
+  photoMaxBytes,
   onClose,
   onOpenTask,
   onChanged,
@@ -62,6 +65,7 @@ export function ContextPanel({
   members: Member[];
   presence: Presence[];
   refreshKey: number;
+  photoMaxBytes: number;
   onClose: () => void;
   onOpenTask: (id: string) => void;
   onChanged: () => void;
@@ -91,6 +95,20 @@ export function ContextPanel({
         </Button>
       </header>
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4 text-sm">
+        {conv.kind === "group" || conv.kind === "channel" ? (
+          <section aria-label={conv.kind === "channel" ? "Foto do canal" : "Foto do grupo"}>
+            {conv.canEditPhoto ? (
+              <GroupPhoto org={org} conv={conv} maxBytes={photoMaxBytes} onChanged={onChanged} />
+            ) : (
+              <div className="space-y-2">
+                <ConversationIcon kind={conv.kind} name={conv.name} image={conv.image} size="xl" />
+                <p className="text-xs text-fg-subtle">
+                  Só quem administra {conv.kind === "channel" ? "o canal" : "o grupo"} pode alterar a foto.
+                </p>
+              </div>
+            )}
+          </section>
+        ) : null}
         <section className="space-y-1">
           <p className="font-semibold break-words">
             {conv.kind === "channel" ? "#" : ""}
@@ -250,6 +268,65 @@ export function ContextPanel({
       </div>
       <AddPeopleDialog open={adding} onOpenChange={setAdding} conv={conv} members={members} onAdded={onChanged} />
     </aside>
+  );
+}
+
+/** Foto do grupo/canal para quem administra; a troca aparece para todos na próxima sincronização. */
+function GroupPhoto({
+  org,
+  conv,
+  maxBytes,
+  onChanged,
+}: {
+  org: string;
+  conv: ConversationView;
+  maxBytes: number;
+  onChanged: () => void;
+}) {
+  // Mostra a foto recém-salva até a sincronização trazer a mesma informação do servidor.
+  const [local, setLocal] = useState<{ src: string | null } | null>(null);
+  const [seen, setSeen] = useState(conv.image);
+  if (seen !== conv.image) {
+    setSeen(conv.image);
+    setLocal(null);
+  }
+  const current = local ? local.src : conv.image;
+  const what = conv.kind === "channel" ? "do canal" : "do grupo";
+  return (
+    <PhotoEditor
+      current={current}
+      placeholder={<ConversationIcon kind={conv.kind} name={conv.name} image={null} size="xl" />}
+      alt={`Foto ${what} ${conv.name}`}
+      maxBytes={maxBytes}
+      variant="group"
+      testId="group-photo"
+      layout="stack"
+      labels={{
+        saved: `Foto ${what} salva`,
+        removed: `Foto ${what} removida`,
+        kept: `A foto anterior ${what} foi mantida.`,
+        removeTitle: `Remover a foto ${what}?`,
+        removeDescription: `Volta a aparecer o ícone ${what} para todos os participantes. As mensagens e os participantes não mudam.`,
+        dialogDescription: "Arraste para posicionar e use o zoom para enquadrar a imagem.",
+        where: "Aparece para todos os participantes na lista de conversas, no cabeçalho e nos avisos.",
+      }}
+      upload={(file, crop) =>
+        postPhoto(
+          "/api/chat/photo",
+          { org, conversationId: conv.id },
+          file,
+          crop,
+          "Imagem grande demais para a foto do grupo.",
+        )
+      }
+      remove={async () => {
+        await chatSend("/api/chat/photo", "DELETE", { org, conversationId: conv.id });
+      }}
+      onChange={(src) => {
+        setLocal({ src });
+        onChanged();
+      }}
+    />
   );
 }
 

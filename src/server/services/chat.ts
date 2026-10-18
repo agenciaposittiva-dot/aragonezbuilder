@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, gt, inArray, isNull, lt, lte, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { CHAT_LIMITS, CHAT_REACTIONS, excerpt, extractMentions } from "@/lib/chat-format";
+import { CHAT_PHOTO_KINDS, conversationImage } from "@/lib/chat-photo";
 import { prefEnabled } from "@/lib/notification-prefs";
 import {
   assertCan,
@@ -213,6 +214,8 @@ export type ConversationSummary = {
   role: string;
   last: { body: string; authorId: string | null; deleted: boolean; kind: string } | null;
   other: { id: string; name: string; image: string | null } | null;
+  /** Foto exibida: do grupo/canal ou, nas diretas, da outra pessoa. */
+  image: string | null;
 };
 
 export async function listConversations(s: Scope): Promise<ConversationSummary[]> {
@@ -245,6 +248,7 @@ export async function listConversations(s: Scope): Promise<ConversationSummary[]
     other_id: string | null;
     other_name: string | null;
     other_image: string | null;
+    image_hash: string | null;
   }>(sql`
     select ${chatConversations.id} as id, ${chatConversations.kind} as kind, ${chatConversations.name} as name,
       ${chatConversations.topic} as topic, ${chatConversations.department} as department,
@@ -260,7 +264,8 @@ export async function listConversations(s: Scope): Promise<ConversationSummary[]
       (select count(*)::int from ${chatMessages} m where m.conversation_id = ${chatConversations.id}
         and m.seq > ${chatParticipants.lastReadSeq} and m.deleted_at is null and ${me} = any(m.mentions)) as mentions,
       lm.body as last_body, lm.author_user_id as last_author, lm.deleted_at as last_deleted, lm.kind as last_kind,
-      other.id as other_id, other.name as other_name, other.image as other_image
+      other.id as other_id, other.name as other_name, other.image as other_image,
+      ${chatConversations.imageHash} as image_hash
     from ${chatParticipants}
     join ${chatConversations} on ${chatConversations.id} = ${chatParticipants.conversationId}
     left join lateral (
@@ -304,6 +309,7 @@ export async function listConversations(s: Scope): Promise<ConversationSummary[]
         ? null
         : { body: r.last_body ?? "", authorId: r.last_author, deleted: !!r.last_deleted, kind: r.last_kind },
     other: r.other_id ? { id: r.other_id, name: r.other_name ?? "", image: r.other_image } : null,
+    image: conversationImage({ id: r.id, kind: r.kind, imageHash: r.image_hash, otherImage: r.other_image }),
   }));
 }
 
@@ -364,7 +370,7 @@ export async function listChannels(s: Scope) {
 /* Criar conversas                                                     */
 /* ------------------------------------------------------------------ */
 
-async function systemMessage(s: Scope, conversationId: string, body: string, extra: { taskId?: string } = {}) {
+export async function systemMessage(s: Scope, conversationId: string, body: string, extra: { taskId?: string } = {}) {
   const [c] = await s.db
     .update(chatConversations)
     .set({
@@ -1306,6 +1312,10 @@ export type ConversationView = {
   joined: boolean;
   canPost: boolean;
   moderator: boolean;
+  /** Foto exibida (grupo/canal ou a outra pessoa nas diretas). */
+  image: string | null;
+  /** Pode trocar ou remover a foto (quem administra o grupo/canal). */
+  canEditPhoto: boolean;
   myLastReadSeq: number;
   participants: {
     userId: string;
@@ -1349,6 +1359,13 @@ async function view(s: Scope, a: Access): Promise<ConversationView> {
     joined: !!a.participant,
     canPost: a.canPost,
     moderator: a.moderator,
+    image: conversationImage({
+      id: a.conv.id,
+      kind: a.conv.kind,
+      imageHash: a.conv.imageHash,
+      otherImage: other?.image,
+    }),
+    canEditPhoto: a.moderator && (CHAT_PHOTO_KINDS as readonly string[]).includes(a.conv.kind),
     myLastReadSeq: a.participant?.lastReadSeq ?? 0,
     participants: people.map((p) => ({ ...p, typing: p.typing && p.userId !== s.actor.userId })),
   };
@@ -1438,6 +1455,7 @@ export async function searchMessages(
       conversationId: chatConversations.id,
       conversationKind: chatConversations.kind,
       conversationName: chatConversations.name,
+      conversationImageHash: chatConversations.imageHash,
     })
     .from(chatMessages)
     .innerJoin(chatConversations, eq(chatConversations.id, chatMessages.conversationId))
@@ -1453,7 +1471,15 @@ export async function searchMessages(
     )
     .orderBy(desc(chatMessages.createdAt))
     .limit(limit);
-  return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }));
+  return rows.map(({ conversationImageHash, ...r }) => ({
+    ...r,
+    createdAt: r.createdAt.toISOString(),
+    conversationImage: conversationImage({
+      id: r.conversationId,
+      kind: r.conversationKind,
+      imageHash: conversationImageHash,
+    }),
+  }));
 }
 
 /* ------------------------------------------------------------------ */

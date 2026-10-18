@@ -93,6 +93,7 @@ export function ChatApp({
   permissions,
   ai,
   status,
+  photoMaxBytes,
 }: {
   org: string;
   me: { userId: string; membershipId: string };
@@ -103,6 +104,8 @@ export function ChatApp({
   permissions: { canManageChannels: boolean; canAssign: boolean; canCreateTasks: boolean };
   ai: AiConfig;
   status: { availability: string; showLastSeen: boolean };
+  /** Limite da foto de grupos e canais (bytes). */
+  photoMaxBytes: number;
 }) {
   const chat = useChat(org, { conversations: initial.conversations, activeId: initial.activeId });
   const wide = useMedia("(min-width: 1280px)");
@@ -357,6 +360,7 @@ export function ChatApp({
             presence={chat.presence}
             onBack={() => openConversation(null)}
             onTogglePanel={() => setPanelOpen((v) => !v)}
+            onOpenPanel={() => setPanelOpen(true)}
             onAi={setAiAction}
             onCreateTask={(m) =>
               permissions.canCreateTasks ? setTaskFrom(m) : toast.error("Você não tem permissão para criar tarefas.")
@@ -391,6 +395,7 @@ export function ChatApp({
           members={members}
           presence={chat.presence}
           refreshKey={panelKey}
+          photoMaxBytes={photoMaxBytes}
           onClose={() => setPanelOpen(false)}
           onOpenTask={setPeekTask}
           onChanged={() => {
@@ -410,6 +415,7 @@ export function ChatApp({
               members={members}
               presence={chat.presence}
               refreshKey={panelKey}
+              photoMaxBytes={photoMaxBytes}
               onClose={() => setPanelOpen(false)}
               onOpenTask={setPeekTask}
               onChanged={() => {
@@ -536,7 +542,7 @@ function ConversationRow({
         active ? "bg-accent/15" : "hover:bg-surface-2",
       )}
     >
-      <ConversationIcon kind={c.kind} name={c.name} image={c.other?.image ?? null} />
+      <ConversationIcon kind={c.kind} name={c.name} image={c.image} />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1">
           <span className={cn("truncate text-sm", c.unread ? "font-semibold" : "font-medium")}>
@@ -622,6 +628,7 @@ type SearchRow = {
   conversationId: string;
   conversationKind: string;
   conversationName: string | null;
+  conversationImage: string | null;
 };
 
 function MessageSearch({
@@ -659,13 +666,21 @@ function MessageSearch({
             type="button"
             data-testid="chat-search-result"
             onClick={() => onPick(r.conversationId, r.seq)}
-            className="block w-full px-4 py-1.5 text-left hover:bg-surface-2"
+            className="flex w-full items-center gap-2.5 px-4 py-1.5 text-left hover:bg-surface-2"
           >
-            <span className="block truncate text-xs text-fg-muted">
-              {r.conversationKind === "channel" ? "#" : ""}
-              {r.conversationName ?? "Conversa"} · {r.authorName ?? "Alguém"} · {shortTime(r.createdAt)}
+            <ConversationIcon
+              kind={r.conversationKind}
+              name={r.conversationName ?? r.authorName ?? "Conversa"}
+              image={r.conversationImage}
+              size="sm"
+            />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-xs text-fg-muted">
+                {r.conversationKind === "channel" ? "#" : ""}
+                {r.conversationName ?? "Conversa"} · {r.authorName ?? "Alguém"} · {shortTime(r.createdAt)}
+              </span>
+              <span className="block truncate text-sm">{excerpt(r.body, nameOf, 100)}</span>
             </span>
-            <span className="block truncate text-sm">{excerpt(r.body, nameOf, 100)}</span>
           </button>
         ))
       ) : (

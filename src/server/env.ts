@@ -52,6 +52,7 @@ const schema = z.object({
   LOGO_MAX_BYTES: blankAsUndefined(z.coerce.number().int().positive().optional()),
   /** Limite da foto de perfil (padrão 5 MB, nunca acima do limite de envio). */
   AVATAR_MAX_BYTES: blankAsUndefined(z.coerce.number().int().positive().optional()),
+  CHAT_PHOTO_MAX_BYTES: blankAsUndefined(z.coerce.number().int().positive().optional()),
   SMTP_HOST: optional,
   SMTP_PORT: z.coerce.number().int().default(587),
   SMTP_USER: optional,
@@ -85,6 +86,7 @@ export type Env = Omit<
   | "UPLOAD_MAX_BYTES"
   | "LOGO_MAX_BYTES"
   | "AVATAR_MAX_BYTES"
+  | "CHAT_PHOTO_MAX_BYTES"
   | "DATABASE_RLS_ROLE"
   | "AI_DEFAULT_PROVIDER"
 > & {
@@ -93,6 +95,7 @@ export type Env = Omit<
   UPLOAD_MAX_BYTES: number;
   LOGO_MAX_BYTES: number;
   AVATAR_MAX_BYTES: number;
+  CHAT_PHOTO_MAX_BYTES: number;
   /** Papel assumido nas transações, ou null quando a conexão já é um papel sem BYPASSRLS. */
   DATABASE_RLS_ROLE: string | null;
   /** Origens aceitas pelo login: APP_URL, endereços da Vercel e TRUSTED_ORIGINS. */
@@ -171,6 +174,7 @@ function finish(p: Parsed): Env {
     UPLOAD_MAX_BYTES: uploadMax,
     LOGO_MAX_BYTES: Math.min(p.LOGO_MAX_BYTES ?? 5 * 1024 * 1024, uploadMax),
     AVATAR_MAX_BYTES: Math.min(p.AVATAR_MAX_BYTES ?? 5 * 1024 * 1024, uploadMax),
+    CHAT_PHOTO_MAX_BYTES: Math.min(p.CHAT_PHOTO_MAX_BYTES ?? 5 * 1024 * 1024, uploadMax),
     DATABASE_RLS_ROLE: rlsRole,
     AI_DEFAULT_PROVIDER:
       p.AI_DEFAULT_PROVIDER ??

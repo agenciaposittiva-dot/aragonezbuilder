@@ -116,10 +116,11 @@ export function LogoCropper({
   background: OrgLogoBackground;
   onBackgroundChange: (b: OrgLogoBackground) => void;
   disabled?: boolean;
-  /** "avatar": foto de perfil — prévias redondas e sem escolha de fundo. */
-  variant?: "logo" | "avatar";
+  /** "avatar": foto de perfil (prévias redondas); "group": foto de grupo do chat. Ambas sem escolha de fundo. */
+  variant?: "logo" | "avatar" | "group";
 }) {
   const avatar = variant === "avatar";
+  const photo = variant !== "logo";
   const frameRef = useRef<HTMLDivElement>(null);
   const [frame, setFrame] = useState(280);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
@@ -236,7 +237,7 @@ export function LogoCropper({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={img.url}
-            alt={avatar ? "Foto em edição" : "Logo em edição"}
+            alt={photo ? "Foto em edição" : "Logo em edição"}
             draggable={false}
             className="pointer-events-none absolute max-w-none select-none"
             style={{ left: p.left, top: p.top, width: p.width, height: p.height }}
@@ -255,7 +256,11 @@ export function LogoCropper({
             <CropPreview img={img} crop={crop} background={background} size={24} round={avatar} />
           </div>
           <p className="max-w-[14rem] text-xs text-fg-subtle">
-            {avatar ? "Perfil, chat e comentários." : "Perfil, avatar redondo e menu lateral."}
+            {avatar
+              ? "Perfil, chat e comentários."
+              : variant === "group"
+                ? "Lista de conversas, cabeçalho e avisos."
+                : "Perfil, avatar redondo e menu lateral."}
           </p>
         </div>
       </div>
@@ -313,7 +318,7 @@ export function LogoCropper({
             disabled={disabled}
             onClick={() => update(initialCrop(img))}
           >
-            <Scan /> {avatar ? "Foto inteira" : "Logo inteira"}
+            <Scan /> {photo ? "Foto inteira" : "Logo inteira"}
           </Button>
           <Button
             type="button"
@@ -327,7 +332,7 @@ export function LogoCropper({
         </div>
       </div>
 
-      {avatar ? null : (
+      {photo ? null : (
         <fieldset className="grid gap-1.5" disabled={disabled}>
           <legend className="mb-1.5 text-sm font-medium">Fundo</legend>
           <div className="flex flex-wrap gap-2">

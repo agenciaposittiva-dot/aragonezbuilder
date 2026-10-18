@@ -62,6 +62,9 @@ export const chatConversations = pgTable(
     lastMessageAt: tstz(),
     createdByUserId: text().references(() => user.id, { onDelete: "set null" }),
     archivedAt: tstz(),
+    /** Foto do grupo/canal no armazenamento privado (PNG quadrado) e hash do conteúdo (versão na URL). */
+    imageKey: text(),
+    imageHash: text(),
     ...timestamps,
   },
   (t) => [

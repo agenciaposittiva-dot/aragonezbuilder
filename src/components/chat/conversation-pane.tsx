@@ -10,6 +10,7 @@ import {
   Copy,
   EyeOff,
   FileText,
+  ImageIcon,
   Info,
   Link2,
   ListPlus,
@@ -61,7 +62,8 @@ import {
   type Presence,
   type UploadedAttachment,
 } from "./api";
-import { AI_ACTION_LABEL, GroupIcon, type ChatAiAction } from "./chat-dialogs";
+import { AI_ACTION_LABEL, type ChatAiAction } from "./chat-dialogs";
+import { ConversationIcon } from "./conversation-icon";
 import { MessageBody } from "./message-body";
 import type { ChatController, PendingMessage } from "./use-chat";
 
@@ -134,6 +136,7 @@ export function ConversationPane({
   presence,
   onBack,
   onTogglePanel,
+  onOpenPanel,
   onAi,
   onCreateTask,
   onLinkTask,
@@ -151,6 +154,8 @@ export function ConversationPane({
   presence: Presence[];
   onBack: () => void;
   onTogglePanel: () => void;
+  /** Abre os detalhes (foto, participantes e configurações). */
+  onOpenPanel: () => void;
   onAi: (action: ChatAiAction) => void;
   onCreateTask: (m: ChatMessageDTO) => void;
   onLinkTask: (m: ChatMessageDTO) => void;
@@ -343,14 +348,22 @@ export function ConversationPane({
         <Button variant="ghost" size="icon-sm" className="lg:hidden" onClick={onBack} aria-label="Voltar às conversas">
           <ArrowLeft />
         </Button>
-        <ConversationIcon kind={conv.kind} name={conv.name} image={other?.image ?? null} />
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate text-sm font-semibold">
-            {conv.kind === "channel" ? "#" : ""}
-            {conv.name}
-          </h2>
-          <p className="truncate text-xs text-fg-muted">{subtitle}</p>
-        </div>
+        <button
+          type="button"
+          onClick={onOpenPanel}
+          title="Ver detalhes da conversa"
+          data-testid="chat-header-details"
+          className="-my-1 flex min-w-0 flex-1 items-center gap-2 rounded-md py-1 pr-2 text-left transition-colors outline-none hover:bg-surface-2 focus-visible:ring-2 focus-visible:ring-accent/50"
+        >
+          <ConversationIcon kind={conv.kind} name={conv.name} image={conv.image} />
+          <span className="min-w-0 flex-1">
+            <h2 className="truncate text-sm font-semibold">
+              {conv.kind === "channel" ? "#" : ""}
+              {conv.name}
+            </h2>
+            <span className="block truncate text-xs text-fg-muted">{subtitle}</span>
+          </span>
+        </button>
         <Button
           variant="ghost"
           size="icon-sm"
@@ -393,6 +406,12 @@ export function ConversationPane({
             <DropdownMenuItem onSelect={() => prefs.run({ conversationId: conv.id, favorite: !summary?.favorite })}>
               <Star /> {summary?.favorite ? "Remover dos favoritos" : "Favoritar"}
             </DropdownMenuItem>
+            {conv.kind === "group" || conv.kind === "channel" ? (
+              <DropdownMenuItem onSelect={onOpenPanel}>
+                <ImageIcon /> {conv.canEditPhoto ? "Foto e detalhes" : "Detalhes"}{" "}
+                {conv.kind === "channel" ? "do canal" : "do grupo"}
+              </DropdownMenuItem>
+            ) : null}
             <DropdownMenuSeparator />
             {summary?.muted ? (
               <DropdownMenuItem onSelect={() => prefs.run({ conversationId: conv.id, muteHours: 0 })}>
@@ -560,22 +579,7 @@ export function ConversationPane({
 
 /* ------------------------------------------------------------------ */
 
-function ConversationIcon({ kind, name, image }: { kind: string; name: string; image: string | null }) {
-  if (kind === "direct") return <Avatar name={name} src={image} size="md" />;
-  return (
-    <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-surface-2 text-fg-muted">
-      {kind === "project" ? (
-        <FileText className="size-4" />
-      ) : kind === "task" ? (
-        <ListPlus className="size-4" />
-      ) : (
-        <GroupIcon kind={kind} className="size-4" />
-      )}
-    </span>
-  );
-}
-
-export { ConversationIcon };
+export { ConversationIcon } from "./conversation-icon";
 
 function MessageItem({
   org,
