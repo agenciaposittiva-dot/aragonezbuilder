@@ -18,6 +18,7 @@ export const revokeInvitationAction = orgAction(z.object({ id: z.uuid() }), (s, 
   invitations.revokeInvitation(s, i.id),
 );
 
-export const resendInvitationAction = orgAction(z.object({ id: z.uuid() }), (s, i) =>
-  invitations.resendInvitation(s, i.id),
+export const resendInvitationAction = orgAction(
+  z.object({ id: z.uuid(), validityDays: z.number().int().min(1).max(30).optional() }),
+  (s, i) => invitations.resendInvitation(s, i.id, i.validityDays),
 );

@@ -1,8 +1,9 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 import type { Tx } from "@/server/db";
 import {
   clientAccess,
   clientMembers,
+  files,
   memberships,
   organizations,
   projectMembers,
@@ -64,8 +65,23 @@ export async function membersWithRoles(tx: Tx, orgId: string, roleKeys: string[]
 }
 
 /** Usuários de cliente (papel "client") com acesso a um cliente. */
-export async function clientUsers(tx: Tx, orgId: string, clientId: string | null | undefined) {
+/**
+ * Convidados com acesso ao cliente. Com `permission`, só quem tem a permissão
+ * no papel (ex.: aprovadores para pedidos de aprovação); `orUserId` inclui
+ * também uma pessoa específica (ex.: quem abriu a solicitação).
+ */
+export async function clientUsers(
+  tx: Tx,
+  orgId: string,
+  clientId: string | null | undefined,
+  opts: { permission?: string; orUserId?: string | null } = {},
+) {
   if (!clientId) return [] as Recipient[];
+  const byPermission = opts.permission
+    ? opts.orUserId
+      ? or(sql`${opts.permission} = any(${roles.permissions})`, eq(user.id, opts.orUserId))
+      : sql`${opts.permission} = any(${roles.permissions})`
+    : undefined;
   return tx
     .select(recipientCols)
     .from(clientAccess)
@@ -78,6 +94,7 @@ export async function clientUsers(tx: Tx, orgId: string, clientId: string | null
         eq(clientAccess.clientId, clientId),
         activeMember(orgId),
         eq(roles.kind, "client"),
+        byPermission,
       ),
     );
 }
@@ -158,6 +175,21 @@ export async function requestInfo(tx: Tx, orgId: string, requestId: string | nul
     })
     .from(requests)
     .where(and(eq(requests.organizationId, orgId), eq(requests.id, requestId)));
+  return row ?? null;
+}
+
+export async function fileInfo(tx: Tx, orgId: string, fileId: string | null | undefined) {
+  if (!fileId) return null;
+  const [row] = await tx
+    .select({
+      id: files.id,
+      name: files.name,
+      clientId: files.clientId,
+      projectId: files.projectId,
+      shared: files.sharedWithClient,
+    })
+    .from(files)
+    .where(and(eq(files.organizationId, orgId), eq(files.id, fileId)));
   return row ?? null;
 }
 

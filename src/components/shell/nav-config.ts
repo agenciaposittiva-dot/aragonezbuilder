@@ -103,6 +103,7 @@ export const PORTAL_NAV: NavGroup[] = [
       { key: "projects", label: "Projetos", path: "/projects", icon: FolderKanban, permission: "projects.read" },
       { key: "files", label: "Materiais", path: "/files", icon: FolderOpen, permission: "files.read" },
       { key: "brand", label: "Marca", path: "/brand", icon: Brush, permission: "clients.read" },
+      { key: "team", label: "Equipe", path: "/equipe", icon: Users2, permission: "portal.invite" },
     ],
   },
 ];

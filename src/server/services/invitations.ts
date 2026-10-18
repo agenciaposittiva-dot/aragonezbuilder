@@ -1,14 +1,15 @@
 import { createHash, randomBytes } from "node:crypto";
-import { and, asc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, like, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { APP_NAME } from "@/lib/constants";
-import { invitationInput } from "@/lib/validators/team";
+import { INVITE_VALIDITY, invitationInput } from "@/lib/validators/team";
 import { withOrg, withSystem } from "@/server/db";
 import {
   auditLogs,
   clientAccess,
   clients,
   domainEvents,
+  emailOutbox,
   invitations,
   memberships,
   organizations,
@@ -19,10 +20,10 @@ import { eachInSequence } from "@/server/db/sequence";
 import { assertCan, assertInternal, type Scope } from "@/server/authz";
 import { env } from "@/server/env";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/server/errors";
-import { enqueueEmail, renderEmail } from "@/server/mail";
+import { emailConfigured, emailDeliveryState, enqueueEmail, renderEmail, type EmailDeliveryState } from "@/server/mail";
 import { recordActivity } from "./activity";
 
-const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
@@ -38,20 +39,89 @@ export function inviteUrl(token: string) {
 
 async function sendInviteEmail(
   s: Scope,
-  opts: { email: string; token: string; roleName: string; kind: "internal" | "client" },
+  opts: { email: string; token: string; roleName: string; kind: "internal" | "client"; validityDays: number },
 ) {
   const { html, text } = renderEmail({
     title: `Convite para ${s.actor.orgName}`,
     paragraphs: [
       `${s.actor.name} convidou você para ${opts.kind === "client" ? "a área do cliente de" : "a equipe de"} ${s.actor.orgName} no ${APP_NAME}, com o papel ${opts.roleName}.`,
-      "O convite vale por 7 dias. Use o mesmo e-mail que recebeu esta mensagem.",
+      `O convite vale por ${opts.validityDays} ${opts.validityDays === 1 ? "dia" : "dias"} e só pode ser usado uma vez. Use o mesmo e-mail que recebeu esta mensagem.`,
     ],
     action: { label: "Aceitar convite", url: inviteUrl(opts.token) },
   });
   await enqueueEmail({ to: opts.email, subject: `Convite: ${s.actor.orgName} · ${APP_NAME}`, html, text }, s.db);
 }
 
-export async function createInvitation(s: Scope, raw: z.input<typeof invitationInput>) {
+/** Resultado entregue a quem convidou: o link (para copiar) e o estado real do e-mail. */
+export type InvitationIssued = { id: string; url: string; email: EmailDeliveryState };
+
+/**
+ * Emite o convite (token aleatório de uso único; no banco só o hash) e coloca
+ * o e-mail na fila. As checagens de quem pode convidar quem ficam com quem chama.
+ */
+export async function issueInvitation(
+  s: Scope,
+  opts: {
+    email: string;
+    name: string | null;
+    role: typeof roles.$inferSelect;
+    clientIds: string[];
+    validityDays: number;
+  },
+): Promise<InvitationIssued> {
+  // Um convite pendente por e-mail: os anteriores são revogados.
+  await s.db
+    .update(invitations)
+    .set({ revokedAt: new Date() })
+    .where(and(eq(invitations.email, opts.email), isNull(invitations.acceptedAt), isNull(invitations.revokedAt)));
+
+  const token = newToken();
+  const [row] = await s.db
+    .insert(invitations)
+    .values({
+      organizationId: s.actor.orgId,
+      email: opts.email,
+      name: opts.name,
+      roleId: opts.role.id,
+      clientIds: opts.role.kind === "client" ? opts.clientIds : [],
+      tokenHash: hashToken(token),
+      invitedByUserId: s.actor.userId,
+      expiresAt: new Date(Date.now() + opts.validityDays * DAY_MS),
+    })
+    .returning({ id: invitations.id });
+
+  await sendInviteEmail(s, {
+    email: opts.email,
+    token,
+    roleName: opts.role.name,
+    kind: opts.role.kind,
+    validityDays: opts.validityDays,
+  });
+  await recordActivity(s, {
+    action: "invited",
+    entityType: "invitation",
+    entityId: row!.id,
+    summary: `Convite criado para ${opts.email} (${opts.role.name})`,
+    event: {
+      type: "member.invited",
+      payload: { invitationId: row!.id, email: opts.email, roleKey: opts.role.key, clientIds: opts.clientIds },
+    },
+  });
+  // O token só sai daqui para quem convidou (para copiar o link); no banco fica só o hash.
+  return { id: row!.id, url: inviteUrl(token), email: emailConfigured() ? "queued" : "not_configured" };
+}
+
+/** Recusa convites para quem já tem acesso ativo à organização. */
+export async function assertNotActiveMember(s: Scope, email: string) {
+  const [existing] = await s.db
+    .select({ status: memberships.status })
+    .from(memberships)
+    .innerJoin(user, eq(user.id, memberships.userId))
+    .where(sql`lower(${user.email}) = ${email}`);
+  if (existing && existing.status === "active") throw new ConflictError("Esta pessoa já faz parte da organização.");
+}
+
+export async function createInvitation(s: Scope, raw: z.input<typeof invitationInput>): Promise<InvitationIssued> {
   assertInternal(s.actor);
   assertCan(s.actor, "members.manage");
   const data = invitationInput.parse(raw);
@@ -74,44 +144,39 @@ export async function createInvitation(s: Scope, raw: z.input<typeof invitationI
     if (found.length !== clientIds.length) throw new ValidationError("Um dos clientes selecionados é inválido.");
   }
 
-  const [existing] = await s.db
-    .select({ status: memberships.status })
-    .from(memberships)
-    .innerJoin(user, eq(user.id, memberships.userId))
-    .where(sql`lower(${user.email}) = ${data.email}`);
-  if (existing && existing.status === "active") throw new ConflictError("Esta pessoa já faz parte da organização.");
-
-  // Um convite pendente por e-mail: os anteriores são revogados.
-  await s.db
-    .update(invitations)
-    .set({ revokedAt: new Date() })
-    .where(and(eq(invitations.email, data.email), isNull(invitations.acceptedAt), isNull(invitations.revokedAt)));
-
-  const token = newToken();
-  const [row] = await s.db
-    .insert(invitations)
-    .values({
-      organizationId: s.actor.orgId,
-      email: data.email,
-      roleId: role.id,
-      clientIds: role.kind === "client" ? clientIds : [],
-      tokenHash: hashToken(token),
-      invitedByUserId: s.actor.userId,
-      expiresAt: new Date(Date.now() + INVITE_TTL_MS),
-    })
-    .returning({ id: invitations.id });
-
-  await sendInviteEmail(s, { email: data.email, token, roleName: role.name, kind: role.kind });
-  await recordActivity(s, {
-    action: "invited",
-    entityType: "invitation",
-    entityId: row!.id,
-    summary: `Convite enviado para ${data.email} (${role.name})`,
-    event: { type: "member.invited", payload: { invitationId: row!.id, email: data.email, roleKey: role.key } },
-  });
-  // O token só sai daqui para quem convidou (para copiar o link); no banco fica só o hash.
-  return { id: row!.id, url: inviteUrl(token) };
+  await assertNotActiveMember(s, data.email);
+  return issueInvitation(s, { email: data.email, name: data.name, role, clientIds, validityDays: data.validityDays });
 }
+
+/**
+ * Estado real do último e-mail de convite de cada pessoa (fila de e-mails).
+ * A fila não guarda o id do convite: usa o e-mail mais recente com assunto de
+ * convite enviado ao endereço depois da criação do convite.
+ */
+export async function inviteEmailStates(s: Scope, invites: { email: string; createdAt: Date }[]) {
+  const out = new Map<string, EmailDeliveryState>();
+  if (!invites.length) return out;
+  const rows = await s.db
+    .select({
+      to: emailOutbox.to,
+      sentAt: emailOutbox.sentAt,
+      lastError: emailOutbox.lastError,
+      attempts: emailOutbox.attempts,
+      createdAt: emailOutbox.createdAt,
+    })
+    .from(emailOutbox)
+    .where(
+      and(inArray(emailOutbox.to, [...new Set(invites.map((i) => i.email))]), like(emailOutbox.subject, "Convite:%")),
+    )
+    .orderBy(desc(emailOutbox.createdAt));
+  for (const inv of invites) {
+    const mail = rows.find((r) => r.to === inv.email && r.createdAt.getTime() >= inv.createdAt.getTime() - 5000);
+    out.set(`${inv.email}|${inv.createdAt.getTime()}`, mail ? emailDeliveryState(mail) : "not_configured");
+  }
+  return out;
+}
+
+export const inviteKey = (i: { email: string; createdAt: Date }) => `${i.email}|${i.createdAt.getTime()}`;
 
 export async function listInvitations(s: Scope) {
   assertInternal(s.actor);
@@ -120,6 +185,7 @@ export async function listInvitations(s: Scope) {
     .select({
       id: invitations.id,
       email: invitations.email,
+      name: invitations.name,
       roleName: roles.name,
       roleKind: roles.kind,
       clientIds: invitations.clientIds,
@@ -133,7 +199,12 @@ export async function listInvitations(s: Scope) {
     .where(and(isNull(invitations.acceptedAt), isNull(invitations.revokedAt)))
     .orderBy(asc(invitations.createdAt));
   const now = Date.now();
-  return rows.map((r) => ({ ...r, expired: r.expiresAt.getTime() < now }));
+  const states = await inviteEmailStates(s, rows);
+  return rows.map((r) => ({
+    ...r,
+    expired: r.expiresAt.getTime() < now,
+    emailState: states.get(inviteKey(r)) ?? ("not_configured" as const),
+  }));
 }
 
 export async function revokeInvitation(s: Scope, id: string) {
@@ -155,9 +226,15 @@ export async function revokeInvitation(s: Scope, id: string) {
 }
 
 /** Gera um novo link (o anterior deixa de funcionar) e renova a validade. */
-export async function resendInvitation(s: Scope, id: string) {
+export async function resendInvitation(s: Scope, id: string, validityDays: number = INVITE_VALIDITY.default) {
   assertInternal(s.actor);
   assertCan(s.actor, "members.manage");
+  return reissueInvitation(s, id, validityDays);
+}
+
+/** Novo token de uso único e nova validade para um convite pendente (checagens com quem chama). */
+export async function reissueInvitation(s: Scope, id: string, validityDays: number): Promise<InvitationIssued> {
+  const days = Math.min(INVITE_VALIDITY.max, Math.max(INVITE_VALIDITY.min, Math.round(validityDays)));
   const [inv] = await s.db
     .select({ invitation: invitations, role: roles })
     .from(invitations)
@@ -167,9 +244,15 @@ export async function resendInvitation(s: Scope, id: string) {
   const token = newToken();
   await s.db
     .update(invitations)
-    .set({ tokenHash: hashToken(token), expiresAt: new Date(Date.now() + INVITE_TTL_MS) })
+    .set({ tokenHash: hashToken(token), expiresAt: new Date(Date.now() + days * DAY_MS) })
     .where(eq(invitations.id, id));
-  await sendInviteEmail(s, { email: inv.invitation.email, token, roleName: inv.role.name, kind: inv.role.kind });
+  await sendInviteEmail(s, {
+    email: inv.invitation.email,
+    token,
+    roleName: inv.role.name,
+    kind: inv.role.kind,
+    validityDays: days,
+  });
   await recordActivity(s, {
     action: "resent",
     entityType: "invitation",
@@ -177,7 +260,7 @@ export async function resendInvitation(s: Scope, id: string) {
     summary: `Convite reenviado para ${inv.invitation.email}`,
     event: false,
   });
-  return { url: inviteUrl(token) };
+  return { id, url: inviteUrl(token), email: emailConfigured() ? "queued" : "not_configured" };
 }
 
 /* ------------------------------------------------------------------ */
@@ -314,7 +397,16 @@ export async function acceptInvitation(token: string, sessionUser: { id: string;
       entityType: "membership",
       entityId: membershipId,
       actorUserId: sessionUser.id,
-      payload: { membershipId, userId: sessionUser.id, roleKey: role.key },
+      payload: {
+        membershipId,
+        userId: sessionUser.id,
+        roleKey: role.key,
+        roleName: role.name,
+        roleKind: role.kind,
+        invitationId: inv.id,
+        invitedByUserId: inv.invitedByUserId,
+        clientIds: role.kind === "client" ? inv.clientIds : [],
+      },
     });
 
     return { slug: preview.orgSlug, kind: role.kind, membershipId };

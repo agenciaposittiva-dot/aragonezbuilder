@@ -1,4 +1,5 @@
 import { emailOutbox } from "@/server/db/schema";
+import { env } from "@/server/env";
 import type { Tx } from "@/server/db";
 import { db as rootDb } from "@/server/db";
 import { APP_NAME } from "@/lib/constants";
@@ -7,11 +8,33 @@ export type EmailMessage = { to: string; subject: string; html: string; text: st
 
 /**
  * Enfileira um e-mail. O envio real acontece no worker (com novas tentativas),
- * para não prender a requisição HTTP.
+ * para não prender a requisição HTTP. Devolve o id do registro na fila.
  */
-export async function enqueueEmail(message: EmailMessage, tx?: Tx) {
+export async function enqueueEmail(message: EmailMessage, tx?: Tx): Promise<string> {
   const executor = tx ?? rootDb;
-  await executor.insert(emailOutbox).values(message);
+  const [row] = await executor.insert(emailOutbox).values(message).returning({ id: emailOutbox.id });
+  return row!.id;
+}
+
+/** Há um provedor real de e-mail configurado (SMTP)? */
+export function emailConfigured() {
+  return !!env.SMTP_HOST;
+}
+
+export const SMTP_MISSING = "SMTP não configurado";
+
+export type EmailDeliveryState = "sent" | "queued" | "failed" | "not_configured";
+
+/** Estado real de um e-mail da fila (nunca "enviado" sem confirmação do provedor). */
+export function emailDeliveryState(row: {
+  sentAt: Date | null;
+  lastError: string | null;
+  attempts: number;
+}): EmailDeliveryState {
+  if (row.sentAt) return "sent";
+  if (row.lastError === SMTP_MISSING) return "not_configured";
+  if (row.lastError) return "failed";
+  return emailConfigured() ? "queued" : "not_configured";
 }
 
 function escapeHtml(value: string) {

@@ -115,6 +115,9 @@ export async function requestApproval(s: Scope, raw: z.input<typeof requestAppro
 /** Registra a decisão. Só a versão atual pode ser decidida; cada etapa tem seu decisor. */
 export async function decideApproval(s: Scope, raw: z.input<typeof decideApprovalInput>) {
   const data = decideApprovalInput.parse(raw);
+  if (data.decision === "changes_requested" && !data.note) {
+    throw new ValidationError("Descreva os ajustes necessários.", { note: ["Informe o que precisa mudar"] });
+  }
   const [approval] = await s.db.select().from(approvals).where(eq(approvals.id, data.approvalId));
   if (!approval) throw new NotFoundError("Aprovação não encontrada.");
   const file = await loadFile(s, approval.fileId);
@@ -176,7 +179,9 @@ export async function decideApproval(s: Scope, raw: z.input<typeof decideApprova
         projectId: file.projectId,
         taskId: approval.taskId,
         fileName: file.name,
+        versionNumber: version?.versionNumber ?? null,
         requestedByUserId: approval.requestedByUserId,
+        note: data.note ? data.note.slice(0, 500) : null,
       },
     },
   });
@@ -255,6 +260,8 @@ export async function cancelApproval(s: Scope, approvalId: string) {
 /* ------------------------------------------------------------------ */
 
 function baseSelect(s: Scope) {
+  // Convidados não recebem dados da produção interna (tarefa e quem pediu).
+  const isClient = s.actor.kind === "client";
   return s.db
     .select({
       id: approvals.id,
@@ -276,10 +283,10 @@ function baseSelect(s: Scope) {
       clientName: clients.name,
       projectId: files.projectId,
       projectName: projects.name,
-      taskId: approvals.taskId,
-      taskTitle: tasks.title,
+      taskId: isClient ? sql<string | null>`null` : approvals.taskId,
+      taskTitle: isClient ? sql<string | null>`null` : tasks.title,
       requestedByName: requester.name,
-      requestedByUserId: approvals.requestedByUserId,
+      requestedByUserId: isClient ? sql<string | null>`null` : approvals.requestedByUserId,
       decidedByName: decider.name,
     })
     .from(approvals)

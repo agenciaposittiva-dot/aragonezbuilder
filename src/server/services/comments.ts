@@ -76,6 +76,8 @@ export async function listComments(s: Scope, target: CommentTarget) {
 export type CommentRow = Awaited<ReturnType<typeof listComments>>[number];
 
 export async function addComment(s: Scope, raw: z.input<typeof commentInput>) {
+  // Na área do cliente, comentar é uma permissão explícita do papel do convidado.
+  if (s.actor.kind === "client" && !can(s.actor, "portal.comment")) throw new ForbiddenError();
   const data = commentInput.parse(raw);
   const { values, entity } = await targetCondition(s, data.target);
   // Tarefas são só da equipe: comentários nelas são sempre internos.

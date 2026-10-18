@@ -70,7 +70,7 @@ export function ApprovalDecision({
               </DialogDescription>
             </DialogHeader>
             <DialogBody>
-              <Field label="O que ajustar" htmlFor={`note-${approvalId}`}>
+              <Field label="O que ajustar" htmlFor={`note-${approvalId}`} error={decide.fieldErrors.note}>
                 <Textarea
                   id={`note-${approvalId}`}
                   rows={5}

@@ -3,10 +3,14 @@ import type { Tx } from "@/server/db";
 import { domainEvents, emailOutbox, files, notifications } from "@/server/db/schema";
 import { env } from "@/server/env";
 import { renderEmail } from "@/server/mail";
+import { preferencesFor } from "@/server/services/notification-preferences";
 import { APP_NAME } from "@/lib/constants";
+import { categoryOf, prefEnabled } from "@/lib/notification-prefs";
+import { REQUEST_STATUS_LABEL, type RequestStatus } from "@/lib/validators/requests";
 import {
   clientTeam,
   clientUsers,
+  fileInfo,
   internalMembersWithPermission,
   membersByIds,
   membersWithRoles,
@@ -88,7 +92,8 @@ async function draftsFor(tx: Tx, ev: DomainEvent): Promise<Draft[]> {
       if (p.stage === "client") {
         return [
           {
-            recipients: await clientUsers(tx, org, str(p.clientId)),
+            // Só quem pode decidir (Aprovador, Administrador do cliente).
+            recipients: await clientUsers(tx, org, str(p.clientId), { permission: "approvals.decide_client" }),
             title: reminder ? `Lembrete: ${fileName} aguarda sua aprovação` : `${fileName} aguarda sua aprovação`,
             body: reminder
               ? "Este material está pendente há mais de 2 dias."
@@ -125,19 +130,22 @@ async function draftsFor(tx: Tx, ev: DomainEvent): Promise<Draft[]> {
       const approved = p.decision === "approved";
       const stageLabel = p.stage === "client" ? "pelo cliente" : "na revisão interna";
       const task = await taskInfo(tx, org, str(p.taskId));
+      const project = await projectInfo(tx, org, str(p.projectId));
       const requester = await recipientByUserId(tx, org, str(p.requestedByUserId));
       const recipients = [
-        ...(requester ? [requester] : []),
-        ...(task ? await membersByIds(tx, org, [task.assigneeMembershipId]) : []),
+        ...(requester && requester.kind === "internal" ? [requester] : []),
+        ...(await membersByIds(tx, org, [task?.assigneeMembershipId, project?.ownerMembershipId])),
       ];
+      const version = p.versionNumber ? ` (v${str(p.versionNumber)})` : "";
       return [
         {
           recipients,
           title: approved
-            ? `Aprovado ${stageLabel}: ${str(p.fileName)}`
-            : `Ajustes solicitados ${stageLabel}: ${str(p.fileName)}`,
-          body: null,
+            ? `Aprovado ${stageLabel}: ${str(p.fileName)}${version}`
+            : `Ajustes solicitados ${stageLabel}: ${str(p.fileName)}${version}`,
+          body: !approved && p.note ? `Motivo: ${str(p.note)}` : null,
           internalPath: p.fileId ? `/files/${str(p.fileId)}` : `/approvals`,
+          email: p.stage === "client",
         },
       ];
     }
@@ -154,6 +162,94 @@ async function draftsFor(tx: Tx, ev: DomainEvent): Promise<Draft[]> {
           title: `Nova solicitação #${str(p.number)}`,
           body: str(p.title) || null,
           internalPath: `/requests/${str(p.requestId) || ev.entityId}`,
+          email: true,
+        },
+      ];
+    }
+
+    case "request.status_changed": {
+      const to = str(p.toStatus) as RequestStatus;
+      // Rascunho e envio partem do próprio cliente; o resto é andamento da agência.
+      if (!(to in REQUEST_STATUS_LABEL) || to === "draft" || to === "submitted") return [];
+      const req = await requestInfo(tx, org, str(p.requestId) || ev.entityId);
+      if (!req) return [];
+      return [
+        {
+          // Quem acompanha todas as solicitações do cliente + quem abriu esta.
+          recipients: await clientUsers(tx, org, req.clientId, {
+            permission: "requests.read",
+            orUserId: req.createdByUserId,
+          }),
+          title: `Solicitação #${req.number}: ${REQUEST_STATUS_LABEL[to].toLowerCase()}`,
+          body: str(p.title) || null,
+          portalPath: `/requests/${req.id}`,
+          email: true,
+        },
+      ];
+    }
+
+    case "file.shared": {
+      if (p.shared !== true) return [];
+      const file = await fileInfo(tx, org, str(p.fileId) || ev.entityId);
+      if (!file?.shared) return [];
+      return [
+        {
+          recipients: await clientUsers(tx, org, file.clientId, { permission: "files.read" }),
+          title: `Novo material disponível: ${file.name}`,
+          body: null,
+          portalPath: `/files/${file.id}`,
+          email: true,
+        },
+      ];
+    }
+
+    case "file.version_uploaded": {
+      // Primeira versão não é "nova versão"; e só avisa o cliente sobre arquivos já compartilhados.
+      if (!p.versionNumber || Number(p.versionNumber) < 2) return [];
+      const actor = await recipientByUserId(tx, org, ev.actorUserId);
+      if (actor?.kind !== "internal") return [];
+      const file = await fileInfo(tx, org, str(p.fileId) || ev.entityId);
+      if (!file?.shared) return [];
+      return [
+        {
+          recipients: await clientUsers(tx, org, file.clientId, { permission: "files.read" }),
+          title: `Nova versão de ${file.name} (v${str(p.versionNumber)})`,
+          body: null,
+          portalPath: `/files/${file.id}`,
+        },
+      ];
+    }
+
+    case "file.status_changed": {
+      if (p.toStatus !== "final") return [];
+      const file = await fileInfo(tx, org, str(p.fileId) || ev.entityId);
+      if (!file?.shared) return [];
+      return [
+        {
+          recipients: await clientUsers(tx, org, file.clientId, { permission: "files.read" }),
+          title: `Material final disponível: ${file.name}`,
+          body: null,
+          portalPath: `/files/${file.id}`,
+          email: true,
+        },
+      ];
+    }
+
+    case "member.joined": {
+      const inviter = await recipientByUserId(tx, org, str(p.invitedByUserId));
+      if (!inviter) return [];
+      const joined = await recipientByUserId(tx, org, str(p.userId));
+      const name = joined?.name ?? "Uma pessoa convidada";
+      const clientIds = Array.isArray(p.clientIds) ? p.clientIds.map(String) : [];
+      return [
+        {
+          recipients: [inviter],
+          title: `Convite aceito: ${name} entrou${p.roleName ? ` como ${str(p.roleName)}` : ""}`,
+          body: null,
+          internalPath:
+            p.roleKind !== "client" ? `/team` : clientIds.length === 1 ? `/clients/${clientIds[0]}/guests` : `/clients`,
+          portalPath: `/equipe`,
+          email: true,
         },
       ];
     }
@@ -177,7 +273,7 @@ async function draftsFor(tx: Tx, ev: DomainEvent): Promise<Draft[]> {
       const done = p.toCategory === "done";
       return [
         {
-          recipients: await clientUsers(tx, org, str(p.clientId)),
+          recipients: await clientUsers(tx, org, str(p.clientId), { permission: "projects.read" }),
           title: done ? `Projeto concluído: ${str(p.name)}` : `Projeto em aprovação: ${str(p.name)}`,
           body: null,
           portalPath: `/projects/${str(p.projectId) || ev.entityId}`,
@@ -245,7 +341,7 @@ async function commentDrafts(tx: Tx, ev: DomainEvent, p: Record<string, unknown>
       });
     if (!internal && !fromClient) {
       drafts.push({
-        recipients: await clientUsers(tx, org, project.clientId),
+        recipients: await clientUsers(tx, org, project.clientId, { permission: "projects.read" }),
         title: `Nova mensagem sobre ${project.name}`,
         body: excerpt,
         portalPath: `/projects/${project.id}`,
@@ -270,7 +366,10 @@ async function commentDrafts(tx: Tx, ev: DomainEvent, p: Record<string, unknown>
     });
     if (!internal && !fromClient) {
       drafts.push({
-        recipients: await clientUsers(tx, org, req.clientId),
+        recipients: await clientUsers(tx, org, req.clientId, {
+          permission: "requests.read",
+          orUserId: req.createdByUserId,
+        }),
         title: `Nova mensagem na solicitação #${req.number}`,
         body: excerpt,
         portalPath: `/requests/${req.id}`,
@@ -306,7 +405,7 @@ async function commentDrafts(tx: Tx, ev: DomainEvent, p: Record<string, unknown>
     });
     if (!internal && !fromClient && file.shared) {
       drafts.push({
-        recipients: await clientUsers(tx, org, file.clientId),
+        recipients: await clientUsers(tx, org, file.clientId, { permission: "files.read" }),
         title: `Nova mensagem sobre ${file.name}`,
         body: excerpt,
         portalPath: `/files/${file.id}`,
@@ -330,6 +429,10 @@ export async function applyNotifications(tx: Tx, ev: DomainEvent): Promise<numbe
   const slug = await orgSlug(tx, ev.organizationId);
   if (!slug) return 0;
   const internalComment = ev.type === "comment.created" && (ev.payload as { internal?: boolean })?.internal === true;
+  const category = categoryOf(ev.type);
+  const prefs = await preferencesFor(tx, ev.organizationId, [
+    ...new Set(drafts.flatMap((d) => d.recipients.map((r) => r.userId))),
+  ]);
   const seen = new Set<string>();
   const rows: (typeof notifications.$inferInsert)[] = [];
   const emails: (typeof emailOutbox.$inferInsert)[] = [];
@@ -347,17 +450,20 @@ export async function applyNotifications(tx: Tx, ev: DomainEvent): Promise<numbe
         link = `/w/${slug}${d.internalPath}`;
       }
       seen.add(r.userId);
-      rows.push({
-        organizationId: ev.organizationId,
-        userId: r.userId,
-        type: ev.type,
-        title: d.title.slice(0, 300),
-        body: d.body ? d.body.slice(0, 1000) : null,
-        link,
-        entityType: ev.entityType,
-        entityId: ev.entityId,
-      });
-      if (d.email) {
+      const userPrefs = prefs.get(r.userId);
+      if (prefEnabled(userPrefs, "inApp", category)) {
+        rows.push({
+          organizationId: ev.organizationId,
+          userId: r.userId,
+          type: ev.type,
+          title: d.title.slice(0, 300),
+          body: d.body ? d.body.slice(0, 1000) : null,
+          link,
+          entityType: ev.entityType,
+          entityId: ev.entityId,
+        });
+      }
+      if (d.email && prefEnabled(userPrefs, "email", category)) {
         const { html, text } = renderEmail({
           title: d.title,
           paragraphs: [`Olá, ${r.name}.`, ...(d.body ? [d.body] : [])],

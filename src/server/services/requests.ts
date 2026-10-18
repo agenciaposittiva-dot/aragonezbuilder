@@ -28,6 +28,8 @@ import {
   assertProjectAccess,
   assertRequestAccess,
   can,
+  canReadRequests,
+  clientRequestFilter,
   clientScope,
   type Scope,
 } from "@/server/authz";
@@ -47,12 +49,13 @@ const assigneeUser = alias(user, "assignee_user");
 const OPEN: RequestStatus[] = ["submitted", "triage", "in_progress"];
 
 export async function listRequests(s: Scope, raw: z.input<typeof requestListParams>) {
-  assertCan(s.actor, "requests.read");
+  if (!canReadRequests(s.actor)) throw new ForbiddenError();
   const p = requestListParams.parse(raw);
   const where = and(
     clientScope(s.actor),
-    // Rascunhos de clientes só aparecem para quem os criou.
+    // Rascunhos só aparecem para quem os criou; o Solicitante vê só as próprias.
     or(sql`${requests.status} <> 'draft'`, eq(requests.createdByUserId, s.actor.userId)),
+    clientRequestFilter(s.actor),
     p.status ? eq(requests.status, p.status) : undefined,
     p.open ? inArray(requests.status, OPEN) : undefined,
     p.clientId ? eq(requests.clientId, p.clientId) : undefined,
@@ -111,6 +114,7 @@ export async function requestStatusCounts(s: Scope, clientId?: string) {
     .where(
       and(
         clientScope(s.actor),
+        clientRequestFilter(s.actor),
         clientId ? eq(requests.clientId, clientId) : undefined,
         sql`${requests.status} <> 'draft'`,
       ),
@@ -120,7 +124,7 @@ export async function requestStatusCounts(s: Scope, clientId?: string) {
 }
 
 export async function getRequest(s: Scope, id: string) {
-  assertCan(s.actor, "requests.read");
+  if (!canReadRequests(s.actor)) throw new ForbiddenError();
   await assertRequestAccess(s, id);
   const [row] = await s.db
     .select({

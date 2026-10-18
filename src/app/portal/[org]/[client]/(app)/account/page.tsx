@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
 import { PasswordForm } from "@/components/account/password-form";
 import { ProfileForm } from "@/components/account/profile-form";
+import { NotificationPreferencesForm } from "@/components/account/notification-preferences-form";
 import { SessionsList } from "@/components/account/sessions-list";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { inOrg } from "@/server/authz";
+import { emailConfigured } from "@/server/mail";
+import { categoriesFor, getNotificationPreferences } from "@/server/services/notification-preferences";
 import { requirePortal } from "@/server/auth/portal";
 
 export const metadata: Metadata = { title: "Minha conta" };
@@ -12,6 +16,7 @@ export default async function PortalAccountPage({ params }: PageProps<"/portal/[
   const { org, client: clientSlug } = await params;
   const portal = await requirePortal(org, clientSlug);
   const { actor } = portal;
+  const prefs = await inOrg(actor, getNotificationPreferences);
   return (
     <>
       <PageHeader title="Minha conta" description={`Acesso à área do cliente de ${actor.orgName}`} />
@@ -36,6 +41,21 @@ export default async function PortalAccountPage({ params }: PageProps<"/portal/[
           </CardHeader>
           <CardContent>
             <PasswordForm />
+          </CardContent>
+        </Card>
+        <Card id="notificacoes" className="scroll-mt-20">
+          <CardHeader>
+            <div>
+              <CardTitle>Notificações</CardTitle>
+              <CardDescription>Escolha o que você quer receber na plataforma e por e-mail.</CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <NotificationPreferencesForm
+              initial={prefs}
+              categories={categoriesFor(actor.kind)}
+              emailConfigured={emailConfigured()}
+            />
           </CardContent>
         </Card>
         <Card>

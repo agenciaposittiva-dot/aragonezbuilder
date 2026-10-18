@@ -27,6 +27,8 @@ import {
   type Recipient,
 } from "./recipients";
 import { postWebhook, webhookSecret } from "./webhook";
+import { prefEnabled } from "@/lib/notification-prefs";
+import { preferencesFor } from "@/server/services/notification-preferences";
 
 /* ------------------------------------------------------------------ */
 /* Condições                                                           */
@@ -153,10 +155,12 @@ async function notify(
 ) {
   const seen = new Set<string>();
   const rows: (typeof notifications.$inferInsert)[] = [];
+  const prefs = await preferencesFor(ctx.tx, ctx.ev.organizationId, [...new Set(recipients.map((r) => r.userId))]);
   for (const r of recipients) {
     if (seen.has(r.userId)) continue;
     seen.add(r.userId);
     if (r.kind === "client" && portalPath === null) continue;
+    if (!prefEnabled(prefs.get(r.userId), "inApp", "automations")) continue;
     rows.push({
       organizationId: ctx.ev.organizationId,
       userId: r.userId,
@@ -174,7 +178,9 @@ async function notify(
 
 async function queueEmails(ctx: Ctx, recipients: Recipient[], subject: string, body: string, link: string) {
   const seen = new Set<string>();
+  const prefs = await preferencesFor(ctx.tx, ctx.ev.organizationId, [...new Set(recipients.map((r) => r.userId))]);
   const rows = recipients
+    .filter((r) => prefEnabled(prefs.get(r.userId), "email", "automations"))
     .filter((r) => (seen.has(r.email) ? false : (seen.add(r.email), true)))
     .map((r) => {
       const { html, text } = renderEmail({

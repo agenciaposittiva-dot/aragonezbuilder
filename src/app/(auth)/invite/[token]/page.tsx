@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "Convite" };
 const STATE_TEXT = {
   expired: {
     title: "Convite expirado",
-    body: "Este convite passou da validade de 7 dias. Peça um novo convite a quem enviou.",
+    body: "Este convite passou da validade. Peça um novo convite a quem enviou.",
   },
   revoked: { title: "Convite cancelado", body: "Este convite foi cancelado pela organização." },
   accepted: { title: "Convite já utilizado", body: "Este convite já foi aceito. Entre na sua conta para acessar." },

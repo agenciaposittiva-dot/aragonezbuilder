@@ -1,6 +1,15 @@
 import { and, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import { clients, files, projects, requests, tasks } from "@/server/db/schema";
-import { can, clientScope, fileScope, projectScope, taskScope, type Scope } from "@/server/authz";
+import {
+  can,
+  canReadRequests,
+  clientRequestFilter,
+  clientScope,
+  fileScope,
+  projectScope,
+  taskScope,
+  type Scope,
+} from "@/server/authz";
 
 export type SearchHit = {
   type: "client" | "project" | "task" | "file" | "request";
@@ -83,7 +92,7 @@ export async function globalSearch(s: Scope, rawQuery: string): Promise<SearchHi
     );
   }
 
-  if (can(s.actor, "requests.read")) {
+  if (canReadRequests(s.actor)) {
     const asNumber = Number(q.replace(/^#/, ""));
     const rows = await s.db
       .select({
@@ -101,6 +110,8 @@ export async function globalSearch(s: Scope, rawQuery: string): Promise<SearchHi
             Number.isInteger(asNumber) && asNumber > 0 ? eq(requests.number, asNumber) : sql`false`,
           ),
           clientScope(s.actor),
+          clientRequestFilter(s.actor),
+          sql`(${requests.status} <> 'draft' or ${requests.createdByUserId} = ${s.actor.userId})`,
         ),
       )
       .orderBy(desc(requests.createdAt))

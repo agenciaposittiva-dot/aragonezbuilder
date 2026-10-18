@@ -84,6 +84,7 @@ export default async function ClientLayout({ children, params }: LayoutProps<"/w
             ...(can(actor, "files.read") ? [{ label: "Arquivos", href: `${base}/files` }] : []),
             { label: "Marca", href: `${base}/brand` },
             { label: "Portal", href: `${base}/portal` },
+            ...(can(actor, "members.read") ? [{ label: "Convidados", href: `${base}/guests` }] : []),
             ...(can(actor, "finance.read") ? [{ label: "Financeiro", href: `${base}/finance` }] : []),
             { label: "Histórico", href: `${base}/history` },
           ]}
