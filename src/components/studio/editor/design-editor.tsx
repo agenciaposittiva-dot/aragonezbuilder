@@ -3,6 +3,7 @@
 import {
   ArrowLeft,
   Download,
+  Eye,
   History,
   ImagePlus,
   Keyboard,
@@ -46,14 +47,16 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { useWorkspace } from "@/components/shell/workspace-context";
 import { outcomeFromAction, useAutosave } from "@/hooks/use-autosave";
 import { clearLocalDraft, loadLocalDraft, type LocalDraft } from "@/lib/autosave/local-draft";
-import { assetsOf, fontsOf, readDesignDocument, type DesignDocument } from "@/lib/design-doc";
+import { applyOperations, assetsOf, fontsOf, locate, readDesignDocument, type DesignDocument } from "@/lib/design-doc";
 import { cn } from "@/lib/utils";
 import {
+  createNamedVersionAction,
   duplicateDesignAction,
   resolveDesignConflictAction,
   saveDesignAction,
   updateDesignMetaAction,
 } from "@/server/actions/designs";
+import { DesignAiChat, type DesignAiHost } from "../design-ai-chat";
 import { DesignConflictDialog, DesignHistory } from "../design-history";
 import { createActions, type EditorBrand } from "./actions";
 import { CanvasArea } from "./canvas-area";
@@ -83,7 +86,10 @@ export type EditorDesign = {
   clientName: string | null;
 };
 
-type MobileSheet = null | "add" | "brand" | "layers" | "props" | "media" | "components" | "templates";
+type MobileSheet = null | "add" | "brand" | "layers" | "props" | "media" | "components" | "templates" | "ai";
+
+/** Ponto de restauração criado antes de cada alteração aplicada pelo chat de IA. */
+const AI_CHECKPOINT = "Antes da edição pelo chat de IA";
 
 /**
  * Editor de artes do Estúdio: documento de várias páginas, camadas,
@@ -95,11 +101,14 @@ export function DesignEditor({
   brand,
   canWrite,
   canManageTemplates = false,
+  focus,
 }: {
   design: EditorDesign;
   brand: EditorBrand;
   canWrite: boolean;
   canManageTemplates?: boolean;
+  /** Abre numa página (e camada) específica — atalho vindo da pré-visualização. */
+  focus?: { pageId?: string; objectId?: string };
 }) {
   const ws = useWorkspace();
   const initial = useMemo(() => readDesignDocument(design.document, design), [design]);
@@ -120,6 +129,7 @@ export function DesignEditor({
   const [exportOpen, setExportOpen] = useState(false);
   const [exporting, setExporting] = useState<"download" | "send" | null>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
   const [name, setName] = useState(design.name);
   const [carouselAi, setCarouselAi] = useState<CarouselAiMode | null>(null);
   const [, setEditingText] = useState(false);
@@ -214,6 +224,11 @@ export function DesignEditor({
       s.sync();
       s.fit(store.doc.meta?.carousel && store.doc.pages.length <= 4 ? "all" : "page");
       for (const f of fontsOf(store.doc)) whenFontLoads(f, () => sceneRef.current?.refreshFonts([f]));
+      if (focus?.pageId && store.doc.pages.some((p) => p.id === focus.pageId)) {
+        store.setActivePage(focus.pageId);
+        if (focus.objectId && locate(store.doc, focus.objectId)) store.setSelection([focus.objectId]);
+        s.fit(focus.objectId && store.selection.length ? "selection" : "page");
+      }
       setReady(true);
       if (missing) toast.warning(`${missing} imagem(ns) desta arte não estão mais disponíveis na nuvem.`);
       for (const n of initial.notes) toast.info(n);
@@ -298,6 +313,96 @@ export function DesignEditor({
         : "As últimas alterações ainda não foram salvas. Verifique a conexão e tente de novo.",
     );
     return false;
+  };
+
+  /* ---------------------------- chat de IA ---------------------------- */
+
+  const flush = autosave.flush;
+  /**
+   * O chat propõe operações; aqui elas entram pelo caminho normal do editor:
+   * ponto de restauração no histórico de versões, store.dispatch (desfazer/
+   * refazer) e o salvamento automático — "Salvo" só depois do servidor.
+   */
+  const aiHost = useMemo<DesignAiHost>(
+    () => ({
+      designId: design.id,
+      context: () => ({ document: store.doc, pageId: store.activePageId, selection: store.selection }),
+      apply: async (ops, { label }) => {
+        const before = await flush();
+        if (before.status !== "saved") {
+          return {
+            ok: false,
+            error:
+              before.status === "conflict"
+                ? "Resolva o conflito de edição antes de aplicar."
+                : "As últimas alterações ainda não foram salvas. Verifique a conexão e tente de novo.",
+          };
+        }
+        const cp = await createNamedVersionAction(ws.orgSlug, { designId: design.id, label: AI_CHECKPOINT }).catch(
+          () => null,
+        );
+        if (!cp?.ok) return { ok: false, error: cp && !cp.ok ? cp.error : "Falha de conexão. Nada foi alterado." };
+        let next: DesignDocument;
+        try {
+          next = applyOperations(store.doc, ops).doc;
+        } catch {
+          return { ok: false, error: "A arte mudou desde a proposta e ela não se aplica mais. Peça de novo." };
+        }
+        await preload(next);
+        const result = store.dispatch(ops, { label });
+        if (!result) return { ok: false, error: "Não foi possível aplicar a alteração nesta arte." };
+        const after = await flush();
+        if (after.status !== "saved") {
+          return {
+            ok: false,
+            unsaved: true,
+            inverse: result.inverse,
+            error: "A alteração está na arte, mas ainda não foi salva no servidor. Verifique a conexão.",
+          };
+        }
+        return { ok: true, inverse: result.inverse };
+      },
+      undo: async (inverse) => {
+        const result = store.dispatch(inverse, { label: "Desfazer edição do chat de IA" });
+        if (!result) return { ok: false, error: "Não foi possível desfazer: a arte mudou depois da alteração." };
+        const st = await flush();
+        if (st.status !== "saved") {
+          return { ok: false, unsaved: true, error: "Desfeito na arte, mas ainda não salvo no servidor." };
+        }
+        return { ok: true, inverse: result.inverse };
+      },
+      retrySave: async () => (await flush()).status === "saved",
+      preview: async (ops, pages) => {
+        const s = sceneRef.current;
+        if (!s) return [];
+        const current = store.doc;
+        const next = applyOperations(current, ops).doc;
+        await preload(next);
+        const ids = pages
+          .slice(0, 3)
+          .map((n) => current.pages[n - 1]?.id)
+          .filter((x): x is string => !!x);
+        const before = s.renderDocPreview(current, ids);
+        const after = s.renderDocPreview(next, ids);
+        return ids.map((_, i) => ({ page: pages[i]!, before: before[i]!, after: after[i]! }));
+      },
+      reveal: (ids) => {
+        const found = ids.filter((id) => locate(store.doc, id));
+        if (!found.length) return;
+        store.setSelection(found);
+        setMobileSheet(null);
+      },
+    }),
+    [design.id, flush, store, ws.orgSlug],
+  );
+  const activeIndex = useEditor(store, (s) => s.doc.pages.findIndex((p) => p.id === s.activePageId));
+  const pageCount = useEditor(store, (s) => s.doc.pages.length);
+  const aiWhere = `Página ${activeIndex + 1} de ${pageCount}${
+    selection.length ? ` · ${selection.length} elemento(s) selecionado(s)` : " · nenhum elemento selecionado"
+  }`;
+  const openAi = () => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) setMobileSheet("ai");
+    else setAiOpen((v) => !v);
   };
 
   /* ---------------------------- exportação ---------------------------- */
@@ -469,6 +574,20 @@ export function DesignEditor({
             </Tooltip>
           </>
         ) : null}
+        {canWrite ? (
+          <Tooltip content="Chat de edição com IA">
+            <Button
+              variant={aiOpen ? "secondary" : "ghost"}
+              size="sm"
+              onClick={openAi}
+              aria-label="Chat de edição com IA"
+              aria-pressed={aiOpen}
+              data-testid="open-design-ai"
+            >
+              <Sparkles /> <span className="hidden md:inline">IA</span>
+            </Button>
+          </Tooltip>
+        ) : null}
         <Tooltip content="Histórico de versões">
           <Button variant="ghost" size="icon-sm" onClick={() => setHistoryOpen(true)} aria-label="Histórico de versões">
             <History />
@@ -572,6 +691,11 @@ export function DesignEditor({
             {canManageTemplates && !design.isTemplate ? (
               <DropdownMenuItem onSelect={() => void duplicateDesign(true)}>Salvar como template</DropdownMenuItem>
             ) : null}
+            <DropdownMenuItem asChild>
+              <Link href={`/w/${ws.orgSlug}/studio/${design.id}/preview`}>
+                <Eye /> Visualizar publicação
+              </Link>
+            </DropdownMenuItem>
             {design.outputFileId ? (
               <DropdownMenuItem asChild>
                 <Link href={`/w/${ws.orgSlug}/files/${design.outputFileId}`}>
@@ -653,7 +777,20 @@ export function DesignEditor({
           ready={ready}
         />
 
-        {canWrite ? (
+        {canWrite && aiOpen ? (
+          // O chat ocupa o lugar do painel de propriedades enquanto está aberto (o canvas continua à vista).
+          <aside
+            className="hidden w-[340px] shrink-0 flex-col border-l border-border bg-surface lg:flex"
+            data-testid="design-ai-panel"
+          >
+            <div className="flex justify-end border-b border-border px-1 py-1">
+              <Button variant="ghost" size="xs" onClick={() => setAiOpen(false)}>
+                Fechar chat
+              </Button>
+            </div>
+            <DesignAiChat host={{ ...aiHost, where: aiWhere }} />
+          </aside>
+        ) : canWrite ? (
           <aside
             className="hidden w-[288px] shrink-0 scrollbar-thin overflow-y-auto border-l border-border bg-surface xl:block"
             data-testid="properties-panel"
@@ -697,6 +834,15 @@ export function DesignEditor({
             <ImagePlus className="size-5" />
             Imagem
           </button>
+          <button
+            type="button"
+            onClick={() => setMobileSheet("ai")}
+            className="flex flex-col items-center gap-0.5 rounded-md px-3 py-1 text-[11px] text-fg-muted hover:text-fg"
+            data-testid="mobile-design-ai"
+          >
+            <Sparkles className="size-5" />
+            IA
+          </button>
         </nav>
       ) : null}
 
@@ -712,11 +858,17 @@ export function DesignEditor({
                 media: "Imagens",
                 components: "Componentes",
                 templates: "Modelos",
+                ai: "Chat de edição com IA",
               }[mobileSheet ?? "add"]
             }
           </SheetTitle>
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            {mobileSheet === "props" ? (
+          {mobileSheet === "ai" ? (
+            <div className="flex min-h-0 flex-1 flex-col">
+              <DesignAiChat host={{ ...aiHost, where: aiWhere }} />
+            </div>
+          ) : null}
+          <div className={cn("min-h-0 flex-1 overflow-y-auto", mobileSheet === "ai" && "hidden")}>
+            {mobileSheet === "ai" ? null : mobileSheet === "props" ? (
               <PropertiesPanel store={store} actions={actions} brand={brand} onReplaceImage={pickImage} />
             ) : mobileSheet ? (
               <div className="p-4">

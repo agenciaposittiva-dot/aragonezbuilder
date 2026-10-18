@@ -9,8 +9,13 @@ import { getDesign } from "@/server/services/designs";
 
 export const metadata: Metadata = { title: "Editor de artes" };
 
-export default async function DesignEditorPage({ params }: PageProps<"/w/[org]/studio/[id]">) {
+/** Atalho da pré-visualização: `?pagina=<id>&objeto=<id>` abre o editor naquela página e camada. */
+const focusId = (v: string | string[] | undefined) =>
+  typeof v === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(v) ? v : undefined;
+
+export default async function DesignEditorPage({ params, searchParams }: PageProps<"/w/[org]/studio/[id]">) {
   const { org, id } = await params;
+  const sp = await searchParams;
   const actor = await requireActor(org, { kind: "internal", permission: "designs.read" });
   const data = await inOrg(actor, async (s) => {
     try {
@@ -29,6 +34,7 @@ export default async function DesignEditorPage({ params }: PageProps<"/w/[org]/s
     <DesignEditor
       canWrite={canWrite}
       canManageTemplates={can(actor, "templates.manage")}
+      focus={{ pageId: focusId(sp.pagina), objectId: focusId(sp.objeto) }}
       brand={data.brand ? { colors: data.brand.colors, fonts: data.brand.fonts } : null}
       design={{
         id: design.id,

@@ -2,6 +2,7 @@ import { GalleryHorizontal } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AiStudio } from "@/components/ai/ai-studio";
+import { DesignAiSection } from "@/components/ai/design-ai-section";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { can, inOrg } from "@/server/authz";
@@ -9,6 +10,7 @@ import { requireActor } from "@/server/auth/session";
 import { listGenerations, usageCounters } from "@/server/services/ai";
 import { getPickerData } from "@/server/services/ai-models";
 import { clientOptions } from "@/server/services/clients";
+import { designAiTargets } from "@/server/services/design-ai";
 import { getSettings } from "@/server/services/organizations";
 import { projectOptions } from "@/server/services/projects";
 
@@ -28,6 +30,8 @@ export default async function AiPage({ params }: PageProps<"/w/[org]/ai">) {
       clients: await clientOptions(s),
       projects: await projectOptions(s),
       history: await listGenerations(s, { limit: 30 }),
+      // Chat de edição de artes existentes: só para quem pode editar artes.
+      designs: can(actor, "designs.write") ? await designAiTargets(s) : null,
     };
   });
   const ready = data.picker.providers.filter((p) => p.ready);
@@ -65,6 +69,7 @@ export default async function AiPage({ params }: PageProps<"/w/[org]/ai">) {
         canCreateTasks={can(actor, "tasks.write")}
         canSaveFiles={can(actor, "files.write")}
       />
+      {data.designs ? <DesignAiSection targets={data.designs} /> : null}
     </>
   );
 }

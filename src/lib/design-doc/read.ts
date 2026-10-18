@@ -99,7 +99,14 @@ function repair(raw: Record<string, unknown>, size: { width: number; height: num
     if (r.success) components.push(r.data);
     else invalid.push(c);
   }
-  const meta = designMetaSchema.safeParse(raw.meta);
+  let meta = designMetaSchema.safeParse(raw.meta);
+  if (!meta.success && raw.meta && typeof raw.meta === "object") {
+    // Plano do gerador ou origem de importação inválidos não derrubam o resto da configuração (carrossel, exportações).
+    const { generator: _g, imported: _i, ...rest } = raw.meta as Record<string, unknown>;
+    void _g;
+    void _i;
+    meta = designMetaSchema.safeParse(rest);
+  }
   const doc: DesignDocument = {
     schema: DESIGN_SCHEMA,
     pages: pages.slice(0, 100),

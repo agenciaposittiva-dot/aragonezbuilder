@@ -1,4 +1,4 @@
-import { Download } from "lucide-react";
+import { Download, Eye } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -20,6 +20,7 @@ import { requirePortal } from "@/server/auth/portal";
 import { NotFoundError } from "@/server/errors";
 import { fileApprovals } from "@/server/services/approvals";
 import { listComments } from "@/server/services/comments";
+import { contentsForFile } from "@/server/services/content-preview";
 import { fileHistory, getFile } from "@/server/services/files";
 
 export const metadata: Metadata = { title: "Material" };
@@ -36,6 +37,7 @@ export default async function PortalFileDetailPage({ params }: PageProps<"/porta
         rounds: await fileApprovals(s, id),
         comments: await listComments(s, { fileId: id }),
         history: await fileHistory(s, id),
+        contents: await contentsForFile(s, id),
       };
     } catch (e) {
       if (e instanceof NotFoundError) return null;
@@ -73,13 +75,22 @@ export default async function PortalFileDetailPage({ params }: PageProps<"/porta
               ) : null}
             </p>
           </div>
-          {current ? (
-            <Button asChild variant="primary">
-              <a href={fileUrl(current.id, { download: true })}>
-                <Download /> Baixar v{current.versionNumber}
-              </a>
-            </Button>
-          ) : null}
+          <div className="flex flex-wrap gap-2">
+            {data.contents[0] ? (
+              <Button asChild variant="secondary">
+                <Link href={`${base}/preview/${data.contents[0].id}`}>
+                  <Eye /> Visualizar publicação
+                </Link>
+              </Button>
+            ) : null}
+            {current ? (
+              <Button asChild variant="primary">
+                <a href={fileUrl(current.id, { download: true })}>
+                  <Download /> Baixar v{current.versionNumber}
+                </a>
+              </Button>
+            ) : null}
+          </div>
         </div>
       </div>
 
