@@ -85,7 +85,7 @@ test.describe("foto de perfil", () => {
     const fake = await page.request.post("/api/user-avatar", {
       multipart: { file: { name: "foto.jpg", mimeType: "image/jpeg", buffer: Buffer.from("falso") } },
     });
-    expect(fake.status()).toBe(400);
+    expect(fake.status()).toBe(422);
     expect((await fake.json()).error).toMatch(/não é uma imagem válida/);
 
     // Enquadramento: prévia, zoom e cancelar não altera nada.
