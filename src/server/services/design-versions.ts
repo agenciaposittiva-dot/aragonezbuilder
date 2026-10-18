@@ -1,10 +1,11 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
+import { allObjects, readDesignDocument, type DesignObject } from "@/lib/design-doc";
 import { designs, designVersions, user } from "@/server/db/schema";
 import { assertCan, assertInternal, type Scope } from "@/server/authz";
 import { NotFoundError, ValidationError } from "@/server/errors";
 import { recordActivity } from "./activity";
-import { getDesign, insertDesignVersion } from "./designs";
+import { checkDesignDocument, getDesign, insertDesignVersion } from "./designs";
 
 /*
  * Histórico de versões das artes do Estúdio. Restaurar nunca apaga nada:
@@ -130,17 +131,36 @@ export async function restoreDesignVersion(s: Scope, versionId: string) {
 /* Comparação                                                          */
 /* ------------------------------------------------------------------ */
 
-type SceneObject = { uid?: string; type?: string; name?: string; text?: string; src?: string };
+type SceneObject = { uid: string; type: string; name: string; text?: string; page: string; data: DesignObject };
 
-function objectsOf(doc: Record<string, unknown>): SceneObject[] {
-  const list = (doc as { objects?: unknown }).objects;
-  return Array.isArray(list) ? (list as SceneObject[]) : [];
+/**
+ * Objetos de qualquer formato (o antigo é convertido na leitura), em todas as
+ * páginas e dentro de grupos — o id estável casa as duas versões.
+ */
+function objectsOf(doc: Record<string, unknown>, size: { width: number; height: number }): SceneObject[] {
+  const { doc: d } = readDesignDocument(doc, size);
+  const pageName = new Map(d.pages.map((p, i) => [p.id, d.pages.length > 1 ? p.name || `Página ${i + 1}` : ""]));
+  const out: SceneObject[] = [];
+  for (const loc of allObjects(d)) {
+    const o = loc.object;
+    if (o.type === "group") continue;
+    out.push({
+      uid: o.id,
+      type: o.type,
+      name: o.name,
+      text: o.type === "text" ? o.text : undefined,
+      page: pageName.get(loc.pageId!) ?? "",
+      data: o,
+    });
+  }
+  return out;
 }
 
 function describe(o: SceneObject) {
-  if (o.text) return `Texto “${o.text.slice(0, 60)}”`;
-  if (o.name) return o.name;
-  return o.type === "image" ? "Imagem" : (o.type ?? "Elemento");
+  const label = o.text
+    ? `Texto “${o.text.slice(0, 60)}”`
+    : o.name || (o.type === "image" ? "Imagem" : o.type || "Elemento");
+  return o.page ? `${label} (${o.page})` : label;
 }
 
 /** Resumo das diferenças entre duas versões (ou entre uma versão e o estado atual). */
@@ -153,18 +173,17 @@ export async function compareDesignVersions(s: Scope, fromId: string, toId: stri
   if ("designId" in b && b.designId !== a.designId) {
     throw new ValidationError("As versões são de artes diferentes.");
   }
-  const before = objectsOf(a.document);
-  const after = objectsOf(b.document);
-  const key = (o: SceneObject, i: number) => o.uid ?? `${o.type}:${i}`;
-  const beforeMap = new Map(before.map((o, i) => [key(o, i), o]));
-  const afterMap = new Map(after.map((o, i) => [key(o, i), o]));
+  const before = objectsOf(a.document, a);
+  const after = objectsOf(b.document, b);
+  const beforeMap = new Map(before.map((o) => [o.uid, o]));
+  const afterMap = new Map(after.map((o) => [o.uid, o]));
   const added = [...afterMap.entries()].filter(([k]) => !beforeMap.has(k)).map(([, o]) => describe(o));
   const removed = [...beforeMap.entries()].filter(([k]) => !afterMap.has(k)).map(([, o]) => describe(o));
   const textChanged = [...afterMap.entries()]
     .filter(([k, o]) => beforeMap.has(k) && (beforeMap.get(k)!.text ?? null) !== (o.text ?? null))
     .map(([k, o]) => ({ from: beforeMap.get(k)!.text ?? "", to: o.text ?? "" }));
   const modified = [...afterMap.entries()].filter(
-    ([k, o]) => beforeMap.has(k) && JSON.stringify(beforeMap.get(k)) !== JSON.stringify(o),
+    ([k, o]) => beforeMap.has(k) && JSON.stringify(beforeMap.get(k)!.data) !== JSON.stringify(o.data),
   ).length;
   return {
     from: {
@@ -210,7 +229,13 @@ export async function resolveDesignConflict(s: Scope, raw: z.input<typeof confli
   if (Buffer.byteLength(JSON.stringify(data.document)) > MAX_DOCUMENT_BYTES) {
     throw new ValidationError("A arte ficou grande demais para salvar.");
   }
-  const mine = { ...snapshotOf(d), document: data.document, thumbnail: data.thumbnail ?? d.thumbnail };
+  const { document, size } = checkDesignDocument(data.document);
+  const mine = {
+    ...snapshotOf(d),
+    document,
+    ...(size ?? {}),
+    thumbnail: data.thumbnail ?? d.thumbnail,
+  };
   if (data.strategy === "theirs") {
     const v = await insertDesignVersion(s, mine, { kind: "conflict", label: "Suas alterações (conflito de edição)" });
     await recordActivity(s, {
@@ -229,7 +254,8 @@ export async function resolveDesignConflict(s: Scope, raw: z.input<typeof confli
   const [updated] = await s.db
     .update(designs)
     .set({
-      document: data.document,
+      document,
+      ...(size ?? {}),
       ...(data.thumbnail !== undefined ? { thumbnail: data.thumbnail } : {}),
       revision: sql`${designs.revision} + 1`,
       updatedByUserId: s.actor.userId,

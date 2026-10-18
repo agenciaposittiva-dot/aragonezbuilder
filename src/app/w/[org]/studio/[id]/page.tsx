@@ -28,6 +28,7 @@ export default async function DesignEditorPage({ params }: PageProps<"/w/[org]/s
   return (
     <DesignEditor
       canWrite={canWrite}
+      canManageTemplates={can(actor, "templates.manage")}
       brand={data.brand ? { colors: data.brand.colors, fonts: data.brand.fonts } : null}
       design={{
         id: design.id,
