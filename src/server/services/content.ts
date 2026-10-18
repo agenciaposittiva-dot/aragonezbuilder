@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, gte, ilike, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
@@ -11,6 +10,15 @@ import {
   contentUpdateInput,
   type ContentFormat,
 } from "@/lib/content";
+import {
+  createDocument,
+  fileSrc,
+  imageObject,
+  rectObject,
+  textObject,
+  type DesignDocument,
+  type DesignObject,
+} from "@/lib/design-doc";
 import {
   assertCan,
   assertClientAccess,
@@ -43,7 +51,7 @@ import { recordActivity } from "./activity";
 import { aiSelectionInput } from "./ai-models";
 import { prepareImage } from "./ai-images";
 import { runImage } from "./ai-run";
-import { createDesign, saveDesign } from "./designs";
+import { createDesign } from "./designs";
 import { createProject } from "./projects";
 import { createRequest } from "./requests";
 import { createTask } from "./tasks";
@@ -308,136 +316,120 @@ export async function deleteContent(s: Scope, id: string) {
 /* ------------------------------------------------------------------ */
 
 type DesignBrand = { font: string; color: string; accent: string };
-
-function uid() {
-  return randomUUID().replace(/-/g, "").slice(0, 8);
-}
-
-function textbox(
-  text: string,
-  o: {
-    left: number;
-    top: number;
-    width: number;
-    fontSize: number;
-    weight: number;
-    fill: string;
-    font: string;
-    name: string;
-  },
-) {
-  return {
-    type: "Textbox",
-    version: "7.4.0",
-    uid: uid(),
-    name: o.name,
-    text,
-    left: o.left,
-    top: o.top,
-    width: o.width,
-    originX: "center",
-    originY: "center",
-    fontSize: o.fontSize,
-    fontWeight: o.weight,
-    fontFamily: o.font,
-    fill: o.fill,
-    textAlign: "center",
-    lineHeight: 1.15,
-    selectable: true,
-    evented: true,
-  };
-}
+type PageTexts = { headline: string; body?: string | null; footer?: string | null };
+type PageImage = { versionId: string; width: number; height: number };
 
 /**
- * Documento editável (mesmo formato do editor): imagem de fundo (quando houver),
- * faixa para leitura e textos em camadas separadas. A imagem é referenciada
- * pela rota de arquivos (nada é embutido no documento).
+ * Objetos de uma página no formato do editor: imagem recortada para cobrir a
+ * página (nada sobra para fora — no carrossel, o que passa da borda aparece no
+ * slide vizinho), faixa de leitura e textos em camadas separadas, com a fonte
+ * e as cores da marca. A imagem é referenciada pela rota de arquivos.
  */
-export function buildDesignDocument(
+export function buildPageObjects(
   size: { width: number; height: number },
-  texts: { headline: string; body?: string | null; footer?: string | null },
+  texts: PageTexts,
   brand: DesignBrand,
-  image?: { versionId: string; width: number; height: number } | null,
-) {
+  image?: PageImage | null,
+): DesignObject[] {
   const { width: W, height: H } = size;
-  const objects: Record<string, unknown>[] = [];
+  const objects: DesignObject[] = [];
   if (image) {
     const scale = Math.max(W / image.width, H / image.height);
-    objects.push({
-      type: "Image",
-      version: "7.4.0",
-      uid: uid(),
-      name: "Imagem gerada por IA",
-      src: `/api/files/${image.versionId}`,
-      left: W / 2,
-      top: H / 2,
-      width: image.width,
-      height: image.height,
-      scaleX: scale,
-      scaleY: scale,
-      originX: "center",
-      originY: "center",
-      selectable: true,
-      evented: true,
-    });
-    objects.push({
-      type: "Rect",
-      version: "7.4.0",
-      uid: uid(),
-      name: "Faixa de leitura",
-      left: W / 2,
-      top: H * 0.78,
-      width: W,
-      height: H * 0.44,
-      originX: "center",
-      originY: "center",
-      fill: "rgba(0,0,0,0.45)",
-      selectable: true,
-      evented: true,
-    });
+    const cw = W / scale;
+    const ch = H / scale;
+    objects.push(
+      imageObject({
+        name: "Imagem gerada por IA",
+        src: fileSrc(image.versionId),
+        naturalWidth: image.width,
+        naturalHeight: image.height,
+        x: 0,
+        y: 0,
+        width: W,
+        height: H,
+        crop: { x: (image.width - cw) / 2, y: (image.height - ch) / 2, width: cw, height: ch },
+      }),
+      rectObject({ name: "Faixa de leitura", x: 0, y: H * 0.56, width: W, height: H * 0.44, fill: "rgba(0,0,0,0.45)" }),
+    );
   }
+  const text = (
+    value: string,
+    o: { centerY: number; width: number; fontSize: number; fontWeight: number; color: string; name: string },
+  ) => {
+    const t = textObject({
+      name: o.name,
+      text: value,
+      x: Math.round((W - o.width) / 2),
+      y: 0,
+      width: Math.round(o.width),
+      fontFamily: brand.font,
+      fontSize: o.fontSize,
+      fontWeight: o.fontWeight,
+      color: o.color,
+      textAlign: "center",
+      lineHeight: 1.15,
+      // O editor mede o texto com a fonte real e mantém o centro vertical.
+      measure: "center",
+    });
+    t.y = Math.round(o.centerY - t.height / 2);
+    return t;
+  };
   const textColor = image ? "#ffffff" : brand.color;
   objects.push(
-    textbox(texts.headline, {
-      left: W / 2,
-      top: image ? H * 0.72 : H * 0.42,
+    text(texts.headline, {
+      centerY: image ? H * 0.72 : H * 0.42,
       width: W * 0.82,
       fontSize: Math.round(W * 0.07),
-      weight: 700,
-      fill: textColor,
-      font: brand.font,
+      fontWeight: 700,
+      color: textColor,
       name: "Título",
     }),
   );
   if (texts.body) {
     objects.push(
-      textbox(texts.body, {
-        left: W / 2,
-        top: image ? H * 0.84 : H * 0.58,
+      text(texts.body, {
+        centerY: image ? H * 0.84 : H * 0.58,
         width: W * 0.78,
         fontSize: Math.round(W * 0.038),
-        weight: 400,
-        fill: textColor,
-        font: brand.font,
+        fontWeight: 400,
+        color: textColor,
         name: "Texto",
       }),
     );
   }
   if (texts.footer) {
     objects.push(
-      textbox(texts.footer, {
-        left: W / 2,
-        top: H * 0.93,
+      text(texts.footer, {
+        centerY: H * 0.93,
         width: W * 0.7,
         fontSize: Math.round(W * 0.03),
-        weight: 600,
-        fill: image ? "#ffffff" : brand.accent,
-        font: brand.font,
+        fontWeight: 600,
+        color: image ? "#ffffff" : brand.accent,
         name: "Chamada",
       }),
     );
   }
-  return { version: "7.4.0", background: image ? "#111111" : "#ffffff", objects };
+  return objects;
+}
+
+/** Documento editável de uma peça. Carrossel: uma arte só, com uma página por slide. */
+export function buildDesignDocument(
+  size: { width: number; height: number },
+  pages: { texts: PageTexts; image?: PageImage | null }[],
+  brand: DesignBrand,
+  opts: { carousel?: boolean } = {},
+): DesignDocument {
+  return createDocument({
+    carousel: opts.carousel,
+    preset: opts.carousel ? (size.width === size.height ? "carousel-square" : "carousel-portrait") : null,
+    pages: pages.map((p, i) => ({
+      width: size.width,
+      height: size.height,
+      name: opts.carousel ? `Slide ${i + 1}` : undefined,
+      background: p.image ? "#111111" : "#ffffff",
+      objects: buildPageObjects(size, p.texts, brand, p.image),
+    })),
+  });
 }
 
 async function brandForDesign(s: Scope, clientId: string): Promise<DesignBrand> {
@@ -459,7 +451,7 @@ async function makeDesign(
     clientId: string;
     projectId: string | null;
     size: { width: number; height: number };
-    document: Record<string, unknown>;
+    document: DesignDocument;
   },
 ) {
   const { id } = await createDesign(s, {
@@ -468,8 +460,8 @@ async function makeDesign(
     height: o.size.height,
     clientId: o.clientId,
     projectId: o.projectId,
+    document: o.document as unknown as Record<string, unknown>,
   });
-  await saveDesign(s, { id, revision: 1, document: o.document });
   return id;
 }
 
@@ -726,39 +718,37 @@ export async function createFromTrend(s: Scope, raw: z.input<typeof createFromTr
     const designIds: string[] = [];
     if (brand && format !== "reels") {
       const size = CONTENT_FORMATS[format];
-      const pages =
-        format === "carousel" && t.slides.length
-          ? t.slides.map((sl, i) => ({
-              headline: sl.title || t.title,
-              body: sl.text,
-              footer: i === t.slides.length - 1 ? t.cta : null,
-              withImage: i === 0,
-            }))
-          : [
-              {
+      const carousel = format === "carousel" && t.slides.length > 0;
+      const pages = carousel
+        ? t.slides.map((sl, i) => ({
+            texts: { headline: sl.title || t.title, body: sl.text, footer: i === t.slides.length - 1 ? t.cta : null },
+            image: i === 0 ? image : null,
+          }))
+        : [
+            {
+              texts: {
                 headline: t.copy || t.title,
                 body: format === "stories" ? t.cta : null,
                 footer: format === "stories" ? null : t.cta,
-                withImage: true,
               },
-            ];
-      for (const [i, page] of pages.entries()) {
-        const id = await makeDesign(s, {
-          name: format === "carousel" ? `${t.title} — página ${i + 1}` : `${t.title} — ${size.label.split(" (")[0]}`,
-          clientId: data.clientId,
-          projectId,
-          size,
-          document: buildDesignDocument(size, page, brand, page.withImage ? image : null),
-        });
-        designIds.push(id);
-        await s.db.insert(contentItemAssets).values({
-          organizationId: s.actor.orgId,
-          contentItemId: item!.id,
-          designId: id,
-          role: format === "carousel" ? "slide" : format,
-          position: i,
-        });
-      }
+              image,
+            },
+          ];
+      const id = await makeDesign(s, {
+        name: carousel ? `${t.title} — carrossel` : `${t.title} — ${size.label.split(" (")[0]}`,
+        clientId: data.clientId,
+        projectId,
+        size,
+        document: buildDesignDocument(size, pages, brand, { carousel }),
+      });
+      designIds.push(id);
+      await s.db.insert(contentItemAssets).values({
+        organizationId: s.actor.orgId,
+        contentItemId: item!.id,
+        designId: id,
+        role: format,
+        position: 0,
+      });
     }
     if (image) {
       await s.db.insert(contentItemAssets).values({

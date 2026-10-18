@@ -115,10 +115,11 @@ describe("conteúdo a partir de tendências", () => {
         createTask: true,
       }),
     );
+    // Carrossel: uma arte só, com uma página por slide.
     expect(r.items.map((i) => [i.format, i.designs.length])).toEqual([
       ["feed", 1],
       ["stories", 1],
-      ["carousel", 3],
+      ["carousel", 1],
     ]);
     expect(r.taskId && r.requestId && r.campaignId && r.projectId).toBeTruthy();
 
@@ -154,23 +155,36 @@ describe("conteúdo a partir de tendências", () => {
     expect(size[r.items[0]!.designs[0]!]).toBe("1080x1350");
     expect(size[r.items[1]!.designs[0]!]).toBe("1080x1920");
     expect(ds.every((d) => d.clientId === clientId && d.projectId === r.projectId)).toBe(true);
-    // Documento editável no formato do editor: camadas separadas, fonte e cor da marca.
+    // Documento editável no formato do editor (versão 2): camadas separadas, fonte e cor da marca.
+    type Doc = {
+      schema: string;
+      meta?: { carousel?: boolean };
+      pages: {
+        width: number;
+        height: number;
+        objects: { type: string; text?: string; src?: string; fontFamily?: string; x: number; width: number }[];
+      }[];
+    };
     const feed = ds.find((d) => d.id === r.items[0]!.designs[0])!;
-    const doc = feed.document as { objects: { type: string; text?: string; src?: string; fontFamily?: string }[] };
-    expect(doc.objects.find((o) => o.type === "Image")?.src).toBe(`/api/files/${img.versionId}`);
-    expect(doc.objects.filter((o) => o.type === "Textbox").map((o) => o.text)).toContain("O festival chegou");
-    expect(doc.objects.find((o) => o.type === "Textbox")?.fontFamily).toBe("Poppins");
-    const carouselDocs = ds.filter((d) => r.items[2]!.designs.includes(d.id));
-    expect(carouselDocs.map((d) => d.name).sort()).toEqual([
-      "Café do festival — página 1",
-      "Café do festival — página 2",
-      "Café do festival — página 3",
-    ]);
+    const doc = feed.document as Doc;
+    expect(doc.schema).toBe("aragonez.design/2");
+    const objs = doc.pages[0]!.objects;
+    expect(objs.find((o) => o.type === "image")?.src).toBe(`/api/files/${img.versionId}`);
+    // A imagem cobre a página sem passar das bordas.
+    expect(objs.find((o) => o.type === "image")).toMatchObject({ x: 0, width: 1080 });
+    expect(objs.filter((o) => o.type === "text").map((o) => o.text)).toContain("O festival chegou");
+    expect(objs.find((o) => o.type === "text")?.fontFamily).toBe("Poppins");
+    const carouselDoc = ds.find((d) => d.id === r.items[2]!.designs[0])!;
+    expect(carouselDoc.name).toBe("Café do festival — carrossel");
+    const cdoc = carouselDoc.document as Doc;
+    expect(cdoc.meta?.carousel).toBe(true);
+    expect(cdoc.pages).toHaveLength(3);
+    expect(cdoc.pages.every((p) => p.width === 1080 && p.height === 1350)).toBe(true);
 
     const assets = await withOrg(ctx.org.id, (tx) =>
       tx.select().from(contentItemAssets).where(eq(contentItemAssets.contentItemId, r.items[2]!.id)),
     );
-    expect(assets.filter((a) => a.designId)).toHaveLength(3);
+    expect(assets.filter((a) => a.designId)).toHaveLength(1);
     expect(assets.filter((a) => a.fileId === img.fileId)).toHaveLength(1);
 
     const [task] = await withOrg(ctx.org.id, (tx) => tx.select().from(tasks).where(eq(tasks.id, r.taskId!)));

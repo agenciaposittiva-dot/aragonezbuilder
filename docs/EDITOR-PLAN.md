@@ -149,10 +149,10 @@ textContains, ids })`, `findPage(doc, número|id|nome)`, `locate`,
 
 ### Para a Frente H (tendências → conteúdo)
 
-Hoje ela cria a arte com `createDesign` e grava uma cena antiga com
-`saveDesign` — continua funcionando (migração na leitura). Para gerar
-carrosséis de verdade (um design com várias páginas em vez de uma arte por
-slide), na integração:
+Integrado: `createFromTrend` (src/server/services/content.ts) gera as artes já
+no formato 2 (`buildDesignDocument`), e o carrossel é **um** design com uma
+página por slide (`meta.carousel`), com a imagem recortada para cobrir a página
+sem sobrar para o slide vizinho. Padrão usado:
 
 ```ts
 import { createDocument, textObject, imageObject, fileSrc } from "@/lib/design-doc";
