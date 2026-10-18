@@ -1,9 +1,13 @@
 import { BlobNotFoundError, del, get, head, put } from "@vercel/blob";
+import { env } from "@/server/env";
 import type { PutOptions, SignedUrlOptions, StorageDriver } from "./index";
 import { signedAppUrl } from "./signing";
 
 /** Pasta própria dentro do store: o mesmo Blob pode ser compartilhado com outros projetos. */
 const PREFIX = "aragonez/";
+
+/** Credenciais resolvidas por src/server/env.ts (aceita nomes com prefixo da integração). */
+const auth = () => ({ token: env.BLOB_READ_WRITE_TOKEN, storeId: env.BLOB_STORE_ID });
 
 /**
  * Vercel Blob em modo privado. A autenticação é feita pelo SDK oficial:
@@ -16,6 +20,7 @@ export class BlobStorage implements StorageDriver {
 
   async put(key: string, body: Buffer, opts: PutOptions) {
     await put(PREFIX + key, body, {
+      ...auth(),
       access: "private",
       contentType: opts.contentType,
       addRandomSuffix: false,
@@ -29,18 +34,18 @@ export class BlobStorage implements StorageDriver {
   }
 
   async stream(key: string) {
-    const res = await get(PREFIX + key, { access: "private", useCache: false });
+    const res = await get(PREFIX + key, { ...auth(), access: "private", useCache: false });
     if (!res || res.statusCode !== 200) throw new Error("Objeto não encontrado");
     return { body: res.stream, size: res.blob.size };
   }
 
   async delete(key: string) {
-    await del(PREFIX + key);
+    await del(PREFIX + key, auth());
   }
 
   async exists(key: string) {
     try {
-      await head(PREFIX + key);
+      await head(PREFIX + key, auth());
       return true;
     } catch (err) {
       if (err instanceof BlobNotFoundError) return false;

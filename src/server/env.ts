@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { databaseOwnerUrl, databaseUrl } from "./db-url";
+import { pickEnv } from "./env-names";
 
 const optional = z
   .string()
@@ -107,8 +108,11 @@ function source(): NodeJS.ProcessEnv {
     ...e,
     DATABASE_URL: databaseUrl(),
     ACCESS_KEY: e.ACCESS_KEY || e.ACESS_KEY,
-    UPSTASH_REDIS_REST_URL: e.UPSTASH_REDIS_REST_URL || e.KV_REST_API_URL,
-    UPSTASH_REDIS_REST_TOKEN: e.UPSTASH_REDIS_REST_TOKEN || e.KV_REST_API_TOKEN,
+    UPSTASH_REDIS_REST_URL: pickEnv("UPSTASH_REDIS_REST_URL", "KV_REST_API_URL"),
+    UPSTASH_REDIS_REST_TOKEN: pickEnv("UPSTASH_REDIS_REST_TOKEN", "KV_REST_API_TOKEN"),
+    BLOB_READ_WRITE_TOKEN: pickEnv("BLOB_READ_WRITE_TOKEN"),
+    BLOB_STORE_ID: pickEnv("BLOB_STORE_ID"),
+    GEMINI_API_KEY: pickEnv("GEMINI_API_KEY"),
     DATABASE_OWNER_URL: databaseOwnerUrl(),
     APP_URL: e.APP_URL || (vercelHost ? `https://${vercelHost}` : undefined),
   };
