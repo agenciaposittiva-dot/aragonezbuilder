@@ -83,6 +83,8 @@ test.describe("logo da agência", () => {
     await after.close();
 
     // Seletor de agências: a logo aparece só na agência dona dela.
+    // Espera a página hidratar: senão a lembrança da agência regrava o cookie depois de apagado.
+    await page.waitForLoadState("networkidle");
     await page.context().clearCookies({ name: "last_org" });
     await page.goto("/");
     await expect(page.getByRole("link", { name: new RegExp(name) }).locator("img")).toHaveAttribute("src", src);

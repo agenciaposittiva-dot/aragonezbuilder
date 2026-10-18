@@ -57,6 +57,13 @@
       "when": 1792322043734,
       "tag": "0007_org_logo",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792332680599,
+      "tag": "0008_nuvem",
+      "breakpoints": true
     }
   ]
 }
