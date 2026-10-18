@@ -1,4 +1,4 @@
-# Aragonez · Plataforma de gestão para agências
+# Aragonez Builder · Plataforma de gestão para agências
 
 Plataforma SaaS multi-agência para gestão de clientes, projetos, tarefas, solicitações,
 aprovações por versão, arquivos, IA, editor de artes, relatórios, automações, financeiro e

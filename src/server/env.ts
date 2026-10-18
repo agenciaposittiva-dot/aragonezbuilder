@@ -52,7 +52,7 @@ const schema = z.object({
   SMTP_PORT: z.coerce.number().int().default(587),
   SMTP_USER: optional,
   SMTP_PASSWORD: optional,
-  SMTP_FROM: z.string().default("Aragonez <nao-responda@localhost>"),
+  SMTP_FROM: z.string().default("Aragonez Builder <nao-responda@localhost>"),
   ANTHROPIC_API_KEY: optional,
   OPENAI_API_KEY: optional,
   /** Protege /api/cron/tick (processamento em lotes sem worker contínuo). */
