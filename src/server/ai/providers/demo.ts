@@ -1,3 +1,4 @@
+import { demoPreviewJson } from "../demo-preview";
 import { demoTaskJson } from "../demo-tasks";
 import type { AiProvider, GenerateRequest, GenerateResult } from "../types";
 
@@ -126,7 +127,7 @@ function demoTrendJson(format: string, prompt: string): string | null {
 
 function demoFormatJson(prompt: string) {
   const format = prompt.match(/^Formato da resposta: (\w+)/m)?.[1];
-  return format ? demoTrendJson(format, prompt) : null;
+  return format ? (demoTrendJson(format, prompt) ?? demoPreviewJson(format, prompt)) : null;
 }
 
 function demoJson(prompt: string) {

@@ -94,6 +94,7 @@ export const AI_MODULES = {
   reports: "Relatórios",
   tasks: "Tarefas",
   chat: "Chat da equipe",
+  preview: "Pré-visualização",
 } as const;
 export type AiModule = keyof typeof AI_MODULES;
 
@@ -127,6 +128,9 @@ const OPERATION_TASK: Record<string, AiTask> = {
   chat_reply: "chat",
   chat_rewrite: "chat",
   chat_ask: "chat",
+  // Central de pré-visualização (src/server/services/preview-ai.ts).
+  preview_review: "copy",
+  preview_convert: "copy",
 };
 
 export function operationTask(operation: string): AiTask {

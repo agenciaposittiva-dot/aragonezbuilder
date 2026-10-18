@@ -1,4 +1,4 @@
-import { CalendarDays, CalendarRange, LayoutList, Radar } from "lucide-react";
+import { CalendarDays, CalendarRange, Eye, LayoutList, Radar } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ClearFilters, FilterBar, SearchFilter, SelectFilter } from "@/components/app/filters";
@@ -216,6 +216,9 @@ function ContentTable({ rows, base }: { rows: ContentRow[]; base: string }) {
             <TH className="hidden md:table-cell">Campanha</TH>
             <TH>Status</TH>
             <TH className="hidden sm:table-cell">Data</TH>
+            <TH className="w-10">
+              <span className="sr-only">Prévia</span>
+            </TH>
           </TR>
         </THead>
         <TBody>
@@ -240,6 +243,16 @@ function ContentTable({ rows, base }: { rows: ContentRow[]; base: string }) {
                 />
               </TD>
               <TD className="hidden sm:table-cell">{r.plannedDate ? formatDate(r.plannedDate) : "—"}</TD>
+              <TD>
+                <Link
+                  href={`${base}/${r.id}/preview`}
+                  className="inline-flex size-8 items-center justify-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg"
+                  aria-label={`Visualizar publicação: ${r.title}`}
+                  title="Visualizar publicação"
+                >
+                  <Eye className="size-4" />
+                </Link>
+              </TD>
             </TR>
           ))}
         </TBody>
