@@ -39,10 +39,12 @@ export function useAutosave(opts: Options) {
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const writeDraft = useCallback(() => {
-    const d = draftRef.current;
-    if (!d) return;
+    if (!draftRef.current) return;
     if (draftTimer.current) clearTimeout(draftTimer.current);
+    // Lê o snapshot só quando grava: editores baseados em estado do React já renderizaram a alteração.
     draftTimer.current = setTimeout(() => {
+      const d = draftRef.current;
+      if (!d) return;
       void saveLocalDraft(d.key, { data: d.snapshot(), baseRevision: d.baseRevision(), savedAt: Date.now() });
     }, DRAFT_DEBOUNCE_MS);
   }, []);
