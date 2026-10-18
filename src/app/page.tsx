@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { LogoMark } from "@/components/brand/logo";
 import { Avatar } from "@/components/ui/avatar";
 import { essentialConfigPresent } from "@/server/config-ready";
@@ -12,6 +13,8 @@ function homeOf(org: { slug: string; kind: string }) {
 /** Entrada: leva o usuário à última organização usada ou mostra o seletor. */
 export default async function Home() {
   // Instalação sem banco ou segredo: mostra o que falta em vez de um erro.
+  // Sempre dinâmica: a configuração é lida na requisição, não no build.
+  await connection();
   if (!essentialConfigPresent()) redirect("/setup");
   const [{ requireSession }, { listUserOrganizations }] = await Promise.all([
     import("@/server/auth/session"),

@@ -13,7 +13,17 @@ export const auth = betterAuth({
   appName: APP_NAME,
   baseURL: process.env.BETTER_AUTH_URL ?? env.APP_URL,
   secret: env.BETTER_AUTH_SECRET,
-  trustedOrigins: env.trustedOrigins,
+  // Origens configuradas + a do próprio endereço acessado (qualquer domínio
+  // ligado ao projeto, ex.: um domínio .vercel.app escolhido no painel). Aceitar
+  // a mesma origem da requisição equivale à checagem de mesma origem contra CSRF.
+  trustedOrigins: (request) => {
+    if (!request) return env.trustedOrigins;
+    try {
+      return [...env.trustedOrigins, new URL(request.url).origin];
+    } catch {
+      return env.trustedOrigins;
+    }
+  },
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: { user, session, account, verification, rateLimit },
