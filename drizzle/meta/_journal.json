@@ -36,6 +36,13 @@
       "when": 1792317034571,
       "tag": "0004_client_portal",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792318454489,
+      "tag": "0005_ai_models",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,20 @@
-import { foreignKey, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
-import { createdAt, id } from "./_helpers";
+import { sql } from "drizzle-orm";
+import {
+  boolean,
+  foreignKey,
+  index,
+  integer,
+  jsonb,
+  pgEnum,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
+import type { AiModelInfo } from "@/lib/ai-tasks";
+import { createdAt, id, timestamps, tstz } from "./_helpers";
 import { user } from "./auth";
 import { clients } from "./clients";
 import { organizations } from "./core";
@@ -16,15 +31,22 @@ export const aiUsage = pgTable(
       .references(() => organizations.id, { onDelete: "cascade" }),
     userId: text().references(() => user.id, { onDelete: "set null" }),
     clientId: uuid(),
+    projectId: uuid(),
     provider: text().notNull(),
     model: text().notNull(),
     operation: text().notNull(),
+    /** Módulo de origem (assistant, editor, art…) e tarefa (copy, image_generation…). */
+    module: text(),
+    task: text(),
+    /** Como o modelo foi escolhido: explicit, user_task, org, auto… */
+    selectionSource: text(),
     inputTokens: integer().notNull().default(0),
     outputTokens: integer().notNull().default(0),
-    /** Custo informado/estimado em micro-dólares (1e-6 USD). */
-    costMicros: integer().notNull().default(0),
+    /** Custo informado/estimado em micro-dólares (1e-6 USD); null quando o provedor não dá dados suficientes. */
+    costMicros: integer(),
     status: aiUsageStatus().notNull(),
     errorMessage: text(),
+    /** Duração da execução. */
     latencyMs: integer(),
     createdAt: createdAt(),
   },
@@ -64,5 +86,58 @@ export const aiGenerations = pgTable(
       foreignColumns: [clients.organizationId, clients.id],
     }).onDelete("cascade"),
     index().on(t.organizationId, t.createdAt.desc()),
+  ],
+);
+
+export const aiProviderStatus = pgEnum("ai_provider_status", ["unverified", "valid", "invalid", "error"]);
+
+/**
+ * Integração de cada provedor por organização: chave própria (sempre
+ * criptografada; sem ela vale a chave do servidor), habilitação, resultado da
+ * última validação e modelos descobertos pela API do provedor.
+ */
+export const aiProviderConfigs = pgTable(
+  "ai_provider_configs",
+  {
+    organizationId: uuid()
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    provider: text().notNull(),
+    enabled: boolean().notNull().default(true),
+    /** Chave da organização criptografada (src/server/crypto.ts). Nunca vai ao navegador. */
+    keyEncrypted: text(),
+    status: aiProviderStatus().notNull().default("unverified"),
+    lastError: text(),
+    lastCheckedAt: tstz(),
+    models: jsonb().$type<AiModelInfo[]>().notNull().default([]),
+    modelsFetchedAt: tstz(),
+    updatedByUserId: text().references(() => user.id, { onDelete: "set null" }),
+    ...timestamps,
+  },
+  (t) => [primaryKey({ columns: [t.organizationId, t.provider] })],
+);
+
+/**
+ * Modelo padrão por organização ou pessoa, opcionalmente por módulo e tarefa.
+ * provider/model nulos = escolher automaticamente (com a prioridade indicada).
+ */
+export const aiModelPreferences = pgTable(
+  "ai_model_preferences",
+  {
+    id: id(),
+    organizationId: uuid()
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    /** Nulo = preferência da organização. */
+    userId: text().references(() => user.id, { onDelete: "cascade" }),
+    module: text().notNull().default(""),
+    task: text().notNull().default(""),
+    provider: text(),
+    model: text(),
+    priority: text().notNull().default("balanced"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("ai_model_preferences_scope").on(t.organizationId, sql`coalesce(${t.userId}, '')`, t.module, t.task),
   ],
 );

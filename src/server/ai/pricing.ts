@@ -9,11 +9,16 @@ const PRICES: Record<string, { input: number; output: number }> = {
   "claude-fable-5-1": { input: 10, output: 50 },
 };
 
-/** Custo em micro-dólares: tokens × (US$ por 1M) = micro-dólares. */
-export function estimateCostMicros(model: string, inputTokens: number, outputTokens: number): number {
+/** Custo em micro-dólares: tokens × (US$ por 1M) = micro-dólares. Sem preço de tabela: null (nada inventado). */
+export function estimateCostMicros(model: string, inputTokens: number, outputTokens: number): number | null {
   const p = PRICES[model];
-  if (!p) return 0;
+  if (!p) return null;
   return Math.round(inputTokens * p.input + outputTokens * p.output);
+}
+
+/** Preço de tabela (US$ por milhão de tokens), quando conhecido. */
+export function priceOf(model: string): { input: number; output: number } | null {
+  return PRICES[model] ?? null;
 }
 
 export function hasPrice(model: string) {

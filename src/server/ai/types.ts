@@ -1,3 +1,5 @@
+import type { ModelCaps } from "@/lib/ai-tasks";
+
 export type AiProviderId = "anthropic" | "openai" | "gemini" | "demo";
 
 export type GenerateRequest = {
@@ -7,6 +9,8 @@ export type GenerateRequest = {
   maxTokens: number;
   /** Quando definido, pede JSON válido (saída estruturada). */
   jsonSchema?: Record<string, unknown>;
+  /** Capacidades conhecidas do modelo escolhido (para enviar só parâmetros suportados). */
+  modelCaps?: Partial<ModelCaps>;
   signal?: AbortSignal;
   onText?: (chunk: string) => void;
 };
@@ -16,8 +20,8 @@ export type GenerateResult = {
   model: string;
   inputTokens: number;
   outputTokens: number;
-  /** Custo estimado em micro-dólares (1e-6 USD), pela tabela de preços. */
-  costMicros: number;
+  /** Custo estimado em micro-dólares (1e-6 USD) pela tabela de preços; null quando não há dados. */
+  costMicros: number | null;
   stopReason: string | null;
 };
 
@@ -39,3 +43,20 @@ export class AiProviderError extends Error {
     this.name = "AiProviderError";
   }
 }
+
+export type ImageRequest = {
+  model: string;
+  prompt: string;
+  /** Ex.: "1024x1024". */
+  size: string;
+  signal?: AbortSignal;
+};
+
+export type ImageResult = {
+  /** Imagens em PNG (bytes). */
+  images: Buffer[];
+  model: string;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  costMicros: number | null;
+};

@@ -18,7 +18,7 @@ banco Postgres da Neon conectado pelo próprio painel.
    | `BETTER_AUTH_SECRET` | sim | Segredo dos logins: texto aleatório de 32+ caracteres (`openssl rand -hex 32`). |
    | `ANTHROPIC_API_KEY` | não | Claude no assistente de IA. |
    | `GEMINI_API_KEY` | não | Google Gemini no assistente de IA. |
-   | `OPENAI_API_KEY` | não | ChatGPT (OpenAI) no assistente de IA. |
+   | `OPENAI_API_KEY` | não | ChatGPT (OpenAI) no assistente de IA, inclusive geração de imagens (modelos gpt-image). |
    | `ARAGONEZ_ADMIN` / `ARAGONEZ_ADMIN_PASS` | não | Conta administradora criada no deploy (e-mail e senha de 8+ caracteres). |
    | `ACCESS_KEY` (ou `ACESS_KEY`) | não | Exige uma chave para criar novas agências. |
    | `CRON_SECRET` | recomendada | Protege `/api/cron/tick` (a Vercel envia o cabeçalho sozinha). |

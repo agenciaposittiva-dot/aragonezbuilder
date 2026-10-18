@@ -89,7 +89,7 @@ export function createGeminiProvider(apiKey: string): AiProvider {
       model: data.modelVersion ?? model,
       inputTokens: usage.promptTokenCount ?? 0,
       outputTokens: (usage.candidatesTokenCount ?? 0) + (usage.thoughtsTokenCount ?? 0),
-      costMicros: 0,
+      costMicros: null,
       stopReason: candidate?.finishReason ?? null,
     };
   }
