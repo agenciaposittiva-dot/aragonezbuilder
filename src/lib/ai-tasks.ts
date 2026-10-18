@@ -68,6 +68,16 @@ export const AI_TASKS = {
   },
   image_generation: { label: "Gerar imagens", kind: "image", needs: { imageOutput: "required" } },
   chat: { label: "Conversa / copiloto", kind: "text", needs: { text: "required" } },
+  task_planning: {
+    label: "Planejar tarefas (criar, quebrar, converter demandas)",
+    kind: "text",
+    needs: { text: "required", structured: "preferred" },
+  },
+  task_review: {
+    label: "Revisar tarefas (prioridade, prazo, resumo de comentários)",
+    kind: "text",
+    needs: { text: "required", structured: "preferred" },
+  },
 } as const satisfies Record<string, { label: string; kind: ModelKind; needs: CapNeed }>;
 export type AiTask = keyof typeof AI_TASKS;
 
@@ -104,6 +114,12 @@ const OPERATION_TASK: Record<string, AiTask> = {
   summary: "summary",
   task_suggestions: "structured",
   image: "image_generation",
+  // Assistente da Central de Tarefas (src/server/services/task-ai.ts).
+  task_plan: "task_planning",
+  task_demand: "task_planning",
+  task_breakdown: "task_planning",
+  task_triage: "task_review",
+  task_comment_summary: "task_review",
 };
 
 export function operationTask(operation: string): AiTask {

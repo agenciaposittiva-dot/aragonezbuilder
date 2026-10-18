@@ -1,3 +1,4 @@
+import { demoTaskJson } from "../demo-tasks";
 import type { AiProvider, GenerateRequest, GenerateResult } from "../types";
 
 /**
@@ -6,7 +7,9 @@ import type { AiProvider, GenerateRequest, GenerateResult } from "../types";
  */
 export function createDemoProvider(): AiProvider {
   async function generate(req: GenerateRequest): Promise<GenerateResult> {
-    const text = req.jsonSchema ? demoJson(req.prompt) : demoText(req.prompt);
+    const text = req.jsonSchema
+      ? (demoTaskJson(req.prompt, req.jsonSchema) ?? demoJson(req.prompt))
+      : demoText(req.prompt);
     for (const chunk of text.match(/[\s\S]{1,24}/g) ?? []) {
       if (req.signal?.aborted) break;
       req.onText?.(chunk);

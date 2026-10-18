@@ -32,6 +32,7 @@ import { AI_OPERATIONS, getOperation } from "@/lib/ai-operations";
 import type { AiPreference, AiSelection, PickerProvider } from "@/lib/ai-select";
 import { operationTask } from "@/lib/ai-tasks";
 import { formatDateTime, formatNumber } from "@/lib/format";
+import { taskAiOperationLabel } from "@/lib/task-ai";
 import { cn } from "@/lib/utils";
 import { createSuggestedTasksAction, deleteGenerationAction, togglePinGenerationAction } from "@/server/actions/ai";
 
@@ -858,7 +859,9 @@ export function AiStudio({
                           <span className="truncate text-sm font-medium">{g.title}</span>
                         </span>
                         <span className="block truncate text-xs text-fg-muted">
-                          {g.kind === IMAGE_OP ? "Imagem" : (getOperation(g.kind)?.label ?? g.kind)}
+                          {g.kind === IMAGE_OP
+                            ? "Imagem"
+                            : (getOperation(g.kind)?.label ?? taskAiOperationLabel(g.kind) ?? g.kind)}
                           {g.clientName ? ` · ${g.clientName}` : ""} · {g.model} · {g.userName ?? "—"} ·{" "}
                           {formatDateTime(g.createdAt)}
                         </span>

@@ -126,7 +126,7 @@ export async function deleteTemplate(s: Scope, id: string) {
   });
 }
 
-async function addChecklist(s: Scope, taskId: string, titles: string[]) {
+export async function addChecklist(s: Scope, taskId: string, titles: string[]) {
   if (!titles.length) return;
   await s.db
     .insert(taskChecklistItems)

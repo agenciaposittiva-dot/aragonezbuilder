@@ -1,6 +1,7 @@
 import { LayoutTemplate, Plus } from "lucide-react";
 import { ClearFilters, FilterBar, SearchFilter, SelectFilter } from "@/components/app/filters";
 import { PRIORITY_OPTIONS } from "@/components/app/priority";
+import { TaskAiAssistant } from "@/components/tasks/task-ai";
 import { TaskFormDialog } from "@/components/tasks/task-form-dialog";
 import { ApplyTemplateDialog } from "@/components/tasks/task-templates";
 import { MineToggle, TasksViewSwitcher } from "@/components/tasks/tasks-toolbar";
@@ -70,6 +71,14 @@ export default async function ProjectTasksPage({ params, searchParams }: PagePro
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <TasksViewSwitcher basePath={basePath} searchParams={sp} defaultView="board" />
+          <TaskAiAssistant
+            projects={projectOpts}
+            members={data.members.map((m) => ({ membershipId: m.membershipId, name: m.name }))}
+            basePath={`/w/${actor.orgSlug}/tasks`}
+            defaultProjectId={id}
+            canWrite={canWrite}
+            canAssign={can(actor, "tasks.assign")}
+          />
           {canWrite && data.templates.length ? (
             <ApplyTemplateDialog
               templates={data.templates.map((t) => ({ id: t.id, name: t.name, steps: t.steps }))}

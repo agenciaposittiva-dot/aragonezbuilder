@@ -3,6 +3,7 @@ import { Comments } from "@/components/app/comments";
 import { HistoryList } from "@/components/app/history-list";
 import { TaskDoneCheckbox } from "@/components/tasks/task-done-checkbox";
 import { TaskActions } from "@/components/tasks/detail/task-actions";
+import { TaskAiMenu } from "@/components/tasks/task-ai";
 import { TaskChecklist } from "@/components/tasks/detail/task-checklist";
 import { TaskDependencies } from "@/components/tasks/detail/task-dependencies";
 import { TaskDescription } from "@/components/tasks/detail/task-description";
@@ -99,6 +100,7 @@ export async function TaskDetail({ actor, id, variant }: { actor: Actor; id: str
               ) : null}
             </div>
           </div>
+          {can(actor, "ai.use") ? <TaskAiMenu taskId={id} isSubtask={!!task.parentTaskId} canWrite={canWrite} /> : null}
           <TaskActions
             taskId={id}
             title={task.title}

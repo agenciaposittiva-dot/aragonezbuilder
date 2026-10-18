@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ClearFilters, DateFilter, FilterBar, SearchFilter, SelectFilter } from "@/components/app/filters";
 import { PRIORITY_OPTIONS } from "@/components/app/priority";
 import { SavedViewsMenu } from "@/components/tasks/saved-views";
+import { TaskAiAssistant } from "@/components/tasks/task-ai";
 import { TaskFormDialog } from "@/components/tasks/task-form-dialog";
 import { LabelManager } from "@/components/tasks/task-labels";
 import { TaskListTable, type TaskGroupBy } from "@/components/tasks/task-list-table";
@@ -169,6 +170,17 @@ export default async function TasksPage({ params, searchParams }: PageProps<"/w/
         description="Produção da equipe: responsáveis, prazos, prioridades e bloqueios."
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            <TaskAiAssistant
+              projects={projectOpts}
+              members={memberLite}
+              basePath={basePath}
+              defaultProjectId={filters.projectId ?? null}
+              initialRequestId={
+                sp.assistente === "solicitacao" && typeof sp.solicitacao === "string" ? sp.solicitacao : null
+              }
+              canWrite={canWrite}
+              canAssign={canAssign}
+            />
             <Button variant="secondary" asChild>
               <Link href={`/w/${actor.orgSlug}/task-templates`}>
                 <LayoutTemplate /> Modelos

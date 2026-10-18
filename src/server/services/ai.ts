@@ -216,6 +216,8 @@ export type PreparedGeneration = {
   operation: string;
   label: string;
   structured: boolean;
+  /** Esquema próprio da operação (padrão: sugestões de tarefas do Assistente IA). */
+  jsonSchema?: Record<string, unknown>;
   system: string;
   prompt: string;
   maxTokens: number;
@@ -310,7 +312,8 @@ export async function prepareGeneration(s: Scope, raw: z.input<typeof generateIn
 }
 
 export function structuredSchema(prepared: PreparedGeneration) {
-  return prepared.structured ? (TASK_SUGGESTIONS_SCHEMA as unknown as Record<string, unknown>) : undefined;
+  if (!prepared.structured) return undefined;
+  return prepared.jsonSchema ?? (TASK_SUGGESTIONS_SCHEMA as unknown as Record<string, unknown>);
 }
 
 export async function recordUsage(
