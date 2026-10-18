@@ -136,10 +136,11 @@ test.describe("central de tarefas", () => {
       await expect(chip).toBeVisible();
       const saved = actionResponse(page);
       await drag(page, chip, page.locator(`[data-date="${target}"]`));
-      await expect(page.locator(`[data-date="${target}"]`).getByText(title)).toBeVisible();
+      // Pelo link (a cópia do cartão durante o arrastar não é link e some ao soltar).
+      await expect(page.locator(`[data-date="${target}"]`).getByRole("link", { name: title })).toBeVisible();
       await saved;
       await page.reload();
-      await expect(page.locator(`[data-date="${target}"]`).getByText(title)).toBeVisible();
+      await expect(page.locator(`[data-date="${target}"]`).getByRole("link", { name: title })).toBeVisible();
     }
     await expectNoHorizontalScroll(page);
   });
