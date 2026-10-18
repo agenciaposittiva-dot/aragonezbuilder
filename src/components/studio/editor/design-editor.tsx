@@ -58,7 +58,7 @@ import { createActions, type EditorBrand } from "./actions";
 import { CanvasArea } from "./canvas-area";
 import { downloadExport, sendExportToFiles, type ExportOptions } from "./export";
 import { ExportDialog } from "./export-dialog";
-import { ensureFonts } from "./fonts";
+import { ensureFonts, whenFontLoads } from "./fonts";
 import { LeftPanel, PanelBody, type LeftTab } from "./left-panel";
 import { loadImage } from "./media";
 import { PropertiesPanel } from "./properties";
@@ -209,6 +209,7 @@ export function DesignEditor({
       s.setSize(sizeRef.current!.width, sizeRef.current!.height);
       s.sync();
       s.fit(store.doc.meta?.carousel && store.doc.pages.length <= 4 ? "all" : "page");
+      for (const f of fontsOf(store.doc)) whenFontLoads(f, () => sceneRef.current?.refreshFonts([f]));
       setReady(true);
       if (missing) toast.warning(`${missing} imagem(ns) desta arte não estão mais disponíveis na nuvem.`);
       for (const n of initial.notes) toast.info(n);

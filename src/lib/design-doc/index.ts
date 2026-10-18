@@ -9,5 +9,6 @@ export * from "./presets";
 export * from "./read";
 export * from "./query";
 export * from "./ops";
+export * from "./generator";
 export { convertLegacyDocument, isLegacyDocument, normalizeSrc } from "./legacy";
 export { newId, sequentialIds } from "./ids";

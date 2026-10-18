@@ -40,7 +40,20 @@ export function createAnthropicProvider(apiKey: string): AiProvider {
           model: req.model,
           max_tokens: req.maxTokens,
           system: req.system,
-          messages: [{ role: "user", content: req.prompt }],
+          messages: [
+            {
+              role: "user",
+              content: req.images?.length
+                ? [
+                    ...req.images.map((img) => ({
+                      type: "image" as const,
+                      source: { type: "base64" as const, media_type: img.mime, data: img.data.toString("base64") },
+                    })),
+                    { type: "text" as const, text: req.prompt },
+                  ]
+                : req.prompt,
+            },
+          ],
           ...(Object.keys(outputConfig).length ? { output_config: outputConfig } : {}),
           ...(fallbacksSupported ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
         },

@@ -11,6 +11,8 @@ export type GenerateRequest = {
   jsonSchema?: Record<string, unknown>;
   /** Capacidades conhecidas do modelo escolhido (para enviar só parâmetros suportados). */
   modelCaps?: Partial<ModelCaps>;
+  /** Imagens anexadas ao pedido (JPG/PNG), para modelos com leitura de imagens. */
+  images?: { mime: "image/png" | "image/jpeg" | "image/webp"; data: Buffer }[];
   signal?: AbortSignal;
   onText?: (chunk: string) => void;
 };
