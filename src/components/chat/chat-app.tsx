@@ -1,6 +1,6 @@
 "use client";
 
-import { AtSign, BellOff, BellRing, Hash, MessageSquarePlus, Pin, Search, Star, X } from "lucide-react";
+import { AtSign, BellOff, BellRing, Hash, MessageSquarePlus, Pin, Search, Star, Volume2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import { excerpt, MENTION_RE } from "@/lib/chat-format";
 import { cn } from "@/lib/utils";
 import { setAvailabilityAction } from "@/server/actions/chat";
 import { chatGet, type ChatMessageDTO, type ConversationSummary } from "./api";
+import { useChatAlerts } from "./chat-alerts";
 import {
   ChannelBrowserDialog,
   ChatAiDialog,
@@ -120,12 +121,8 @@ export function ChatApp({
   const [peekTask, setPeekTask] = useState<string | null>(null);
   const [panelKey, setPanelKey] = useState(0);
   const [myStatus, setMyStatus] = useState(status);
-  const [notifPermission, setNotifPermission] = useState<string>("unsupported");
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- só disponível no navegador
-    if (typeof Notification !== "undefined") setNotifPermission(Notification.permission);
-  }, []);
+  const alerts = useChatAlerts();
+  const notifPermission = alerts?.nativePermission ?? "unsupported";
 
   const nameMap = useMemo(() => new Map(members.map((m) => [m.userId, m.name])), [members]);
   const nameOf = useCallback((id: string) => nameMap.get(id), [nameMap]);
@@ -258,17 +255,36 @@ export function ChatApp({
               </button>
             ))}
           </div>
-          {notifPermission === "default" ? (
+          {alerts?.prefs.sound &&
+          alerts.deviceSound !== "off" &&
+          alerts.sound !== "ready" &&
+          alerts.sound !== "unsupported" ? (
             <button
               type="button"
               className="flex w-full items-center gap-2 rounded-md bg-surface-2 px-2.5 py-1.5 text-left text-xs text-fg-muted hover:bg-surface-3"
               onClick={async () => {
-                const p = await Notification.requestPermission();
-                setNotifPermission(p);
-                if (p === "granted") toast.success("Avisos do navegador ativados para diretas e menções.");
+                const r = await alerts.enableSound();
+                if (r === "played") toast.success("Sons de notificação ativados neste navegador.");
+                else if (r === "blocked") {
+                  toast.error(
+                    "O navegador bloqueou o som deste site. Libere o som nas permissões do site e tente de novo.",
+                  );
+                }
               }}
             >
-              <BellRing className="size-3.5 shrink-0" /> Receber avisos do navegador para diretas e menções
+              <Volume2 className="size-3.5 shrink-0" /> Ativar sons de notificação
+            </button>
+          ) : null}
+          {notifPermission === "default" && alerts?.prefs.native ? (
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-md bg-surface-2 px-2.5 py-1.5 text-left text-xs text-fg-muted hover:bg-surface-3"
+              onClick={async () => {
+                const p = await alerts.requestNative();
+                if (p === "granted") toast.success("Notificações do sistema ativadas para mensagens novas.");
+              }}
+            >
+              <BellRing className="size-3.5 shrink-0" /> Receber notificações do sistema para mensagens novas
             </button>
           ) : null}
         </div>

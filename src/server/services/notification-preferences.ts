@@ -1,12 +1,18 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import {
+  ACTIVE_CONVERSATION_SOUND,
+  ALERT_DURATIONS,
+  normalizeChatAlerts,
+  type ChatAlertPrefs,
+} from "@/lib/chat-alerts";
+import {
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_CATEGORY_KEYS,
   type NotificationCategory,
   type NotificationPrefs,
 } from "@/lib/notification-prefs";
-import type { Scope } from "@/server/authz";
+import { assertInternal, type Scope } from "@/server/authz";
 import type { Tx } from "@/server/db";
 import { notificationPreferences } from "@/server/db/schema";
 
@@ -58,4 +64,46 @@ export async function preferencesFor(tx: Tx, orgId: string, userIds: string[]) {
     .where(and(eq(notificationPreferences.organizationId, orgId), inArray(notificationPreferences.userId, userIds)));
   for (const r of rows) out.set(r.userId, { inApp: r.inApp ?? {}, email: r.email ?? {} });
   return out;
+}
+
+/* ------------------------------------------------------------------ */
+/* Avisos de mensagens do chat (janela flutuante, som, sistema)        */
+/* ------------------------------------------------------------------ */
+
+export const chatAlertsInput = z.object({
+  floating: z.boolean(),
+  duration: z
+    .number()
+    .refine(
+      (d): d is ChatAlertPrefs["duration"] => (ALERT_DURATIONS as readonly number[]).includes(d),
+      "Intervalo inválido.",
+    ),
+  sound: z.boolean(),
+  volume: z.number().int().min(5).max(100),
+  activeSound: z.enum(ACTIVE_CONVERSATION_SOUND),
+  native: z.boolean(),
+  nativePreview: z.boolean(),
+});
+
+/** Preferências de avisos do chat da pessoa nesta organização (sem registro = padrão). */
+export async function getChatAlertPrefs(s: Scope): Promise<ChatAlertPrefs> {
+  if (s.actor.kind !== "internal") return normalizeChatAlerts(null);
+  const [row] = await s.db
+    .select({ alerts: notificationPreferences.alerts })
+    .from(notificationPreferences)
+    .where(eq(notificationPreferences.userId, s.actor.userId));
+  return normalizeChatAlerts(row?.alerts);
+}
+
+export async function updateChatAlertPrefs(s: Scope, raw: z.input<typeof chatAlertsInput>) {
+  assertInternal(s.actor);
+  const data = normalizeChatAlerts(chatAlertsInput.parse(raw));
+  await s.db
+    .insert(notificationPreferences)
+    .values({ organizationId: s.actor.orgId, userId: s.actor.userId, alerts: data })
+    .onConflictDoUpdate({
+      target: [notificationPreferences.organizationId, notificationPreferences.userId],
+      set: { alerts: data },
+    });
+  return data;
 }

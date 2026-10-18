@@ -9,6 +9,7 @@ import { WorkspaceProvider } from "@/components/shell/workspace-context";
 import { can, inOrg } from "@/server/authz";
 import { listUserOrganizations } from "@/server/authz/actor";
 import { requireActor } from "@/server/auth/session";
+import { getChatAlertPrefs } from "@/server/services/notification-preferences";
 import { getShellCounts } from "@/server/services/shell";
 
 export async function generateMetadata({ params }: LayoutProps<"/w/[org]">): Promise<Metadata> {
@@ -16,14 +17,22 @@ export async function generateMetadata({ params }: LayoutProps<"/w/[org]">): Pro
   return { title: { default: "Início", template: `%s · ${org}` } };
 }
 
+/** Avisos de mensagens só para o que chegar depois de abrir a página (relógio do servidor). */
+function openedAt() {
+  return Date.now();
+}
+
 export default async function WorkspaceLayout({ children, params }: LayoutProps<"/w/[org]">) {
   const { org } = await params;
   const actor = await requireActor(org, { kind: "internal" });
-  const [orgs, counts, cookieStore] = await Promise.all([
+  const chat = can(actor, "chat.use");
+  const [orgs, counts, alerts, cookieStore] = await Promise.all([
     listUserOrganizations(actor.userId),
     inOrg(actor, getShellCounts),
+    chat ? inOrg(actor, getChatAlertPrefs) : null,
     cookies(),
   ]);
+  const since = openedAt();
   const base = `/w/${actor.orgSlug}`;
   const collapsed = cookieStore.get("sidebar_collapsed")?.value === "1";
 
@@ -44,7 +53,7 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps<
       }}
     >
       <RememberOrg slug={actor.orgSlug} />
-      <ChatUnreadProvider org={actor.orgSlug} enabled={can(actor, "chat.use")} initial={counts.badges.chat}>
+      <ChatUnreadProvider org={actor.orgSlug} enabled={chat} initial={counts.badges.chat} alerts={alerts} since={since}>
         <div className="flex min-h-dvh">
           <Sidebar
             nav="workspace"
