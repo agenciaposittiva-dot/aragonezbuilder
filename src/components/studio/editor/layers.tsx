@@ -79,7 +79,7 @@ export function PagesAndLayers({
   canWrite: boolean;
 }) {
   return (
-    <div className="grid gap-5">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
       <PagesList store={store} actions={actions} canWrite={canWrite} />
       <LayersTree store={store} actions={actions} canWrite={canWrite} />
     </div>
@@ -125,7 +125,7 @@ export function PagesList({
       </div>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={doc.pages.map((p) => p.id)} strategy={verticalListSortingStrategy}>
-          <ol className="grid gap-1" data-testid="pages-list">
+          <ol className="grid grid-cols-[minmax(0,1fr)] gap-1" data-testid="pages-list">
             {doc.pages.map((p, i) => (
               <SortableRow key={p.id} id={p.id} disabled={!canWrite}>
                 {(handle) => (
@@ -262,7 +262,7 @@ function SortableRow({
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={cn(isDragging && "z-10 opacity-80")}
+      className={cn("min-w-0", isDragging && "z-10 opacity-80")}
     >
       {children(handle)}
     </li>
@@ -339,7 +339,7 @@ function LayerList({
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
       <SortableContext items={reversed.map((o) => o.id)} strategy={verticalListSortingStrategy}>
-        <ul className="grid gap-0.5" data-testid={parentId ? undefined : "layers-list"}>
+        <ul className="grid grid-cols-[minmax(0,1fr)] gap-0.5" data-testid={parentId ? undefined : "layers-list"}>
           {reversed.map((o) => (
             <SortableRow key={o.id} id={o.id} disabled={!canWrite}>
               {(handle) => (

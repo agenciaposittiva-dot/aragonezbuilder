@@ -139,6 +139,7 @@ export default async function StudioPage({ params, searchParams }: PageProps<"/w
                   <p className="truncate text-sm font-medium">{d.name}</p>
                   <p className="truncate text-xs text-fg-muted">
                     {d.clientName ?? "Sem cliente"} · {d.width}×{d.height}
+                    {d.pageCount > 1 ? ` · ${d.pageCount} páginas` : ""}
                   </p>
                   <p className="truncate text-[11px] text-fg-subtle">Editado {relativeFromNow(d.updatedAt)}</p>
                 </div>

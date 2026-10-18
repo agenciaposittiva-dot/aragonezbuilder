@@ -131,6 +131,8 @@ export async function listDesigns(
       clientName: clients.name,
       projectName: projects.name,
       updatedByName: user.name,
+      // Artes do formato novo podem ter várias páginas (carrossel).
+      pageCount: sql<number>`case when jsonb_typeof(${designs.document}->'pages') = 'array' then jsonb_array_length(${designs.document}->'pages') else 1 end`,
     })
     .from(designs)
     .leftJoin(clients, eq(clients.id, designs.clientId))
