@@ -305,6 +305,7 @@ export async function listFiles(s: Scope, raw: z.input<typeof fileListParams>) {
           clientName: clients.name,
           projectId: files.projectId,
           projectName: projects.name,
+          projectVisible: projects.portalVisible,
           updatedAt: files.updatedAt,
           versionId: fileVersions.id,
           versionNumber: fileVersions.versionNumber,
@@ -326,7 +327,18 @@ export async function listFiles(s: Scope, raw: z.input<typeof fileListParams>) {
     () => s.db.select({ n: count() }).from(files).where(where),
   );
   return {
-    rows: rows.map(({ thumbnailKey, ...r }) => ({ ...r, hasThumbnail: !!thumbnailKey })),
+    rows: rows.map(({ thumbnailKey, projectVisible, ...r }) =>
+      // Para convidados: sem etiquetas internas e sem nome de projeto oculto no portal.
+      s.actor.kind === "client"
+        ? {
+            ...r,
+            tags: [],
+            projectId: projectVisible ? r.projectId : null,
+            projectName: projectVisible ? r.projectName : null,
+            hasThumbnail: !!thumbnailKey,
+          }
+        : { ...r, hasThumbnail: !!thumbnailKey },
+    ),
     total: total?.n ?? 0,
     page: p.page,
     pageSize: p.pageSize,

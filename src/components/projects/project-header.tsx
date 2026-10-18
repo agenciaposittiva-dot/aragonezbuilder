@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, ArchiveRestore, MoreHorizontal } from "lucide-react";
+import { Archive, ArchiveRestore, Eye, EyeOff, MoreHorizontal } from "lucide-react";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,7 +10,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useOrgAction } from "@/hooks/use-action";
-import { archiveProjectAction, changeProjectStatusAction } from "@/server/actions/projects";
+import {
+  archiveProjectAction,
+  changeProjectStatusAction,
+  setProjectPortalVisibleAction,
+} from "@/server/actions/projects";
 import { StatusSelect, type StatusOption } from "./status-select";
 
 export function ProjectStatusControl({
@@ -38,9 +42,26 @@ export function ProjectStatusControl({
   );
 }
 
-export function ProjectMoreMenu({ projectId, name, archived }: { projectId: string; name: string; archived: boolean }) {
+export function ProjectMoreMenu({
+  projectId,
+  name,
+  archived,
+  portalVisible,
+  canArchive,
+  canWrite,
+}: {
+  projectId: string;
+  name: string;
+  archived: boolean;
+  portalVisible: boolean;
+  canArchive: boolean;
+  canWrite: boolean;
+}) {
   const archive = useOrgAction(archiveProjectAction, {
     success: archived ? "Projeto restaurado" : "Projeto arquivado",
+  });
+  const portal = useOrgAction(setProjectPortalVisibleAction, {
+    success: portalVisible ? "Projeto oculto no portal do cliente" : "Projeto visível no portal do cliente",
   });
   return (
     <DropdownMenu>
@@ -50,7 +71,13 @@ export function ProjectMoreMenu({ projectId, name, archived }: { projectId: stri
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {archived ? (
+        {canWrite ? (
+          <DropdownMenuItem onSelect={() => portal.run({ id: projectId, visible: !portalVisible })}>
+            {portalVisible ? <EyeOff /> : <Eye />}
+            {portalVisible ? "Ocultar no portal do cliente" : "Mostrar no portal do cliente"}
+          </DropdownMenuItem>
+        ) : null}
+        {!canArchive ? null : archived ? (
           <DropdownMenuItem onSelect={() => archive.run({ id: projectId, archived: false })}>
             <ArchiveRestore /> Restaurar projeto
           </DropdownMenuItem>

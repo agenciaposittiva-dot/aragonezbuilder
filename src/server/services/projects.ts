@@ -341,6 +341,21 @@ export async function setProjectArchived(s: Scope, projectId: string, archived: 
   });
 }
 
+/** Mostra ou oculta o projeto no portal do cliente (a equipe continua vendo tudo). */
+export async function setProjectPortalVisible(s: Scope, projectId: string, visible: boolean) {
+  assertInternal(s.actor);
+  assertCan(s.actor, "projects.write");
+  await assertProjectAccess(s, projectId);
+  await s.db.update(projects).set({ portalVisible: visible }).where(eq(projects.id, projectId));
+  await recordActivity(s, {
+    action: visible ? "portal_shown" : "portal_hidden",
+    entityType: "project",
+    entityId: projectId,
+    summary: visible ? "Projeto visível no portal do cliente" : "Projeto oculto no portal do cliente",
+    event: false,
+  });
+}
+
 export const projectMembersInput = z.object({
   projectId: z.uuid(),
   membershipIds: z.array(z.uuid()).max(50),

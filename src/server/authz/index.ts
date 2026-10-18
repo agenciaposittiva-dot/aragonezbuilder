@@ -54,7 +54,10 @@ const FALSE = sql`false`;
  */
 export function projectScope(actor: Actor): SQL | undefined {
   if (actor.kind === "client") {
-    return actor.clientIds.length ? inArray(projects.clientId, [...actor.clientIds]) : FALSE;
+    // Convidados só veem projetos marcados como visíveis no portal.
+    return actor.clientIds.length
+      ? and(inArray(projects.clientId, [...actor.clientIds]), eq(projects.portalVisible, true))
+      : FALSE;
   }
   if (actor.dataAll) return undefined;
   return or(

@@ -19,6 +19,11 @@ export const archiveProjectAction = orgAction(
   (s, { id, archived }) => projects.setProjectArchived(s, id, archived),
 );
 
+export const setProjectPortalVisibleAction = orgAction(
+  z.object({ id: z.uuid(), visible: z.boolean() }),
+  (s, { id, visible }) => projects.setProjectPortalVisible(s, id, visible),
+);
+
 export const setProjectMembersAction = orgAction(projects.projectMembersInput, projects.setProjectMembers);
 
 export const saveStageAction = orgAction(stageInput, projects.saveStage);

@@ -50,6 +50,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps<"/
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-xl font-semibold tracking-tight">{project.name}</h1>
               {project.archivedAt ? <Badge tone="warning">Arquivado</Badge> : null}
+              {!project.portalVisible ? <Badge tone="outline">Oculto no portal do cliente</Badge> : null}
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
               <ProjectStatusControl
@@ -84,8 +85,15 @@ export default async function ProjectLayout({ children, params }: LayoutProps<"/
               </div>
               {tasks.overdue ? <p className="mt-1 text-xs text-danger">{tasks.overdue} atrasada(s)</p> : null}
             </div>
-            {can(actor, "projects.archive") ? (
-              <ProjectMoreMenu projectId={id} name={project.name} archived={!!project.archivedAt} />
+            {can(actor, "projects.archive") || can(actor, "projects.write") ? (
+              <ProjectMoreMenu
+                projectId={id}
+                name={project.name}
+                archived={!!project.archivedAt}
+                portalVisible={project.portalVisible}
+                canArchive={can(actor, "projects.archive")}
+                canWrite={can(actor, "projects.write")}
+              />
             ) : null}
           </div>
         </div>

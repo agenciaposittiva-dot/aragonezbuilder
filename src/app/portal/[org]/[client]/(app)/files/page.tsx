@@ -7,30 +7,46 @@ import { FileCollection } from "@/components/files/file-collection";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { SegmentedNav } from "@/components/ui/segmented-nav";
 import { cn } from "@/lib/utils";
 import { FILE_CATEGORIES, FILE_CATEGORY_LABEL } from "@/lib/validators/files";
 import { inOrg } from "@/server/authz";
 import { requirePortal } from "@/server/auth/portal";
-import { clientOptions } from "@/server/services/clients";
 import { listFiles } from "@/server/services/files";
+import { listProjects } from "@/server/services/projects";
 import { parseFileFilters } from "@/server/services/files-page";
 
 export const metadata: Metadata = { title: "Materiais" };
 
-const FILTER_KEYS = ["q", "category", "final", "clientId"];
+const FILTER_KEYS = ["q", "category", "projectId", "status"];
+
+/** Abas da central de arquivos do cliente (filtros aplicados no servidor). */
+const GROUPS = {
+  review: { label: "Em revisão", filter: { status: "in_review" as const } },
+  approved: { label: "Aprovados", filter: { status: "approved" as const } },
+  final: { label: "Finais", filter: { status: "final" as const } },
+  references: { label: "Enviados por vocês", filter: { category: "reference" as const } },
+};
 
 export default async function PortalFilesPage({ params, searchParams }: PageProps<"/portal/[org]/[client]/files">) {
   const { org, client: clientSlug } = await params;
   const sp = await searchParams;
   const portal = await requirePortal(org, clientSlug, { permission: "files.read" });
   const { actor } = portal;
-  // Pastas, status internos e favoritos são da organização da agência; o cliente
-  // filtra só por nome, categoria, marca e materiais aprovados.
+  // Só arquivos compartilhados com este cliente (o ator já vem restrito a ele).
+  // Pastas, etiquetas e favoritos são da organização da agência e não aparecem aqui.
   const f = parseFileFilters(sp);
-  const filters = { q: f.q, category: f.category, final: f.final, clientId: f.clientId, page: f.page };
+  const groupKey = typeof sp.status === "string" && sp.status in GROUPS ? (sp.status as keyof typeof GROUPS) : null;
+  const filters = {
+    q: f.q,
+    category: f.category,
+    projectId: f.projectId,
+    page: f.page,
+    ...(groupKey ? GROUPS[groupKey].filter : {}),
+  };
   const data = await inOrg(actor, async (s) => ({
     list: await listFiles(s, filters),
-    clients: actor.clientIds.length > 1 ? await clientOptions(s) : [],
+    projects: actor.permissions.has("projects.read") ? (await listProjects(s, { view: "board" })).rows : [],
   }));
   const base = `${portal.base}/files`;
   const view = sp.view === "list" ? "list" : "grid";
@@ -46,25 +62,31 @@ export default async function PortalFilesPage({ params, searchParams }: PageProp
   return (
     <>
       <PageHeader title="Materiais" description="Peças, documentos e arquivos que a agência compartilhou com você.">
+        <SegmentedNav
+          param="status"
+          items={[
+            { label: "Todos", href: base, value: "" },
+            ...Object.entries(GROUPS).map(([value, g]) => ({ label: g.label, href: `${base}?status=${value}`, value })),
+          ]}
+        />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <FilterBar>
             <SearchFilter placeholder="Buscar por nome" />
-            {data.clients.length > 1 ? (
+            {data.projects.length ? (
               <SelectFilter
-                param="clientId"
-                label="Marca"
-                options={data.clients.map((c) => ({ value: c.id, label: c.name }))}
+                param="projectId"
+                label="Projeto"
+                options={data.projects.map((p) => ({ value: p.id, label: p.name }))}
               />
             ) : null}
             <SelectFilter
               param="category"
               label="Categoria"
-              options={FILE_CATEGORIES.filter((c) => c !== "template").map((c) => ({
+              options={FILE_CATEGORIES.filter((c) => c !== "template" && c !== "reference").map((c) => ({
                 value: c,
                 label: FILE_CATEGORY_LABEL[c],
               }))}
             />
-            <SelectFilter param="final" label="Todos" options={[{ value: "1", label: "Aprovados e finais" }]} />
             <ClearFilters keys={FILTER_KEYS} />
           </FilterBar>
           <div
