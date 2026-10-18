@@ -3,8 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { LogoMark } from "@/components/brand/logo";
 import { Avatar } from "@/components/ui/avatar";
-import { listUserOrganizations } from "@/server/authz/actor";
-import { requireSession } from "@/server/auth/session";
+import { essentialConfigPresent } from "@/server/config-ready";
 
 function homeOf(org: { slug: string; kind: string }) {
   return org.kind === "client" ? `/portal/${org.slug}` : `/w/${org.slug}`;
@@ -12,6 +11,12 @@ function homeOf(org: { slug: string; kind: string }) {
 
 /** Entrada: leva o usuário à última organização usada ou mostra o seletor. */
 export default async function Home() {
+  // Instalação sem banco ou segredo: mostra o que falta em vez de um erro.
+  if (!essentialConfigPresent()) redirect("/setup");
+  const [{ requireSession }, { listUserOrganizations }] = await Promise.all([
+    import("@/server/auth/session"),
+    import("@/server/authz/actor"),
+  ]);
   const session = await requireSession();
   const orgs = await listUserOrganizations(session.user.id);
   if (orgs.length === 0) redirect("/onboarding");

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { inOrg, type Scope } from "@/server/authz";
 import { getActor, getSession } from "@/server/auth/session";
 import { AppError } from "@/server/errors";
+import { processEventsInBackground } from "@/server/events/inline";
 
 export type ActionResult<T = undefined> =
   { ok: true; data: T } | { ok: false; error: string; code?: string; fieldErrors?: Record<string, string[]> };
@@ -71,6 +72,7 @@ export function orgAction<S extends z.ZodType, R>(
       if (!actor) return { ok: false, error: "Acesso negado.", code: "forbidden" };
       schema.parse(input);
       const result = await inOrg(actor, (s) => handler(s, input));
+      processEventsInBackground();
       if (options.refresh !== false) refresh();
       return { ok: true, data: result };
     } catch (err) {

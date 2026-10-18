@@ -411,17 +411,15 @@ export async function runAutomations(
   for (const rule of rules) {
     const startedAt = new Date();
     if (!matchesConditions(rule.conditions ?? [], payload)) {
-      await tx
-        .insert(automationRuns)
-        .values({
-          organizationId: ev.organizationId,
-          ruleId: rule.id,
-          eventId: ev.id,
-          status: "skipped",
-          startedAt,
-          finishedAt: new Date(),
-          result: { reason: "Condições não atendidas" },
-        });
+      await tx.insert(automationRuns).values({
+        organizationId: ev.organizationId,
+        ruleId: rule.id,
+        eventId: ev.id,
+        status: "skipped",
+        startedAt,
+        finishedAt: new Date(),
+        result: { reason: "Condições não atendidas" },
+      });
       summary.skipped++;
       continue;
     }
@@ -432,32 +430,28 @@ export async function runAutomations(
           results.push(await runAction({ tx: sp, ev, payload, rule, slug }, action));
         }
       });
-      await tx
-        .insert(automationRuns)
-        .values({
-          organizationId: ev.organizationId,
-          ruleId: rule.id,
-          eventId: ev.id,
-          status: "success",
-          startedAt,
-          finishedAt: new Date(),
-          result: { actions: results },
-        });
+      await tx.insert(automationRuns).values({
+        organizationId: ev.organizationId,
+        ruleId: rule.id,
+        eventId: ev.id,
+        status: "success",
+        startedAt,
+        finishedAt: new Date(),
+        result: { actions: results },
+      });
       summary.ran++;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      await tx
-        .insert(automationRuns)
-        .values({
-          organizationId: ev.organizationId,
-          ruleId: rule.id,
-          eventId: ev.id,
-          status: "failed",
-          startedAt,
-          finishedAt: new Date(),
-          error: message.slice(0, 1000),
-          result: { actions: results },
-        });
+      await tx.insert(automationRuns).values({
+        organizationId: ev.organizationId,
+        ruleId: rule.id,
+        eventId: ev.id,
+        status: "failed",
+        startedAt,
+        finishedAt: new Date(),
+        error: message.slice(0, 1000),
+        result: { actions: results },
+      });
       summary.failed++;
     }
     await tx.update(automationRules).set({ lastRunAt: new Date() }).where(eq(automationRules.id, rule.id));

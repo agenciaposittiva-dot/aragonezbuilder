@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { slugify } from "@/lib/slug";
 import { createOrganizationAction } from "./actions";
 
-export function OnboardingForm() {
+export function OnboardingForm({ needsAccessKey }: { needsAccessKey: boolean }) {
   const [name, setName] = useState("");
+  const [accessKey, setAccessKey] = useState("");
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
   const [errors, setErrors] = useState<Record<string, string[]>>({});
@@ -24,7 +25,11 @@ export function OnboardingForm() {
         e.preventDefault();
         setError(null);
         start(async () => {
-          const res = await createOrganizationAction({ name, slug: slugTouched ? effectiveSlug : undefined });
+          const res = await createOrganizationAction({
+            name,
+            slug: slugTouched ? effectiveSlug : undefined,
+            accessKey: needsAccessKey ? accessKey : undefined,
+          });
           if (res && !res.ok) {
             setError(res.error);
             setErrors(res.fieldErrors ?? {});
@@ -49,6 +54,23 @@ export function OnboardingForm() {
           />
         </div>
       </Field>
+      {needsAccessKey ? (
+        <Field
+          label="Chave de acesso"
+          htmlFor="accessKey"
+          hint="Fornecida pelo administrador da plataforma. Quem recebeu convite não precisa criar agência."
+          error={errors.accessKey}
+        >
+          <Input
+            id="accessKey"
+            type="password"
+            autoComplete="off"
+            value={accessKey}
+            onChange={(e) => setAccessKey(e.target.value)}
+            required
+          />
+        </Field>
+      ) : null}
       {error ? (
         <p role="alert" className="text-sm text-danger">
           {error}

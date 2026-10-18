@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { getSession } from "@/server/auth/session";
+import { essentialConfigPresent } from "@/server/config-ready";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = { title: "Entrar" };
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
+  if (!essentialConfigPresent()) redirect("/setup");
+  const { getSession } = await import("@/server/auth/session");
   const session = await getSession();
   const params = await searchParams;
   const next =

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { FileAttachments } from "@/components/files/file-attachments";
 import { Comments } from "@/components/app/comments";
 import { HistoryList } from "@/components/app/history-list";
 import { TaskDoneCheckbox } from "@/components/tasks/task-done-checkbox";
@@ -153,15 +154,7 @@ export default async function TaskDetailPage({ params }: PageProps<"/w/[org]/tas
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Anexos</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {/* Anexos: integrado pelo líder (FileAttachments) */}
-              <p className="text-sm text-fg-muted">Os arquivos vinculados a esta tarefa aparecem aqui.</p>
-            </CardContent>
-          </Card>
+          <FileAttachments target={{ taskId: id }} canUpload={can(actor, "files.write")} />
 
           <Card>
             <CardHeader>

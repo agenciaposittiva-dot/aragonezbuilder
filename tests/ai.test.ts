@@ -134,3 +134,31 @@ describe("assistente de IA", () => {
     ).rejects.toThrow(/permissão/i);
   });
 });
+
+describe("modelo padrão do Gemini", () => {
+  it("escolhe o flash estável de versão mais alta, ignorando variantes especiais", async () => {
+    const { pickDefaultModel } = await import("@/server/ai/providers/gemini");
+    expect(
+      pickDefaultModel([
+        "gemini-3.1-pro",
+        "gemini-3-flash-preview",
+        "gemini-3.5-flash",
+        "gemini-3.1-flash",
+        "gemini-3.5-flash-image",
+      ]),
+    ).toBe("gemini-3.5-flash");
+    expect(pickDefaultModel(["gemini-3-flash-preview", "gemini-3.6-flash-tts"])).toBe("gemini-3-flash-preview");
+    expect(pickDefaultModel(["text-embedding-004"])).toBeNull();
+  });
+});
+
+describe("modelo padrão da OpenAI", () => {
+  it("escolhe o GPT principal de versão mais alta; sem ele, o mini", async () => {
+    const { pickDefaultOpenAiModel } = await import("@/server/ai/providers/openai");
+    expect(pickDefaultOpenAiModel(["gpt-5", "gpt-5.1", "gpt-5.1-mini", "gpt-4o", "gpt-realtime", "dall-e-3"])).toBe(
+      "gpt-5.1",
+    );
+    expect(pickDefaultOpenAiModel(["gpt-5-mini", "whisper-1"])).toBe("gpt-5-mini");
+    expect(pickDefaultOpenAiModel(["text-embedding-3-small"])).toBeNull();
+  });
+});

@@ -4,14 +4,16 @@ import { nextCookies } from "better-auth/next-js";
 import { db } from "@/server/db";
 import { account, rateLimit, session, user, verification } from "@/server/db/schema";
 import { env } from "@/server/env";
+import { processEventsInBackground } from "@/server/events/inline";
 import { enqueueEmail, renderEmail } from "@/server/mail";
+import { redisConfigured, redisRateLimitStorage } from "@/server/redis";
 import { APP_NAME } from "@/lib/constants";
 
 export const auth = betterAuth({
   appName: APP_NAME,
   baseURL: process.env.BETTER_AUTH_URL ?? env.APP_URL,
   secret: env.BETTER_AUTH_SECRET,
-  trustedOrigins: [env.APP_URL],
+  trustedOrigins: env.trustedOrigins,
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: { user, session, account, verification, rateLimit },
@@ -34,6 +36,7 @@ export const auth = betterAuth({
         action: { label: "Criar nova senha", url },
       });
       await enqueueEmail({ to: u.email, subject: `Redefinição de senha · ${APP_NAME}`, html, text });
+      processEventsInBackground();
     },
   },
   emailVerification: {
@@ -46,6 +49,7 @@ export const auth = betterAuth({
         action: { label: "Confirmar e-mail", url },
       });
       await enqueueEmail({ to: u.email, subject: `Confirme o seu e-mail · ${APP_NAME}`, html, text });
+      processEventsInBackground();
     },
   },
   session: {
@@ -57,6 +61,8 @@ export const auth = betterAuth({
   rateLimit: {
     enabled: env.NODE_ENV === "production",
     storage: "database",
+    // Com Upstash configurado, os contadores ficam no Redis em vez do banco.
+    ...(redisConfigured() ? { customStorage: redisRateLimitStorage() } : {}),
     window: 60,
     max: 100,
     customRules: {

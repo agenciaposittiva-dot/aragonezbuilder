@@ -10,7 +10,7 @@ import { createOrganization } from "@/server/services/organizations";
 
 /** Limpa todas as tabelas do banco de testes (como dono, ignorando RLS). */
 export async function resetDb() {
-  const client = new Client({ connectionString: process.env.DATABASE_OWNER_URL });
+  const client = new Client({ connectionString: process.env.DATABASE_OWNER_URL || process.env.DATABASE_URL });
   await client.connect();
   try {
     const { rows } = await client.query<{ tablename: string }>(

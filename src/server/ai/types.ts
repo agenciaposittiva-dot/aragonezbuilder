@@ -1,4 +1,4 @@
-export type AiProviderId = "anthropic" | "openai" | "demo";
+export type AiProviderId = "anthropic" | "openai" | "gemini" | "demo";
 
 export type GenerateRequest = {
   model: string;

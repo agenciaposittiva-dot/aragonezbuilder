@@ -16,3 +16,9 @@ npm run db:migrate            # aplica migrações + RLS
 npm run dev                   # aplicação em http://localhost:3000
 npm run dev:worker            # em outro terminal: e-mails, notificações, automações
 ```
+
+## Publicação
+
+Passo a passo para a Vercel (banco Neon, variáveis, migrações automáticas no
+build e diagnóstico em `/setup`) e para servidor próprio em
+[docs/DEPLOY.md](docs/DEPLOY.md). Dados de demonstração: `npm run db:seed`.

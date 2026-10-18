@@ -6,6 +6,7 @@ import { orgSettingsSchema, parseOrgSettings, type OrgSettings } from "@/lib/org
 import { RESERVED_SLUGS, slugify } from "@/lib/slug";
 import { generalSettingsInput } from "@/lib/validators/settings";
 import { withOrg, withSystem, type Tx } from "@/server/db";
+import { env } from "@/server/env";
 import {
   auditLogs,
   briefingTemplates,
@@ -71,7 +72,9 @@ export async function createOrganization(userId: string, input: z.infer<typeof c
   const orgId = randomUUID();
 
   return withOrg(orgId, async (tx) => {
-    await tx.insert(organizations).values({ id: orgId, name: data.name, slug, settings: {} });
+    // Novas organizações começam com o provedor de IA que tem chave no servidor.
+    const settings = orgSettingsSchema.parse({ ai: { provider: env.AI_DEFAULT_PROVIDER } });
+    await tx.insert(organizations).values({ id: orgId, name: data.name, slug, settings });
     const roleRows = await tx
       .insert(roles)
       .values(

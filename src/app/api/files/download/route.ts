@@ -1,12 +1,11 @@
 import { mustDownload } from "@/server/services/file-type";
 import { getStorage } from "@/server/storage";
-import { LocalStorage } from "@/server/storage/local";
 import { verifyDownload } from "@/server/storage/signing";
 
 export const runtime = "nodejs";
 
 /**
- * Entrega de arquivos do armazenamento local por link assinado (HMAC) e com
+ * Entrega de arquivos do armazenamento local ou no banco por link assinado (HMAC) e com
  * validade curta. Sem assinatura válida, nada é servido.
  */
 export async function GET(req: Request) {
@@ -26,7 +25,8 @@ export async function GET(req: Request) {
     });
   }
   const storage = getStorage();
-  if (!(storage instanceof LocalStorage)) return new Response("Não encontrado.", { status: 404 });
+  // Com S3 os links apontam direto para o bucket (URL pré-assinada).
+  if (storage.name === "s3") return new Response("Não encontrado.", { status: 404 });
   try {
     const { body, size } = await storage.stream(claims.key);
     const disposition = mustDownload(claims.type) ? "attachment" : claims.disposition;

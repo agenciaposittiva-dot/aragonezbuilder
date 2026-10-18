@@ -4,6 +4,7 @@ import { getOperation } from "@/lib/ai-operations";
 import { orgSettingsSchema } from "@/lib/org-settings";
 import { createAnthropicProvider, ANTHROPIC_MODELS } from "@/server/ai/providers/anthropic";
 import { createDemoProvider } from "@/server/ai/providers/demo";
+import { createGeminiProvider } from "@/server/ai/providers/gemini";
 import { createOpenAiProvider } from "@/server/ai/providers/openai";
 import { buildPrompt, TASK_SUGGESTIONS_SCHEMA } from "@/server/ai/prompts";
 import type { AiProvider } from "@/server/ai/types";
@@ -40,11 +41,18 @@ export async function resolveProvider(s: Scope): Promise<ResolvedProvider> {
     return { provider: createDemoProvider(), model: "demo", demo: true, keySource: null };
 
   const orgKey = settings.keys[settings.provider] ? decryptSecret(settings.keys[settings.provider]!) : null;
-  const envKey = settings.provider === "anthropic" ? env.ANTHROPIC_API_KEY : env.OPENAI_API_KEY;
+  const envKey = { anthropic: env.ANTHROPIC_API_KEY, openai: env.OPENAI_API_KEY, gemini: env.GEMINI_API_KEY }[
+    settings.provider
+  ];
   const key = orgKey ?? envKey ?? null;
   if (!key) return { provider: createDemoProvider(), model: "demo", demo: true, keySource: null };
 
-  const provider = settings.provider === "anthropic" ? createAnthropicProvider(key) : createOpenAiProvider(key);
+  const provider =
+    settings.provider === "anthropic"
+      ? createAnthropicProvider(key)
+      : settings.provider === "gemini"
+        ? createGeminiProvider(key)
+        : createOpenAiProvider(key);
   const model = settings.model || provider.defaultModel;
   return { provider, model, demo: false, keySource: orgKey ? "org" : "env" };
 }
@@ -364,7 +372,7 @@ export async function deleteGeneration(s: Scope, id: string) {
 
 export const aiSettingsInput = z.object({
   enabled: z.boolean(),
-  provider: z.enum(["anthropic", "openai", "demo"]),
+  provider: z.enum(["anthropic", "openai", "gemini", "demo"]),
   model: z.string().trim().max(80).default(""),
   allowClientContext: z.boolean(),
   monthlyTokenLimit: z.coerce.number().int().min(0).max(1_000_000_000),
@@ -385,7 +393,7 @@ export async function getAiSettingsView(s: Scope) {
     monthlyTokenLimit: settings.monthlyTokenLimit,
     userDailyRequestLimit: settings.userDailyRequestLimit,
     orgKeyMask: orgKey ? maskSecret(decryptSecret(orgKey)) : null,
-    envKeys: { anthropic: !!env.ANTHROPIC_API_KEY, openai: !!env.OPENAI_API_KEY },
+    envKeys: { anthropic: !!env.ANTHROPIC_API_KEY, openai: !!env.OPENAI_API_KEY, gemini: !!env.GEMINI_API_KEY },
     anthropicModels: ANTHROPIC_MODELS,
   };
 }
@@ -398,9 +406,6 @@ export async function updateAiSettings(s: Scope, raw: z.input<typeof aiSettingsI
   if (data.provider !== "demo" && data.apiKey !== undefined) {
     if (data.apiKey === "") delete keys[data.provider];
     else keys[data.provider] = encryptSecret(data.apiKey);
-  }
-  if (data.provider === "openai" && !data.model) {
-    throw new ValidationError("Informe o modelo da OpenAI.", { model: ["Obrigatório para OpenAI"] });
   }
   const next = orgSettingsSchema.parse({
     ...current,

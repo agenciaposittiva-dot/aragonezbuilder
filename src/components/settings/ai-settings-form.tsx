@@ -15,13 +15,13 @@ import { updateAiSettingsAction } from "@/server/actions/ai";
 
 type View = {
   enabled: boolean;
-  provider: "anthropic" | "openai" | "demo";
+  provider: "anthropic" | "openai" | "gemini" | "demo";
   model: string;
   allowClientContext: boolean;
   monthlyTokenLimit: number;
   userDailyRequestLimit: number;
   orgKeyMask: string | null;
-  envKeys: { anthropic: boolean; openai: boolean };
+  envKeys: { anthropic: boolean; openai: boolean; gemini: boolean };
   anthropicModels: { id: string; label: string }[];
 };
 
@@ -45,8 +45,7 @@ export function AiSettingsForm({ view, report }: { view: View; report: Report })
       setRemoveKey(false);
     },
   });
-  const envKey =
-    state.provider === "anthropic" ? view.envKeys.anthropic : state.provider === "openai" ? view.envKeys.openai : false;
+  const envKey = state.provider === "demo" ? false : view.envKeys[state.provider];
 
   return (
     <div className="grid max-w-4xl gap-6">
@@ -90,7 +89,8 @@ export function AiSettingsForm({ view, report }: { view: View; report: Report })
                 onChange={(e) => setState({ ...state, provider: e.target.value as View["provider"], model: "" })}
               >
                 <option value="anthropic">Anthropic (Claude)</option>
-                <option value="openai">OpenAI</option>
+                <option value="openai">OpenAI (ChatGPT)</option>
+                <option value="gemini">Google Gemini</option>
                 <option value="demo">Demonstração (local, sem envio de dados)</option>
               </NativeSelect>
             </Field>
@@ -114,11 +114,25 @@ export function AiSettingsForm({ view, report }: { view: View; report: Report })
                 label="Modelo"
                 htmlFor="ai-model"
                 error={save.fieldErrors.model}
-                hint="Identificador do modelo na OpenAI."
+                hint="Em branco: usa o GPT principal mais recente disponível para a chave."
               >
                 <Input
                   id="ai-model"
                   value={state.model}
+                  placeholder="Automático"
+                  onChange={(e) => setState({ ...state, model: e.target.value })}
+                />
+              </Field>
+            ) : state.provider === "gemini" ? (
+              <Field
+                label="Modelo"
+                htmlFor="ai-model"
+                hint="Em branco: usa o Gemini Flash estável mais recente disponível para a chave."
+              >
+                <Input
+                  id="ai-model"
+                  value={state.model}
+                  placeholder="Automático"
                   onChange={(e) => setState({ ...state, model: e.target.value })}
                 />
               </Field>

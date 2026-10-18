@@ -11,3 +11,4 @@ export * from "./ai";
 export * from "./designs";
 export * from "./automations";
 export * from "./finance";
+export * from "./storage";

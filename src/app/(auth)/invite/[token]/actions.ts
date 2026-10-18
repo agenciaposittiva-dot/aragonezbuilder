@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/server/auth/session";
 import { toActionError, type ActionResult } from "@/server/actions/safe-action";
+import { processEventsInBackground } from "@/server/events/inline";
 import { acceptInvitation } from "@/server/services/invitations";
 
 export async function acceptInvitationAction(token: string): Promise<ActionResult<never>> {
@@ -11,6 +12,7 @@ export async function acceptInvitationAction(token: string): Promise<ActionResul
   let destination: string;
   try {
     const res = await acceptInvitation(String(token), { id: session.user.id, email: session.user.email });
+    processEventsInBackground();
     destination = res.kind === "client" ? `/portal/${res.slug}` : `/w/${res.slug}`;
   } catch (err) {
     return toActionError(err);

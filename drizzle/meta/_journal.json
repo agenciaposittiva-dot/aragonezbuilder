@@ -22,6 +22,13 @@
       "when": 1792307080535,
       "tag": "0002_auth_support",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792312719911,
+      "tag": "0003_storage_objects",
+      "breakpoints": true
     }
   ]
 }

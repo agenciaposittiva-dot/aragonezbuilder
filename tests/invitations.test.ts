@@ -76,7 +76,9 @@ describe("convites", () => {
     await withSystem((tx) =>
       tx.insert(memberships).values({ organizationId: ctx.org.id, userId: u.id, roleId: managerRole }),
     );
-    await expect(acceptInvitation(tokenOf(url), { id: u.id, email: "iara@teste.dev" })).rejects.toThrow(/já faz parte/i);
+    await expect(acceptInvitation(tokenOf(url), { id: u.id, email: "iara@teste.dev" })).rejects.toThrow(
+      /já faz parte/i,
+    );
     const actor = await resolveActor(u.id, ctx.org.slug);
     expect(actor?.roleKey).toBe("manager");
   });

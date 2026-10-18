@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Logo } from "@/components/brand/logo";
+import { accessKeyRequired } from "@/server/access-key";
 import { requireSession } from "@/server/auth/session";
 import { OnboardingForm } from "./onboarding-form";
 
@@ -16,7 +17,7 @@ export default async function OnboardingPage() {
         </h1>
         <p className="mt-1 text-sm text-fg-muted">Você será o proprietário. Depois, convide a equipe e os clientes.</p>
       </div>
-      <OnboardingForm />
+      <OnboardingForm needsAccessKey={accessKeyRequired(session.user.email)} />
     </main>
   );
 }

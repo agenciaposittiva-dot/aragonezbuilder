@@ -3,6 +3,7 @@ import { inOrg } from "@/server/authz";
 import { jsonError, routeActor } from "@/server/auth/route-actor";
 import { env } from "@/server/env";
 import { ValidationError } from "@/server/errors";
+import { processEventsInBackground } from "@/server/events/inline";
 import { storeUpload } from "@/server/services/files";
 
 export const runtime = "nodejs";
@@ -69,5 +70,6 @@ export async function POST(req: Request) {
     }
   }
   const ok = results.every((r) => r.ok);
+  processEventsInBackground();
   return NextResponse.json({ ok, results }, { status: ok ? 201 : 207 });
 }

@@ -3,7 +3,7 @@ import { mkdir, rm, stat, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 import type { SignedUrlOptions, StorageDriver } from "./index";
-import { signDownload } from "./signing";
+import { signedAppUrl } from "./signing";
 
 /**
  * Armazenamento em disco (desenvolvimento ou servidor único com volume persistente).
@@ -58,17 +58,6 @@ export class LocalStorage implements StorageDriver {
   }
 
   async signedUrl(key: string, opts: SignedUrlOptions) {
-    const exp = Math.floor(Date.now() / 1000) + (opts.expiresIn ?? 300);
-    const claims = { key, exp, name: opts.name, disposition: opts.disposition, type: opts.contentType };
-    const qs = new URLSearchParams({
-      key,
-      exp: String(exp),
-      name: opts.name,
-      disposition: opts.disposition,
-      type: opts.contentType,
-      sig: signDownload(claims),
-    });
-    // URL relativa: funciona atrás de proxies e em qualquer domínio.
-    return `/api/files/download?${qs.toString()}`;
+    return signedAppUrl(key, opts);
   }
 }

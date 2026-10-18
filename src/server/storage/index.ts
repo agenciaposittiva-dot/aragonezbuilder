@@ -1,5 +1,7 @@
 import "server-only";
 import { env } from "@/server/env";
+import { BlobStorage } from "./blob";
+import { DatabaseStorage } from "./database";
 import { LocalStorage } from "./local";
 import { S3Storage } from "./s3";
 
@@ -16,7 +18,7 @@ export type SignedUrlOptions = {
 
 /** Armazenamento privado de objetos. Nenhum arquivo fica publicamente acessível. */
 export interface StorageDriver {
-  readonly name: "local" | "s3";
+  readonly name: "local" | "s3" | "database" | "blob";
   put(key: string, body: Buffer, opts: PutOptions): Promise<void>;
   get(key: string): Promise<Buffer>;
   stream(key: string): Promise<{ body: ReadableStream<Uint8Array>; size: number }>;
@@ -29,7 +31,14 @@ let instance: StorageDriver | null = null;
 
 export function getStorage(): StorageDriver {
   if (instance) return instance;
-  instance = env.STORAGE_DRIVER === "s3" ? new S3Storage() : new LocalStorage(env.STORAGE_LOCAL_DIR);
+  instance =
+    env.STORAGE_DRIVER === "s3"
+      ? new S3Storage()
+      : env.STORAGE_DRIVER === "blob"
+        ? new BlobStorage()
+        : env.STORAGE_DRIVER === "database"
+          ? new DatabaseStorage()
+          : new LocalStorage(env.STORAGE_LOCAL_DIR);
   return instance;
 }
 

@@ -30,3 +30,22 @@ export function verifyDownload(c: DownloadClaims, sig: string, now = Date.now())
   if (expected.length !== given.length) return false;
   return timingSafeEqual(expected, given);
 }
+
+/** Link relativo e assinado servido por /api/files/download (drivers local e database). */
+export function signedAppUrl(
+  key: string,
+  opts: { name: string; contentType: string; disposition: "inline" | "attachment"; expiresIn?: number },
+) {
+  const exp = Math.floor(Date.now() / 1000) + (opts.expiresIn ?? 300);
+  const claims = { key, exp, name: opts.name, disposition: opts.disposition, type: opts.contentType };
+  const qs = new URLSearchParams({
+    key,
+    exp: String(exp),
+    name: opts.name,
+    disposition: opts.disposition,
+    type: opts.contentType,
+    sig: signDownload(claims),
+  });
+  // URL relativa: funciona atrás de proxies e em qualquer domínio.
+  return `/api/files/download?${qs.toString()}`;
+}
