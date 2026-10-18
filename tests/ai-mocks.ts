@@ -5,7 +5,14 @@ import { vi } from "vitest";
  * formato de resposta documentado nos SDKs. Nenhuma chamada sai da máquina.
  */
 
-export type MockCall = { url: string; method: string; headers: Headers; body: Record<string, unknown> | null };
+export type MockCall = {
+  url: string;
+  method: string;
+  headers: Headers;
+  body: Record<string, unknown> | null;
+  /** Corpo multipart (ex.: edição de imagem com a original anexada). */
+  form: FormData | null;
+};
 
 /** PNG 1×1 válido (a Central de Arquivos identifica o tipo pelos bytes). */
 export const TINY_PNG =
@@ -121,7 +128,8 @@ export function installAiMock() {
         body = null;
       }
     }
-    calls.push({ url, method, headers, body });
+    const form = init?.body instanceof FormData ? init.body : null;
+    calls.push({ url, method, headers, body, form });
     const u = new URL(url);
 
     if (u.host === "api.anthropic.com") {
@@ -158,6 +166,17 @@ export function installAiMock() {
           model: String(body?.model),
           choices: [{ index: 0, message: { role: "assistant", content: state.reply }, finish_reason: "stop" }],
           usage: { prompt_tokens: 90, completion_tokens: 40 },
+        });
+      }
+      if (u.pathname === "/v1/images/edits") {
+        const image = form?.get("image");
+        if (!(image instanceof Blob) || !image.size) {
+          return json({ error: { message: "image is required", code: "invalid_request_error" } }, 400);
+        }
+        return json({
+          created: 1_760_000_000,
+          data: [{ b64_json: TINY_PNG }],
+          usage: { input_tokens: 40, output_tokens: 272 },
         });
       }
       if (u.pathname === "/v1/images/generations") {

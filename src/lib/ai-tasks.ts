@@ -19,6 +19,8 @@ export type ModelCaps = {
   structured: Capability;
   /** Controle de esforço de raciocínio (Anthropic `effort`). */
   effort: Capability;
+  /** Edita uma imagem enviada como referência (não só gera do zero). Ausente = não confirmado. */
+  imageEdit?: Capability;
 };
 
 export type AiModelInfo = {
@@ -67,6 +69,16 @@ export const AI_TASKS = {
     needs: { text: "required", imageInput: "required" },
   },
   image_generation: { label: "Gerar imagens", kind: "image", needs: { imageOutput: "required" } },
+  design_edit: {
+    label: "Editar artes (textos e layout)",
+    kind: "text",
+    needs: { text: "required", structured: "preferred" },
+  },
+  image_edit: {
+    label: "Editar imagens (com a original como referência)",
+    kind: "image",
+    needs: { imageEdit: "required" },
+  },
   chat: { label: "Conversa / copiloto", kind: "text", needs: { text: "required" } },
   task_planning: {
     label: "Planejar tarefas (criar, quebrar, converter demandas)",
@@ -127,6 +139,9 @@ const OPERATION_TASK: Record<string, AiTask> = {
   chat_reply: "chat",
   chat_rewrite: "chat",
   chat_ask: "chat",
+  // Chat de edição de artes (src/server/services/design-ai.ts).
+  design_edit: "design_edit",
+  image_edit: "image_edit",
 };
 
 export function operationTask(operation: string): AiTask {
@@ -139,6 +154,7 @@ export const CAP_LABEL: Record<keyof ModelCaps, string> = {
   imageOutput: "geração de imagens",
   structured: "saída estruturada",
   effort: "controle de esforço",
+  imageEdit: "edição de imagem com referência",
 };
 
 /* ------------------------------------------------------------------ */

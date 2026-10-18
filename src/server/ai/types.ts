@@ -52,6 +52,18 @@ export type ImageRequest = {
   signal?: AbortSignal;
 };
 
+/** Edição de uma imagem existente: a original vai junto como referência. */
+export type ImageEditRequest = {
+  model: string;
+  prompt: string;
+  /** Imagem original (PNG, JPEG ou WebP). */
+  image: Buffer;
+  mimeType: string;
+  /** Ex.: "1024x1024" ou "auto". */
+  size: string;
+  signal?: AbortSignal;
+};
+
 export type ImageResult = {
   /** Imagens em PNG (bytes). */
   images: Buffer[];

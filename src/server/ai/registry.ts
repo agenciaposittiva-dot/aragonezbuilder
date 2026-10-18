@@ -3,10 +3,17 @@ import type { AiModelInfo, Capability, ModelKind, ModelTier } from "@/lib/ai-tas
 import { env } from "@/server/env";
 import { priceOf } from "./pricing";
 import { createAnthropicProvider } from "./providers/anthropic";
-import { createDemoProvider } from "./providers/demo";
+import { createDemoProvider, editDemoImage } from "./providers/demo";
 import { createGeminiProvider } from "./providers/gemini";
-import { createOpenAiProvider, generateOpenAiImage } from "./providers/openai";
-import { AiProviderError, type AiProvider, type AiProviderId, type ImageRequest, type ImageResult } from "./types";
+import { createOpenAiProvider, editOpenAiImage, generateOpenAiImage } from "./providers/openai";
+import {
+  AiProviderError,
+  type AiProvider,
+  type AiProviderId,
+  type ImageEditRequest,
+  type ImageRequest,
+  type ImageResult,
+} from "./types";
 
 /*
  * Registro de provedores de IA. Cada integração declara o que faz (tipos de
@@ -36,6 +43,8 @@ export type ProviderDef = {
   text?: (apiKey: string) => AiProvider;
   /** Geração de imagem, quando implementada e confirmada pela documentação oficial. */
   image?: (apiKey: string, req: ImageRequest) => Promise<ImageResult>;
+  /** Edição de imagem com a original como referência (quando a API oficial oferece). */
+  imageEdit?: (apiKey: string, req: ImageEditRequest) => Promise<ImageResult>;
 };
 
 function cap(v: boolean | null | undefined): Capability {
@@ -133,7 +142,15 @@ export function classifyOpenAiModel(id: string): AiModelInfo | null {
   if (/^(gpt-image|chatgpt-image)/.test(id)) {
     return model("openai", id, {
       kind: "image",
-      caps: { text: "no", imageInput: "unknown", imageOutput: "yes", structured: "no", effort: "no" },
+      // Edição com imagem de referência (POST /v1/images/edits) é documentada para os gpt-image.
+      caps: {
+        text: "no",
+        imageInput: "unknown",
+        imageOutput: "yes",
+        structured: "no",
+        effort: "no",
+        imageEdit: /^gpt-image/.test(id) ? "yes" : "unknown",
+      },
       tier: /mini/.test(id) ? "fast" : "quality",
       tierSource: "nome",
       price: null,
@@ -241,6 +258,16 @@ export const DEMO_MODEL: AiModelInfo = model("demo", "demo", {
   price: { input: 0, output: 0 },
 });
 
+/** Edição de imagem de exemplo (ajuste local e determinístico; não gera imagens do zero). */
+export const DEMO_IMAGE_MODEL: AiModelInfo = model("demo", "demo-imagem", {
+  label: "Edição de imagem de exemplo",
+  kind: "image",
+  caps: { text: "no", imageInput: "yes", imageOutput: "no", structured: "no", effort: "no", imageEdit: "yes" },
+  tier: "fast",
+  tierSource: "desconhecida",
+  price: { input: 0, output: 0 },
+});
+
 export const PROVIDERS: Record<AiProviderId, ProviderDef> = {
   anthropic: {
     id: "anthropic",
@@ -268,15 +295,22 @@ export const PROVIDERS: Record<AiProviderId, ProviderDef> = {
     kinds: ["text", "image"],
     needsKey: true,
     envKey: () => env.OPENAI_API_KEY,
-    params: ["max_completion_tokens", "response_format JSON (pedidos estruturados)", "Images API: size, output_format"],
+    params: [
+      "max_completion_tokens",
+      "response_format JSON (pedidos estruturados)",
+      "Images API: size, output_format",
+      "Images API (edits): imagem original como referência",
+    ],
     notes: [
       "A listagem de modelos da OpenAI não informa capacidades: leitura de imagens e JSON ficam como não confirmados.",
       "Geração de imagens pelos modelos gpt-image da Images API.",
+      "Edição de imagens existentes (com a original como referência) pelos modelos gpt-image.",
       "Custo não informado (sem tabela de preços cadastrada); tokens são registrados quando a API informa.",
     ],
     listModels: listOpenAi,
     text: createOpenAiProvider,
     image: generateOpenAiImage,
+    imageEdit: editOpenAiImage,
   },
   gemini: {
     id: "gemini",
@@ -296,7 +330,7 @@ export const PROVIDERS: Record<AiProviderId, ProviderDef> = {
   demo: {
     id: "demo",
     label: "Demonstração local (sem IA real)",
-    kinds: ["text"],
+    kinds: ["text", "image"],
     needsKey: false,
     envKey: () => undefined,
     // Só com AI_DEFAULT_PROVIDER=demo definido explicitamente no servidor (ex.: desenvolvimento local).
@@ -305,9 +339,11 @@ export const PROVIDERS: Record<AiProviderId, ProviderDef> = {
     notes: [
       "Respostas de exemplo geradas localmente, sem enviar dados a terceiros e sem custo.",
       "Desativado por padrão. O resultado é sempre identificado como exemplo, nunca como IA real.",
+      "Edição de imagem de exemplo: um ajuste local de cores na imagem original (não gera imagens do zero).",
     ],
-    listModels: async () => [DEMO_MODEL],
+    listModels: async () => [DEMO_MODEL, DEMO_IMAGE_MODEL],
     text: () => createDemoProvider(),
+    imageEdit: (_key, req) => editDemoImage(req),
   },
 };
 
