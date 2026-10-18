@@ -1,0 +1,21 @@
+{
+  "_fixture": "FIXTURE DE TESTE — NÃO SÃO DADOS REAIS. Mesmo formato de https://wikimedia.org/api/rest_v1/metrics/pageviews/top/pt.wikipedia/all-access/AAAA/MM/DD, com artigos e contagens fictícios.",
+  "items": [
+    {
+      "project": "pt.wikipedia",
+      "access": "all-access",
+      "year": "2026",
+      "month": "10",
+      "day": "16",
+      "articles": [
+        { "article": "Wikipédia:Página_principal", "views": 512340, "rank": 1 },
+        { "article": "Especial:Pesquisar", "views": 201100, "rank": 2 },
+        { "article": "Festival_de_Café_Fictício", "views": 48210, "rank": 3 },
+        { "article": "-", "views": 30000, "rank": 4 },
+        { "article": "Cidade_Exemplo", "views": 21876, "rank": 5 },
+        { "article": "Ficheiro:Exemplo.jpg", "views": 15000, "rank": 6 },
+        { "article": "Banda_Exemplo", "views": 12004, "rank": 7 }
+      ]
+    }
+  ]
+}

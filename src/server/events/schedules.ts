@@ -3,6 +3,7 @@ import { withSystem } from "@/server/db";
 import { auditLogs, domainEvents, invoices } from "@/server/db/schema";
 import { nextCounter } from "@/server/services/finance";
 import { purgeExpiredTrash } from "@/server/services/trash";
+import { refreshDueSources } from "@/server/services/trends";
 
 /*
  * Rotinas agendadas (worker via pg-boss; ou /api/cron/tick em plataformas sem
@@ -215,6 +216,10 @@ export async function runDueSchedules() {
     recurringInvoices: await generateRecurringInvoices(),
     approvalReminders: await remindPendingApprovals(),
     trash: await purgeExpiredTrash(),
+    // Radar de Tendências: fontes vencidas de todas as agências, com orçamento de tempo.
+    trends: await refreshDueSources({ budgetMs: 25_000 }).catch((err) => ({
+      error: String((err as Error)?.message ?? err),
+    })),
   };
 }
 
@@ -232,5 +237,11 @@ export const SCHEDULES = [
     cron: "0 9,15 * * 1-5",
     run: remindPendingApprovals,
     label: "Lembretes de aprovação",
+  },
+  {
+    name: "cron-trends-refresh",
+    cron: "20 */6 * * *",
+    run: async () => (await refreshDueSources({ budgetMs: 120_000 })).ok,
+    label: "Radar de Tendências",
   },
 ] as const;

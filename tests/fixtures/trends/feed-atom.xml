@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FIXTURE DE TESTE — NÃO SÃO DADOS REAIS. Feed Atom 1.0 fictício. -->
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Revista Exemplo de Design</title>
+  <link href="https://revista.exemplo.invalid/"/>
+  <updated>2026-10-16T08:00:00Z</updated>
+  <id>urn:uuid:00000000-0000-4000-8000-000000000001</id>
+  <entry>
+    <title>Paletas da estação (exemplo)</title>
+    <link rel="alternate" href="https://revista.exemplo.invalid/paletas"/>
+    <id>urn:uuid:00000000-0000-4000-8000-000000000002</id>
+    <updated>2026-10-16T08:00:00Z</updated>
+    <summary>Cores fictícias em alta entre estúdios.</summary>
+  </entry>
+</feed>

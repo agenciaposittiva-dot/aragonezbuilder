@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  CalendarDays,
   Bot,
   CheckCheck,
   FolderKanban,
@@ -11,6 +12,7 @@ import {
   Palette,
   Settings,
   Trash2,
+  TrendingUp,
   Users,
   Users2,
   Wallet,
@@ -68,6 +70,8 @@ export const WORKSPACE_NAV: NavGroup[] = [
       { key: "files", label: "Arquivos", path: "/files", icon: FolderOpen, permission: "files.read" },
       { key: "studio", label: "Estúdio", path: "/studio", icon: Palette, permission: "designs.read" },
       { key: "ai", label: "Assistente IA", path: "/ai", icon: Bot, permission: "ai.use" },
+      { key: "trends", label: "Radar de Tendências", path: "/trends", icon: TrendingUp, permission: "trends.read" },
+      { key: "content", label: "Conteúdos", path: "/content", icon: CalendarDays, permission: "content.read" },
     ],
   },
   {

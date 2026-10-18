@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- FIXTURE DE TESTE — NÃO SÃO DADOS REAIS. Feed RSS 2.0 fictício de um veículo de marketing. -->
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Blog Exemplo de Marketing</title>
+    <link>https://blog.exemplo.invalid</link>
+    <description>Notícias fictícias</description>
+    <item>
+      <title>Nova ferramenta de vídeos curtos (exemplo)</title>
+      <link>https://blog.exemplo.invalid/ferramenta-videos</link>
+      <guid isPermaLink="false">post-101</guid>
+      <pubDate>Thu, 15 Oct 2026 12:00:00 -0300</pubDate>
+      <description><![CDATA[<p>Rede social <b>fictícia</b> lança recurso para criadores.</p>]]></description>
+    </item>
+    <item>
+      <title>Tendências de embalagens sustentáveis</title>
+      <link>https://blog.exemplo.invalid/embalagens</link>
+      <guid isPermaLink="false">post-102</guid>
+      <dc:date>2026-10-14T09:00:00-03:00</dc:date>
+      <content:encoded><![CDATA[<p>Marcas apostam em embalagens recicláveis.</p>]]></content:encoded>
+    </item>
+  </channel>
+</rss>

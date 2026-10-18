@@ -1,0 +1,36 @@
+{
+  "_fixture": "FIXTURE DE TESTE — NÃO SÃO DADOS REAIS. Mesmo formato de videos.list (chart=mostPopular) da YouTube Data API v3, com vídeos e contagens fictícios.",
+  "kind": "youtube#videoListResponse",
+  "etag": "fixture",
+  "items": [
+    {
+      "kind": "youtube#video",
+      "etag": "fixture-1",
+      "id": "vid_exemplo_1",
+      "snippet": {
+        "publishedAt": "2026-10-15T18:00:00Z",
+        "channelId": "canal_exemplo",
+        "title": "Receita Exemplo de Bolo de Fubá",
+        "description": "Vídeo fictício usado nos testes.",
+        "channelTitle": "Cozinha Exemplo",
+        "categoryId": "26",
+        "defaultAudioLanguage": "pt-BR"
+      },
+      "statistics": { "viewCount": "154320", "likeCount": "9876", "favoriteCount": "0", "commentCount": "432" }
+    },
+    {
+      "kind": "youtube#video",
+      "etag": "fixture-2",
+      "id": "vid_exemplo_2",
+      "snippet": {
+        "publishedAt": "2026-10-16T10:00:00Z",
+        "channelId": "canal_exemplo_2",
+        "title": "Análise Exemplo do Novo Celular",
+        "description": "Outro vídeo fictício.",
+        "channelTitle": "Tec Exemplo",
+        "categoryId": "28"
+      },
+      "statistics": { "viewCount": "88000", "favoriteCount": "0" }
+    }
+  ]
+}
