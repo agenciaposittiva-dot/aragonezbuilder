@@ -71,6 +71,13 @@
       "when": 1792333595017,
       "tag": "0009_tarefas",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792335108518,
+      "tag": "0010_chat",
+      "breakpoints": true
     }
   ]
 }
