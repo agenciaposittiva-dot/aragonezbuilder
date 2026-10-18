@@ -1,6 +1,9 @@
+import { GalleryHorizontal } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { AiStudio } from "@/components/ai/ai-studio";
 import { DesignAiSection } from "@/components/ai/design-ai-section";
+import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { can, inOrg } from "@/server/authz";
 import { requireActor } from "@/server/auth/session";
@@ -37,6 +40,15 @@ export default async function AiPage({ params }: PageProps<"/w/[org]/ai">) {
       <PageHeader
         title="Assistente IA"
         description="Ideias, textos, roteiros, planejamentos e imagens com o contexto de cada marca. Você revisa tudo antes de usar."
+        actions={
+          can(actor, "designs.write") ? (
+            <Button asChild variant="secondary">
+              <Link href={`/w/${actor.orgSlug}/studio/gerar`}>
+                <GalleryHorizontal /> Gerar carrossel com IA
+              </Link>
+            </Button>
+          ) : null
+        }
       />
       <AiStudio
         status={{

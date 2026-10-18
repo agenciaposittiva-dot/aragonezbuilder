@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { generatorMetaSchema, importedMetaSchema, type GeneratorMeta, type ImportedMeta } from "./generator";
 
 /*
  * Documento editável do Estúdio (formato 2).
@@ -224,6 +225,10 @@ export type DesignMeta = {
   outputs?: Record<string, string>;
   /** Arquivo PDF da última exportação para Arquivos. */
   pdfOutputFileId?: string | null;
+  /** Carrossel criado pelo gerador automático: plano, direção de arte e versão. */
+  generator?: GeneratorMeta;
+  /** Template criado a partir de uma imagem enviada (JPG/PNG). */
+  imported?: ImportedMeta;
 };
 
 export type DesignDocument = {
@@ -452,6 +457,8 @@ export const designMetaSchema: z.ZodType<DesignMeta> = z.object({
   legacy: z.record(z.string(), z.unknown()).optional(),
   outputs: z.record(idSchema, z.uuid()).optional(),
   pdfOutputFileId: z.uuid().nullable().optional(),
+  generator: generatorMetaSchema.optional(),
+  imported: importedMetaSchema.optional(),
 });
 
 export const designDocumentSchema: z.ZodType<DesignDocument> = z.object({

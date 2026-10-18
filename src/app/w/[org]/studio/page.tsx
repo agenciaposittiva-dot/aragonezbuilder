@@ -1,8 +1,9 @@
-import { Archive, LayoutTemplate, Palette, Plus } from "lucide-react";
+import { Archive, ImageUp, LayoutTemplate, Palette, Plus, Sparkles } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { FilterBar, SearchFilter, SelectFilter } from "@/components/app/filters";
 import { DesignCardActions } from "@/components/studio/design-card-actions";
+import { ImportTemplateDialog } from "@/components/studio/import-template-dialog";
 import { NewDesignDialog } from "@/components/studio/new-design-dialog";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -11,6 +12,7 @@ import { SegmentedNav } from "@/components/ui/segmented-nav";
 import { relativeFromNow } from "@/lib/format";
 import { can, inOrg } from "@/server/authz";
 import { requireActor } from "@/server/auth/session";
+import { getPickerData } from "@/server/services/ai-models";
 import { clientOptions } from "@/server/services/clients";
 import { listDesigns } from "@/server/services/designs";
 import { projectOptions } from "@/server/services/projects";
@@ -24,11 +26,13 @@ export default async function StudioPage({ params, searchParams }: PageProps<"/w
   const tab = sp.tab === "templates" ? "templates" : sp.tab === "archived" ? "archived" : "designs";
   const q = typeof sp.q === "string" ? sp.q : undefined;
   const clientId = typeof sp.clientId === "string" ? sp.clientId : undefined;
+  const canAi = can(actor, "ai.use");
   const data = await inOrg(actor, async (s) => ({
     items: await listDesigns(s, { q, clientId, templates: tab === "templates", archived: tab === "archived" }),
     templates: await listDesigns(s, { templates: true }),
     clients: await clientOptions(s),
     projects: await projectOptions(s),
+    picker: canAi && can(actor, "designs.write") ? await getPickerData(s) : null,
   }));
   const base = `/w/${actor.orgSlug}/studio`;
   const canWrite = can(actor, "designs.write");
@@ -57,13 +61,32 @@ export default async function StudioPage({ params, searchParams }: PageProps<"/w
         title="Estúdio"
         description="Editor de artes com a identidade de cada cliente. Exporte direto para Arquivos e envie para aprovação."
         actions={
-          canWrite
-            ? dialog(
+          canWrite ? (
+            <>
+              {canAi ? (
+                <Button asChild variant="secondary">
+                  <Link href={`${base}/gerar`}>
+                    <Sparkles /> Gerar carrossel com IA
+                  </Link>
+                </Button>
+              ) : null}
+              <ImportTemplateDialog
+                trigger={
+                  <Button variant="secondary">
+                    <ImageUp /> Importar JPG/PNG
+                  </Button>
+                }
+                clients={data.clients}
+                canManageTemplates={canTemplates}
+                picker={data.picker}
+              />
+              {dialog(
                 <Button variant="primary">
                   <Plus /> Nova arte
                 </Button>,
-              )
-            : null
+              )}
+            </>
+          ) : null
         }
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -99,7 +122,7 @@ export default async function StudioPage({ params, searchParams }: PageProps<"/w
             }
             description={
               tab === "templates"
-                ? "Templates aceleram a produção: crie um a partir de uma arte aprovada."
+                ? "Templates aceleram a produção: crie um a partir de uma arte aprovada ou importe um JPG/PNG."
                 : tab === "archived"
                   ? "Artes arquivadas ficam aqui e podem voltar ao Estúdio quando você quiser."
                   : "Crie uma arte em branco ou a partir de um template."

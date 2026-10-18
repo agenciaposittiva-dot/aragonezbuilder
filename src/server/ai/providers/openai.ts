@@ -62,11 +62,11 @@ export function createOpenAiProvider(apiKey: string): AiProvider {
             role: "user",
             content: req.images?.length
               ? [
-                  { type: "text", text: req.prompt },
                   ...req.images.map((img) => ({
                     type: "image_url",
                     image_url: { url: `data:${img.mediaType};base64,${img.data.toString("base64")}` },
                   })),
+                  { type: "text", text: req.prompt },
                 ]
               : req.prompt,
           },

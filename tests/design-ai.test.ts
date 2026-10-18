@@ -11,6 +11,8 @@ import {
   type DesignDocument,
   type TextObject,
 } from "@/lib/design-doc";
+import { buildDirection } from "@/lib/carousel-gen/direction";
+import { generatorMetaSchema } from "@/lib/design-doc/generator";
 import { demoSpellFix } from "@/server/ai/demo-design";
 import { AiProviderError } from "@/server/ai/types";
 import type { Actor } from "@/server/authz";
@@ -64,6 +66,27 @@ async function ask(actor: Actor, req: Parameters<typeof prepareDesignAi>[1]) {
   if (!done) throw new AiProviderError(events.find((e) => e.t === "error")?.message ?? "sem resposta", "unavailable");
   return { prepared, generationId: done.generationId, result: normalizeDesignAi(prepared.ctx, done.data) };
 }
+
+/** Plano do gerador de carrosséis (formato real de document.meta.generator). */
+const GENERATOR = generatorMetaSchema.parse({
+  v: 1,
+  mode: "quick",
+  input: { topic: "Promoção de verão" },
+  plan: { title: "Promoção de verão" },
+  slides: ["Capa", "Dica", "CTA"].map((title, i) => ({
+    key: `s${i + 1}`,
+    pageId: `p${i + 1}`,
+    role: i === 0 ? "cover" : i === 2 ? "cta" : "insight",
+    title,
+    visual: { kind: "icon" },
+    layout: "point-left",
+  })),
+  direction: buildDirection({ seed: 7, topic: "Promoção de verão", identity: null }),
+  ai: { provider: "demo", model: "demo", demo: true },
+  visuals: "vector",
+  version: 1,
+  createdAt: "2026-10-18T00:00:00.000Z",
+});
 
 const docOf = async (actor: Actor, id: string) =>
   (await as(actor, (s) => getDesign(s, id))).design.document as unknown as DesignDocument;
@@ -423,7 +446,7 @@ describe("chat de edição de artes por IA", () => {
         width: 1080,
         height: 1080,
         clientId: realClient,
-        document: { ...carousel(), meta: { carousel: true, generator: { roteiro: ["Capa", "Dica", "CTA"] } } },
+        document: { ...carousel(), meta: { carousel: true, generator: GENERATOR } },
       }),
     );
     mock.state.reply = JSON.stringify({
@@ -432,7 +455,7 @@ describe("chat de edição de artes por IA", () => {
       actions: "[]",
       question: "",
     });
-    const raw = { ...carousel(), meta: { carousel: true, generator: { roteiro: ["Capa", "Dica", "CTA"] } } };
+    const raw = { ...carousel(), meta: { carousel: true, generator: GENERATOR } };
     const { result, prepared } = await ask(real.actor, {
       designId: id,
       message: "Corrija o título",
@@ -441,7 +464,9 @@ describe("chat de edição de artes por IA", () => {
     });
     expect(prepared.generation.demo).toBe(false);
     expect(prepared.generation.prompt).toContain('"activePage":1');
-    expect(prepared.generation.prompt).toContain('"generator":{"roteiro":["Capa","Dica","CTA"]}');
+    // Plano do gerador de carrosséis (roteiro e direção de arte) vai no contexto.
+    expect(prepared.generation.prompt).toContain('"generator":{"v":1');
+    expect(prepared.generation.prompt).toContain('"title":"Dica"');
     expect(prepared.generation.system).toContain("image_edit:");
     expect(result.ops).toEqual([{ op: "setText", id: "t1", text: "Promoção imperdível" }]);
     const body = mock.generationCalls().find((c) => c.url.includes("anthropic"))?.body;

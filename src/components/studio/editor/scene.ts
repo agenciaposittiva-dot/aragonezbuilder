@@ -1286,15 +1286,16 @@ export class Scene {
     const carousel = !!this.store.doc.meta?.carousel;
     const board = this.artboards.get(pageId)?.obj;
     const active = this.canvas.getActiveObject();
+    const v = this.canvas.viewportTransform;
     this.exporting = true;
     try {
-      const z = this.zoom;
-      const v = this.canvas.viewportTransform;
-      const out = this.canvas.toCanvasElement(scale / z, {
-        left: v[4] + r.x * z,
-        top: v[5] + r.y * z,
-        width: r.width * z,
-        height: r.height * z,
+      // Desenha com zoom 1: com o zoom da tela, largura × (escala ÷ zoom) perdia 1 px (1079 em vez de 1080).
+      this.canvas.viewportTransform = [1, 0, 0, 1, 0, 0];
+      const out = this.canvas.toCanvasElement(scale, {
+        left: r.x,
+        top: r.y,
+        width: r.width,
+        height: r.height,
         filter: (o) => {
           const f = o as FObj;
           if (o === board) return true;
@@ -1312,6 +1313,8 @@ export class Scene {
       ctx.drawImage(out, 0, 0);
       return flat;
     } finally {
+      this.canvas.viewportTransform = v;
+      this.canvas.calcViewportBoundaries();
       this.exporting = false;
       if (active && !this.canvas.getActiveObject()) this.canvas.setActiveObject(active);
       this.canvas.requestRenderAll();

@@ -27,6 +27,8 @@ export const BASE_FONTS = [
 const SYSTEM_FONTS = new Set(["Arial", "Georgia", "Helvetica", "Times New Roman", "Verdana", "sans-serif", "serif"]);
 
 const loading = new Map<string, Promise<void>>();
+/** Carga completa (sem o limite de espera de `ensureFont`). */
+const settled = new Map<string, Promise<unknown>>();
 
 /**
  * Carrega a fonte antes de desenhar ou exportar (o texto é medido com a fonte
@@ -46,14 +48,16 @@ export function ensureFont(family: string): Promise<void> {
       document.head.appendChild(link);
     }
     try {
-      await Promise.race([
-        Promise.all([
-          document.fonts.load(`400 32px "${family}"`),
-          document.fonts.load(`700 32px "${family}"`),
-          document.fonts.load(`italic 400 32px "${family}"`),
-        ]),
-        new Promise((r) => setTimeout(r, 6000)),
+      const full = Promise.all([
+        document.fonts.load(`400 32px "${family}"`),
+        document.fonts.load(`700 32px "${family}"`),
+        document.fonts.load(`italic 400 32px "${family}"`),
       ]);
+      settled.set(
+        family,
+        full.catch(() => undefined),
+      );
+      await Promise.race([full, new Promise((r) => setTimeout(r, 6000))]);
     } catch {
       /* fonte indisponível: o navegador usa a alternativa */
     }
@@ -65,4 +69,17 @@ export function ensureFont(family: string): Promise<void> {
 export async function ensureFonts(families: string[]) {
   await Promise.all([...new Set(families)].map(ensureFont));
   if (typeof document !== "undefined") await document.fonts.ready.catch(() => undefined);
+}
+
+/**
+ * Fonte que ainda não terminou de carregar (passou do tempo de espera): avisa
+ * quando terminar, para o editor medir e desenhar os textos de novo — senão o
+ * texto fica com as larguras da fonte alternativa (letras espaçadas/sobrepostas).
+ */
+export function whenFontLoads(family: string, done: () => void) {
+  if (!family || SYSTEM_FONTS.has(family) || typeof document === "undefined") return;
+  if (document.fonts.check(`400 32px "${family}"`) && document.fonts.check(`700 32px "${family}"`)) return;
+  void (settled.get(family) ?? ensureFont(family)).then(() => {
+    if (document.fonts.check(`400 32px "${family}"`)) done();
+  });
 }

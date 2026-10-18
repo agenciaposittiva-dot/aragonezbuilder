@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { demoCarouselJson } from "../demo-carousel";
 import { demoDesignEditJson } from "../demo-design";
 import { demoPreviewJson } from "../demo-preview";
 import { demoBrandJson } from "../demo-brand";
@@ -134,7 +135,10 @@ function demoTrendJson(format: string, prompt: string): string | null {
 function demoFormatJson(prompt: string) {
   const format = prompt.match(/^Formato da resposta: (\w+)/m)?.[1];
   return format
-    ? (demoTrendJson(format, prompt) ?? demoPreviewJson(format, prompt) ?? demoBrandJson(format, prompt))
+    ? (demoTrendJson(format, prompt) ??
+        demoPreviewJson(format, prompt) ??
+        demoBrandJson(format, prompt) ??
+        demoCarouselJson(format, prompt))
     : null;
 }
 

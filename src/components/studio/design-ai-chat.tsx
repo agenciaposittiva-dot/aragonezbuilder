@@ -32,7 +32,7 @@ import type {
   DesignAiSetup,
   DesignImageEditResult,
 } from "@/server/services/design-ai";
-import type { DesignAiAction, ImageEditArgs } from "@/server/services/design-ai-tools";
+import type { DesignAiAction, CarouselSlideArgs, ImageEditArgs } from "@/server/services/design-ai-tools";
 
 /* ------------------------------------------------------------------ */
 /* Contrato com quem hospeda o chat (editor ou Assistente IA)          */
@@ -148,6 +148,49 @@ const ACTION_EXECUTORS: Record<string, (c: RunCtx) => Promise<RunOutcome>> = {
   },
 };
 
+/** Ferramentas do gerador de carrosséis: regenerar slide e nova direção voltam como operações; segunda versão cria arte nova. */
+function carouselExecutor(tool: "carousel_slide" | "carousel_direction" | "carousel_variant") {
+  return async ({ orgSlug, host, action, run, opts }: RunCtx): Promise<RunOutcome> => {
+    const args = action.args as Partial<CarouselSlideArgs>;
+    const ctx = host.context();
+    const res = await fetch("/api/designs/ai/carousel", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        orgSlug,
+        designId: host.designId,
+        tool,
+        pageId: args.pageId || undefined,
+        instruction: run.instruction.trim() || undefined,
+        document: ctx.document ?? undefined,
+        // O roteiro usa a IA padrão do módulo Carrosséis (o seletor da ferramenta é de imagem).
+        ai: opts.sel,
+        confirmCost: opts.confirmCost,
+      }),
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      result?: NonNullable<ActionRun["result"]>;
+      error?: string;
+      code?: string;
+      alternatives?: Alternative[];
+    };
+    if (res.ok && json.ok && json.result) return { ok: true, result: json.result };
+    if (json.code === "cost_confirmation") return { ok: false, costPrompt: json.error ?? "Confirme o custo." };
+    return {
+      ok: false,
+      error: {
+        message: json.error ?? "Não foi possível concluir.",
+        alternatives: json.alternatives ?? [],
+        canGenerate: false,
+      },
+    };
+  };
+}
+ACTION_EXECUTORS.carousel_slide = carouselExecutor("carousel_slide");
+ACTION_EXECUTORS.carousel_direction = carouselExecutor("carousel_direction");
+ACTION_EXECUTORS.carousel_variant = carouselExecutor("carousel_variant");
+
 type Item =
   | { id: string; role: "user"; text: string }
   | { id: string; role: "assistant"; text: string; meta: Meta; proposal: Proposal | null }
@@ -162,6 +205,13 @@ const SUGGESTIONS = [
   "Troque o título por uma frase mais impactante",
   "Deixe a chamada mais comercial",
   "Gere uma nova versão desta imagem mais premium",
+];
+/** Sugestões extras para carrosséis do gerador. */
+const CAROUSEL_SUGGESTIONS = [
+  "Reescreva o slide 3",
+  "Deixe a capa mais impactante",
+  "Mude só a direção visual",
+  "Gere uma segunda versão",
 ];
 
 /**
@@ -467,7 +517,10 @@ export function DesignAiChat({ host, className }: { host: DesignAiHost; classNam
               desfazer depois.
             </p>
             <div className="flex flex-wrap gap-1.5">
-              {SUGGESTIONS.map((s) => (
+              {(host.context().document?.meta?.generator
+                ? [...CAROUSEL_SUGGESTIONS, SUGGESTIONS[0]!]
+                : SUGGESTIONS
+              ).map((s) => (
                 <button
                   key={s}
                   type="button"
@@ -1037,7 +1090,107 @@ type ActionViewProps = {
 /** Como cada ferramenta aparece na proposta (registro em design-ai-tools). */
 const ACTION_VIEWS: Record<string, (props: ActionViewProps) => React.ReactNode> = {
   image_edit: ImageEditView,
+  carousel_slide: CarouselActionView,
+  carousel_direction: CarouselActionView,
+  carousel_variant: CarouselActionView,
 };
+
+function CarouselActionView({ action, run, pending, onPatch, onRun }: ActionViewProps) {
+  const { orgSlug } = useWorkspace();
+  const data = (run.result?.data ?? null) as {
+    id?: string;
+    title?: string;
+    direction?: string;
+    claims?: unknown[];
+    demo?: boolean;
+    notice?: string | null;
+  } | null;
+  const slide = action.tool === "carousel_slide";
+  const variant = action.tool === "carousel_variant";
+  return (
+    <div className="grid gap-2 rounded-md border border-dashed border-border p-2.5" data-testid="design-ai-carousel">
+      <p className="flex items-center gap-1.5 text-xs font-medium">
+        <Sparkles className="size-3.5" /> {action.label}
+      </p>
+      {action.note ? <p className="text-xs text-warning">{action.note}</p> : null}
+      {action.available && pending && !run.result ? (
+        <>
+          {slide ? (
+            <Textarea
+              value={run.instruction}
+              onChange={(e) => {
+                const instruction = e.target.value;
+                onPatch((r) => ({ ...r, instruction }));
+              }}
+              rows={2}
+              maxLength={500}
+              aria-label="O que mudar no slide"
+              placeholder="Ex.: mais curto e mais impactante"
+              className="text-xs"
+            />
+          ) : null}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Button
+              size="sm"
+              variant="accent"
+              onClick={() => onRun({})}
+              loading={run.running}
+              disabled={run.running}
+              data-testid="design-ai-carousel-run"
+            >
+              <Sparkles />{" "}
+              {run.running
+                ? "Preparando…"
+                : slide
+                  ? "Gerar o novo slide"
+                  : variant
+                    ? "Criar segunda versão"
+                    : "Gerar nova direção"}
+            </Button>
+          </div>
+          <p className="text-[11px] text-fg-subtle">
+            {variant
+              ? "Cria uma arte nova com os mesmos textos e outra composição. Esta arte não muda."
+              : "Você vê o resultado na prévia e só muda a arte ao aplicar (dá para desfazer)."}
+          </p>
+        </>
+      ) : null}
+      {data && !variant ? (
+        <p className="text-xs text-fg-muted" data-testid="design-ai-carousel-result">
+          {slide ? `Novo texto: “${data.title ?? ""}”.` : `Direção: ${data.direction ?? ""}.`}{" "}
+          {data.demo ? "Exemplo (modo demonstração). " : ""}Clique em Aplicar para usar.
+          {data.notice ? ` ${data.notice}` : ""}
+        </p>
+      ) : null}
+      {data && variant && data.id ? (
+        <p className="text-xs" data-testid="design-ai-carousel-result">
+          Segunda versão criada.{" "}
+          <Link className="underline" href={`/w/${orgSlug}/studio/${data.id}`}>
+            Abrir a segunda versão
+          </Link>
+        </p>
+      ) : null}
+      {run.costPrompt ? (
+        <div role="alert" className="grid gap-1.5 rounded-md bg-warning-soft/50 p-2 text-xs">
+          <span>{run.costPrompt}</span>
+          <span className="flex gap-1.5">
+            <Button size="xs" variant="primary" onClick={() => onRun({ confirmCost: true })}>
+              Confirmar
+            </Button>
+            <Button size="xs" variant="ghost" onClick={() => onPatch((r) => ({ ...r, costPrompt: null }))}>
+              Cancelar
+            </Button>
+          </span>
+        </div>
+      ) : null}
+      {run.error ? (
+        <p role="alert" className="flex items-start gap-1.5 text-xs text-danger">
+          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" /> {run.error.message}
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
 function UnknownActionView({ action }: ActionViewProps) {
   return (
