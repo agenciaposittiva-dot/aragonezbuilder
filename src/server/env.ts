@@ -53,6 +53,14 @@ const schema = z.object({
   /** Limite da foto de perfil (padrão 5 MB, nunca acima do limite de envio). */
   AVATAR_MAX_BYTES: blankAsUndefined(z.coerce.number().int().positive().optional()),
   CHAT_PHOTO_MAX_BYTES: blankAsUndefined(z.coerce.number().int().positive().optional()),
+  /**
+   * Radar de Marca — conexão oficial com o Instagram (Instagram API com login do
+   * Instagram, app da Meta). Sem as duas, a conexão aparece como "não configurada".
+   */
+  META_APP_ID: optional,
+  META_APP_SECRET: optional,
+  /** Versão da Graph API do Instagram (padrão v23.0). */
+  META_GRAPH_VERSION: z.string().default("v23.0"),
   SMTP_HOST: optional,
   SMTP_PORT: z.coerce.number().int().default(587),
   SMTP_USER: optional,

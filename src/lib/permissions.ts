@@ -48,6 +48,8 @@ export const PERMISSIONS = {
   "trends.manage": "Configurar as fontes do Radar de Tendências",
   "content.read": "Ver conteúdos, campanhas e o calendário editorial",
   "content.write": "Criar e editar conteúdos e campanhas",
+  "brand.read": "Ver o Radar de Marca (diagnósticos do Instagram)",
+  "brand.manage": "Fazer diagnósticos, conectar contas do Instagram e gerenciar recomendações do Radar de Marca",
   "reports.read": "Ver relatórios e indicadores",
   "reports.export": "Exportar relatórios",
   "automations.read": "Ver automações",
@@ -99,6 +101,8 @@ export const INTERNAL_ONLY: Permission[] = [
   "trends.manage",
   "content.read",
   "content.write",
+  "brand.read",
+  "brand.manage",
   "reports.export",
   "automations.read",
   "automations.manage",
@@ -160,6 +164,7 @@ const CREATIVE: Permission[] = [
   "trends.read",
   "content.read",
   "content.write",
+  "brand.read",
 ];
 
 export const SYSTEM_ROLES: RoleDef[] = [
@@ -220,6 +225,8 @@ export const SYSTEM_ROLES: RoleDef[] = [
       "trends.manage",
       "content.read",
       "content.write",
+      "brand.read",
+      "brand.manage",
       "reports.read",
       "reports.export",
       "automations.read",
@@ -265,6 +272,8 @@ export const SYSTEM_ROLES: RoleDef[] = [
       "trends.read",
       "content.read",
       "content.write",
+      "brand.read",
+      "brand.manage",
     ],
   },
   {
@@ -286,7 +295,7 @@ export const SYSTEM_ROLES: RoleDef[] = [
     name: "Social media",
     description: "Planejamento e publicação de conteúdo.",
     kind: "internal",
-    permissions: [...CREATIVE, "requests.write"],
+    permissions: [...CREATIVE, "requests.write", "brand.manage"],
   },
   {
     key: "traffic",

@@ -1,3 +1,4 @@
+import { demoBrandJson } from "../demo-brand";
 import { demoTaskJson } from "../demo-tasks";
 import type { AiProvider, GenerateRequest, GenerateResult } from "../types";
 
@@ -7,7 +8,7 @@ import type { AiProvider, GenerateRequest, GenerateResult } from "../types";
  */
 export function createDemoProvider(): AiProvider {
   async function generate(req: GenerateRequest): Promise<GenerateResult> {
-    // Formatos identificados no pedido (Radar de Tendências) têm prioridade sobre os do assistente de tarefas.
+    // Formatos identificados no pedido (Radar de Tendências e Radar de Marca) têm prioridade sobre os do assistente de tarefas.
     const text = req.jsonSchema
       ? (demoFormatJson(req.prompt) ?? demoTaskJson(req.prompt, req.jsonSchema) ?? demoJson(req.prompt))
       : demoText(req.prompt);
@@ -126,7 +127,7 @@ function demoTrendJson(format: string, prompt: string): string | null {
 
 function demoFormatJson(prompt: string) {
   const format = prompt.match(/^Formato da resposta: (\w+)/m)?.[1];
-  return format ? demoTrendJson(format, prompt) : null;
+  return format ? (demoTrendJson(format, prompt) ?? demoBrandJson(format, prompt)) : null;
 }
 
 function demoJson(prompt: string) {

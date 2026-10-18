@@ -73,6 +73,11 @@ export const AI_TASKS = {
     kind: "text",
     needs: { text: "required", structured: "preferred" },
   },
+  brand_analysis: {
+    label: "Diagnóstico de marca (Radar de Marca)",
+    kind: "text",
+    needs: { text: "required", structured: "preferred", imageInput: "preferred" },
+  },
   task_review: {
     label: "Revisar tarefas (prioridade, prazo, resumo de comentários)",
     kind: "text",
@@ -94,6 +99,7 @@ export const AI_MODULES = {
   reports: "Relatórios",
   tasks: "Tarefas",
   chat: "Chat da equipe",
+  brand: "Radar de Marca",
 } as const;
 export type AiModule = keyof typeof AI_MODULES;
 
