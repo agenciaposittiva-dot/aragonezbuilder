@@ -7,8 +7,9 @@ import type { AiProvider, GenerateRequest, GenerateResult } from "../types";
  */
 export function createDemoProvider(): AiProvider {
   async function generate(req: GenerateRequest): Promise<GenerateResult> {
+    // Formatos identificados no pedido (Radar de Tendências) têm prioridade sobre os do assistente de tarefas.
     const text = req.jsonSchema
-      ? (demoTaskJson(req.prompt, req.jsonSchema) ?? demoJson(req.prompt))
+      ? (demoFormatJson(req.prompt) ?? demoTaskJson(req.prompt, req.jsonSchema) ?? demoJson(req.prompt))
       : demoText(req.prompt);
     for (const chunk of text.match(/[\s\S]{1,24}/g) ?? []) {
       if (req.signal?.aborted) break;
@@ -123,9 +124,13 @@ function demoTrendJson(format: string, prompt: string): string | null {
   return null;
 }
 
-function demoJson(prompt: string) {
+function demoFormatJson(prompt: string) {
   const format = prompt.match(/^Formato da resposta: (\w+)/m)?.[1];
-  const trend = format ? demoTrendJson(format, prompt) : null;
+  return format ? demoTrendJson(format, prompt) : null;
+}
+
+function demoJson(prompt: string) {
+  const trend = demoFormatJson(prompt);
   if (trend) return trend;
   const topic = topicOf(prompt);
   return JSON.stringify({
