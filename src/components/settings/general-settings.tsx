@@ -2,6 +2,7 @@
 
 import { Plus, X } from "lucide-react";
 import { useState } from "react";
+import { OrgLogoEditor } from "@/components/brand/org-logo-editor";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/checkbox";
@@ -16,9 +17,15 @@ import {
 } from "@/server/actions/settings";
 
 type Props = {
-  org: { name: string; logoUrl: string | null; slug: string };
+  org: { name: string; logoUrl: string | null; logoSrc: string | null; hasUploadedLogo: boolean; slug: string };
+  logoMaxBytes: number;
   uploads: { maxBytes: number; allowedTypes: string[] };
-  portal: { showInvoices: boolean; showProjectProgress: boolean; allowRequestCreation: boolean };
+  portal: {
+    showInvoices: boolean;
+    showProjectProgress: boolean;
+    allowRequestCreation: boolean;
+    showAgencyLogo: boolean;
+  };
   time: { trackingEnabled: boolean };
   maxServerMb: number;
 };
@@ -38,9 +45,15 @@ const TYPE_LABEL: Record<string, string> = {
   "font/": "Fontes",
 };
 
-export function GeneralSettings({ org, uploads, portal, time, maxServerMb }: Props) {
+export function GeneralSettings({ org, logoMaxBytes, uploads, portal, time, maxServerMb }: Props) {
   const [name, setName] = useState(org.name);
   const [logoUrl, setLogoUrl] = useState(org.logoUrl ?? "");
+  // A remoção da logo também apaga o link externo: acompanha o valor salvo.
+  const [savedLogoUrl, setSavedLogoUrl] = useState(org.logoUrl);
+  if (savedLogoUrl !== org.logoUrl) {
+    setSavedLogoUrl(org.logoUrl);
+    setLogoUrl(org.logoUrl ?? "");
+  }
   const [maxMb, setMaxMb] = useState(String(Math.round(uploads.maxBytes / 1024 / 1024)));
   const [types, setTypes] = useState(uploads.allowedTypes);
   const [newType, setNewType] = useState("");
@@ -54,6 +67,21 @@ export function GeneralSettings({ org, uploads, portal, time, maxServerMb }: Pro
 
   return (
     <div className="grid max-w-3xl gap-6">
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>Logo da agência</CardTitle>
+            <CardDescription>
+              Foto de perfil da agência: aparece no menu, no seletor de agências e no painel. Fica salva na nuvem da
+              plataforma e vale em qualquer dispositivo.
+            </CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <OrgLogoEditor orgName={org.name} src={org.logoSrc} maxBytes={logoMaxBytes} orgSlug={org.slug} />
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <div>
@@ -72,14 +100,32 @@ export function GeneralSettings({ org, uploads, portal, time, maxServerMb }: Pro
             <Field label="Nome da agência" htmlFor="s-name" error={general.fieldErrors.name}>
               <Input id="s-name" value={name} onChange={(e) => setName(e.target.value)} />
             </Field>
-            <Field
-              label="URL do logotipo"
-              htmlFor="s-logo"
-              hint="Imagem quadrada, exibida no menu e na área do cliente."
-              error={general.fieldErrors.logoUrl}
+            <details
+              className="group rounded-md border border-border px-3 py-2 open:pb-3"
+              open={!!logoUrl && !org.hasUploadedLogo}
             >
-              <Input id="s-logo" value={logoUrl} placeholder="https://" onChange={(e) => setLogoUrl(e.target.value)} />
-            </Field>
+              <summary className="cursor-pointer text-sm text-fg-muted select-none hover:text-fg">
+                Usar um link externo para a logo (opcional)
+              </summary>
+              <Field
+                label="Link da logo"
+                htmlFor="s-logo"
+                hint={
+                  org.hasUploadedLogo
+                    ? "A logo enviada acima tem prioridade sobre este link."
+                    : "Prefira enviar a imagem acima: o link depende de um site externo continuar no ar."
+                }
+                error={general.fieldErrors.logoUrl}
+                className="mt-3"
+              >
+                <Input
+                  id="s-logo"
+                  value={logoUrl}
+                  placeholder="https://"
+                  onChange={(e) => setLogoUrl(e.target.value)}
+                />
+              </Field>
+            </details>
             <div>
               <Button type="submit" variant="primary" loading={general.pending}>
                 Salvar
@@ -182,6 +228,11 @@ export function GeneralSettings({ org, uploads, portal, time, maxServerMb }: Pro
                 "Status, etapas e percentual concluído (sem tarefas internas).",
               ],
               ["showInvoices", "Ver faturas", "Faturas do próprio cliente. Custos internos nunca são exibidos."],
+              [
+                "showAgencyLogo",
+                "Mostrar a logo da agência no portal",
+                "Discreta, ao lado do nome da agência. A marca do cliente continua em destaque.",
+              ],
             ] as const
           ).map(([key, label, hint]) => (
             <label key={key} className="flex items-start justify-between gap-4">

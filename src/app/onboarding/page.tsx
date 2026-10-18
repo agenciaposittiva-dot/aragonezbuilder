@@ -5,6 +5,7 @@ import { formatDate } from "@/lib/format";
 import { accessKeyRequired } from "@/server/access-key";
 import { requireSession } from "@/server/auth/session";
 import { listUserOrganizations } from "@/server/authz/actor";
+import { env } from "@/server/env";
 import { listTrashedOrganizations } from "@/server/services/trash";
 import { OnboardingForm } from "./onboarding-form";
 import { TrashedOrganizations } from "./trashed-organizations";
@@ -45,7 +46,7 @@ export default async function OnboardingPage({ searchParams }: PageProps<"/onboa
         </h1>
         <p className="mt-1 text-sm text-fg-muted">Você será o proprietário. Depois, convide a equipe e os clientes.</p>
       </div>
-      <OnboardingForm needsAccessKey={accessKeyRequired(session.user.email)} />
+      <OnboardingForm needsAccessKey={accessKeyRequired(session.user.email)} logoMaxBytes={env.LOGO_MAX_BYTES} />
     </main>
   );
 }

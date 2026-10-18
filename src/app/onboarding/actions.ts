@@ -10,7 +10,9 @@ export async function createOrganizationAction(input: {
   name: string;
   slug?: string;
   accessKey?: string;
-}): Promise<ActionResult<never>> {
+  /** Devolve o endereço em vez de redirecionar (o formulário ainda vai enviar a logo). */
+  returnSlug?: boolean;
+}): Promise<ActionResult<{ slug: string }>> {
   const session = await requireSession();
   if (accessKeyRequired(session.user.email) && !accessKeyMatches(input.accessKey?.trim())) {
     // Atraso fixo para desencorajar tentativas em sequência.
@@ -28,5 +30,6 @@ export async function createOrganizationAction(input: {
   } catch (err) {
     return toActionError(err);
   }
+  if (input.returnSlug) return { ok: true, data: { slug } };
   redirect(`/w/${slug}`);
 }

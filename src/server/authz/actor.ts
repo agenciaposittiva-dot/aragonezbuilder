@@ -1,6 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { withSystem } from "@/server/db";
 import { clientAccess, memberships, organizations, roles, user } from "@/server/db/schema";
+import { orgLogoSrc } from "@/lib/org-logo";
 import { parseOrgSettings, type OrgSettings } from "@/lib/org-settings";
 import { sanitizePermissions, type Permission, type RoleKind } from "@/lib/permissions";
 
@@ -16,7 +17,10 @@ export type Actor = {
   orgId: string;
   orgSlug: string;
   orgName: string;
+  /** Link externo de logo cadastrado (legado). */
   orgLogoUrl: string | null;
+  /** Logo exibida: enviada > link externo > null (iniciais). */
+  orgLogoSrc: string | null;
   settings: OrgSettings;
   membershipId: string;
   roleId: string;
@@ -75,6 +79,7 @@ export async function resolveActor(userId: string, orgSlug: string): Promise<Act
       orgSlug: row.org.slug,
       orgName: row.org.name,
       orgLogoUrl: row.org.logoUrl,
+      orgLogoSrc: orgLogoSrc(row.org),
       settings: parseOrgSettings(row.org.settings),
       membershipId: row.membership.id,
       roleId: row.role.id,
@@ -93,19 +98,23 @@ export type UserOrganization = {
   slug: string;
   name: string;
   logoUrl: string | null;
+  /** Logo exibida no seletor (enviada > link externo). */
+  logoSrc: string | null;
   roleName: string;
   kind: RoleKind;
 };
 
 /** Organizações em que o usuário tem vínculo ativo (para o seletor de organização). */
 export async function listUserOrganizations(userId: string): Promise<UserOrganization[]> {
-  return withSystem((tx) =>
+  const rows = await withSystem((tx) =>
     tx
       .select({
         id: organizations.id,
         slug: organizations.slug,
         name: organizations.name,
         logoUrl: organizations.logoUrl,
+        logoKey: organizations.logoKey,
+        logoHash: organizations.logoHash,
         roleName: roles.name,
         kind: roles.kind,
       })
@@ -115,4 +124,5 @@ export async function listUserOrganizations(userId: string): Promise<UserOrganiz
       .where(and(eq(memberships.userId, userId), eq(memberships.status, "active"), isNull(organizations.deletedAt)))
       .orderBy(organizations.name),
   );
+  return rows.map(({ logoKey, logoHash, ...o }) => ({ ...o, logoSrc: orgLogoSrc({ ...o, logoKey, logoHash }) }));
 }

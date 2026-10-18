@@ -15,7 +15,14 @@ export default async function SettingsGeneralPage({ params }: PageProps<"/w/[org
   return (
     <div className="grid gap-6">
       <GeneralSettings
-        org={{ name: actor.orgName, logoUrl: actor.orgLogoUrl, slug: actor.orgSlug }}
+        org={{
+          name: actor.orgName,
+          logoUrl: actor.orgLogoUrl,
+          logoSrc: actor.orgLogoSrc,
+          hasUploadedLogo: !!actor.orgLogoSrc && actor.orgLogoSrc !== actor.orgLogoUrl,
+          slug: actor.orgSlug,
+        }}
+        logoMaxBytes={env.LOGO_MAX_BYTES}
         uploads={settings.uploads}
         portal={settings.portal}
         time={settings.time}

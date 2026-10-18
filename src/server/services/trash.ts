@@ -623,6 +623,11 @@ export async function purgeExpiredTrash(now = new Date()) {
   for (const org of expiredOrgs) {
     const keys = await withSystem(async (tx) => {
       const k = await storageKeysWhere(tx, eq(fileVersions.organizationId, org.id));
+      const [logo] = await tx
+        .select({ key: organizations.logoKey })
+        .from(organizations)
+        .where(eq(organizations.id, org.id));
+      if (logo?.key) k.push(logo.key);
       await tx.delete(organizations).where(eq(organizations.id, org.id));
       return k;
     });

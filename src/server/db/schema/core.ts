@@ -25,7 +25,13 @@ export const organizations = pgTable("organizations", {
   id: id(),
   name: text().notNull(),
   slug: text().notNull().unique(),
+  /** Link externo de logotipo (legado; a logo enviada tem prioridade). */
   logoUrl: text(),
+  /** Logo enviada: chave no armazenamento privado (PNG 512×512 já recortado). */
+  logoKey: text(),
+  /** SHA-256 do PNG da logo; versiona a URL e evita regravar a mesma imagem. */
+  logoHash: text(),
+  logoUpdatedAt: tstz(),
   settings: jsonb().$type<Partial<OrgSettings>>().notNull().default({}),
   /** Lixeira: agência excluída pelo proprietário; inacessível e apagada de vez depois de 30 dias. */
   deletedAt: tstz(),

@@ -50,6 +50,13 @@
       "when": 1792320762151,
       "tag": "0006_lixeira",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792322043734,
+      "tag": "0007_org_logo",
+      "breakpoints": true
     }
   ]
 }

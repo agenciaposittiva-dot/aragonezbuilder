@@ -2,6 +2,7 @@ import { AlertTriangle, CheckCheck, FolderKanban, Inbox, ListChecks } from "luci
 import type { Metadata } from "next";
 import Link from "next/link";
 import { DueDate } from "@/components/app/due-date";
+import { OrgAvatar } from "@/components/brand/org-avatar";
 import { PriorityIcon } from "@/components/app/priority";
 import { Stat, StatGrid } from "@/components/app/stat";
 import { Avatar } from "@/components/ui/avatar";
@@ -81,11 +82,19 @@ export default async function DashboardPage({ params }: PageProps<"/w/[org]">) {
 
   return (
     <div className="grid grid-cols-1 gap-6">
-      <div>
-        <p className="text-sm text-fg-muted first-letter:uppercase">{LONG_DATE.format(new Date())}</p>
-        <h1 className="mt-0.5 text-xl font-semibold tracking-tight">
-          {greeting()}, {actor.name.split(" ")[0]}
-        </h1>
+      <div className="flex items-center gap-3">
+        {actor.orgLogoSrc ? (
+          <OrgAvatar name={actor.orgName} src={actor.orgLogoSrc} size="xl" className="hidden sm:inline-flex" />
+        ) : null}
+        <div className="min-w-0">
+          <p className="text-sm text-fg-muted first-letter:uppercase">
+            {LONG_DATE.format(new Date())}
+            {actor.orgLogoSrc ? <span className="hidden sm:inline"> · {actor.orgName}</span> : null}
+          </p>
+          <h1 className="mt-0.5 text-xl font-semibold tracking-tight">
+            {greeting()}, {actor.name.split(" ")[0]}
+          </h1>
+        </div>
       </div>
 
       {d.kpis ? (

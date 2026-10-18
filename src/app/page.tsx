@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { LogoMark } from "@/components/brand/logo";
-import { Avatar } from "@/components/ui/avatar";
+import { OrgAvatar } from "@/components/brand/org-avatar";
 import { essentialConfigPresent } from "@/server/config-ready";
 
 function homeOf(org: { slug: string; kind: string }) {
@@ -41,7 +41,7 @@ export default async function Home() {
               href={homeOf(o)}
               className="flex items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3 transition-colors hover:bg-surface-2"
             >
-              <Avatar name={o.name} src={o.logoUrl} square />
+              <OrgAvatar name={o.name} src={o.logoSrc} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium">{o.name}</span>
                 <span className="block text-xs text-fg-muted">{o.roleName}</span>
