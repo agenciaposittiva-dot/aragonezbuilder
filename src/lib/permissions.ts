@@ -314,3 +314,65 @@ export function sanitizePermissions(kind: RoleKind, permissions: string[]): Perm
   const unique = [...new Set(valid)];
   return kind === "client" ? unique.filter((p) => !INTERNAL_ONLY.includes(p)) : unique;
 }
+
+/** Agrupamento para a tela de papéis e permissões. */
+export const PERMISSION_GROUPS: { label: string; permissions: Permission[] }[] = [
+  {
+    label: "Organização",
+    permissions: ["org.manage", "members.read", "members.manage", "roles.manage", "audit.read", "data.all"],
+  },
+  {
+    label: "Clientes e projetos",
+    permissions: [
+      "clients.read",
+      "clients.write",
+      "clients.archive",
+      "projects.read",
+      "projects.write",
+      "projects.archive",
+    ],
+  },
+  {
+    label: "Tarefas e tempo",
+    permissions: ["tasks.read", "tasks.write", "tasks.assign", "tasks.delete", "time.track", "time.read_all"],
+  },
+  {
+    label: "Solicitações e aprovações",
+    permissions: [
+      "requests.read",
+      "requests.write",
+      "requests.triage",
+      "briefings.manage",
+      "approvals.request",
+      "approvals.decide_internal",
+      "approvals.decide_client",
+      "comments.internal",
+    ],
+  },
+  {
+    label: "Arquivos e criação",
+    permissions: [
+      "files.read",
+      "files.write",
+      "files.delete",
+      "files.share",
+      "designs.read",
+      "designs.write",
+      "templates.manage",
+    ],
+  },
+  { label: "Inteligência artificial", permissions: ["ai.use", "ai.settings"] },
+  {
+    label: "Gestão",
+    permissions: [
+      "reports.read",
+      "reports.export",
+      "automations.read",
+      "automations.manage",
+      "finance.read",
+      "finance.write",
+      "costs.read",
+    ],
+  },
+  { label: "Área do cliente", permissions: ["portal.access"] },
+];

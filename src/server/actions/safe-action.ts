@@ -48,14 +48,19 @@ type Options = {
 /**
  * Cria uma Server Action protegida para uma organização:
  *  1. exige sessão válida e vínculo ativo com a organização (`orgSlug`);
- *  2. valida a entrada com Zod;
+ *  2. valida a entrada com Zod (erros de campo voltam para a interface);
  *  3. executa o serviço numa transação restrita à organização (RLS);
  *  4. converte erros de domínio em respostas para a interface.
- * As permissões específicas são verificadas dentro de cada serviço.
+ *
+ * Importante: o handler recebe a entrada ORIGINAL (tipo de entrada do schema),
+ * não a versão transformada. Os serviços são os donos da validação e da
+ * conversão (ex.: "1.234,56" → centavos) e sempre fazem `schema.parse` no
+ * início. Assim nada é convertido duas vezes. Permissões específicas são
+ * verificadas dentro de cada serviço.
  */
 export function orgAction<S extends z.ZodType, R>(
   schema: S,
-  handler: (s: Scope, input: z.output<S>) => Promise<R>,
+  handler: (s: Scope, input: z.input<S>) => Promise<R>,
   options: Options = {},
 ) {
   return async (orgSlug: string, input: z.input<S>): Promise<ActionResult<R>> => {
@@ -64,8 +69,8 @@ export function orgAction<S extends z.ZodType, R>(
       if (!session) return { ok: false, error: "Sua sessão expirou. Entre novamente.", code: "unauthenticated" };
       const actor = await getActor(String(orgSlug));
       if (!actor) return { ok: false, error: "Acesso negado.", code: "forbidden" };
-      const data = schema.parse(input);
-      const result = await inOrg(actor, (s) => handler(s, data));
+      schema.parse(input);
+      const result = await inOrg(actor, (s) => handler(s, input));
       if (options.refresh !== false) refresh();
       return { ok: true, data: result };
     } catch (err) {

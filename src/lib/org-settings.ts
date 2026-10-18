@@ -43,6 +43,8 @@ export const orgSettingsSchema = z.object({
       allowClientContext: z.boolean().default(false),
       monthlyTokenLimit: z.number().int().nonnegative().default(2_000_000),
       userDailyRequestLimit: z.number().int().nonnegative().default(100),
+      /** Chaves de API próprias da organização, sempre criptografadas (src/server/crypto.ts). */
+      keys: z.object({ anthropic: z.string().optional(), openai: z.string().optional() }).default({}),
     })
     .prefault({}),
   time: z.object({ trackingEnabled: z.boolean().default(true) }).prefault({}),

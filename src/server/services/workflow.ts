@@ -76,7 +76,7 @@ export const statusInput = z.object({
   color: z.string().max(20).default("slate"),
 });
 
-export async function saveStatus(s: Scope, input: z.infer<typeof statusInput>) {
+export async function saveStatus(s: Scope, input: z.input<typeof statusInput>) {
   assertCan(s.actor, "org.manage");
   const data = statusInput.parse(input);
   if (data.id) {

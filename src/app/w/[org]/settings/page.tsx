@@ -1,7 +1,23 @@
+import type { Metadata } from "next";
+import { GeneralSettings } from "@/components/settings/general-settings";
+import { inOrg } from "@/server/authz";
 import { requireActor } from "@/server/auth/session";
+import { env } from "@/server/env";
+import { getSettings } from "@/server/services/organizations";
+
+export const metadata: Metadata = { title: "Configurações" };
 
 export default async function SettingsGeneralPage({ params }: PageProps<"/w/[org]/settings">) {
   const { org } = await params;
-  await requireActor(org, { kind: "internal", permission: "org.manage" });
-  return <p className="text-sm text-fg-muted">Em construção.</p>;
+  const actor = await requireActor(org, { kind: "internal", permission: "org.manage" });
+  const settings = await inOrg(actor, getSettings);
+  return (
+    <GeneralSettings
+      org={{ name: actor.orgName, logoUrl: actor.orgLogoUrl, slug: actor.orgSlug }}
+      uploads={settings.uploads}
+      portal={settings.portal}
+      time={settings.time}
+      maxServerMb={Math.round(env.UPLOAD_MAX_BYTES / 1024 / 1024)}
+    />
+  );
 }

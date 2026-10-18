@@ -4,6 +4,7 @@ import { z } from "zod";
 import { SYSTEM_ROLES } from "@/lib/permissions";
 import { orgSettingsSchema, parseOrgSettings, type OrgSettings } from "@/lib/org-settings";
 import { RESERVED_SLUGS, slugify } from "@/lib/slug";
+import { generalSettingsInput } from "@/lib/validators/settings";
 import { withOrg, withSystem, type Tx } from "@/server/db";
 import {
   auditLogs,
@@ -157,14 +158,9 @@ async function seedWorkflow(tx: Tx, orgId: string) {
   );
 }
 
-export const updateOrganizationInput = z.object({
-  name: z.string().trim().min(2).max(80),
-  logoUrl: z.url().nullable().optional(),
-});
-
-export async function updateOrganization(s: Scope, input: z.infer<typeof updateOrganizationInput>) {
+export async function updateOrganization(s: Scope, input: z.input<typeof generalSettingsInput>) {
   assertCan(s.actor, "org.manage");
-  const data = updateOrganizationInput.parse(input);
+  const data = generalSettingsInput.parse(input);
   await s.db
     .update(organizations)
     .set({ name: data.name, logoUrl: data.logoUrl ?? null })

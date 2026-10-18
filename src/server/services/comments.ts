@@ -78,7 +78,8 @@ export type CommentRow = Awaited<ReturnType<typeof listComments>>[number];
 export async function addComment(s: Scope, raw: z.input<typeof commentInput>) {
   const data = commentInput.parse(raw);
   const { values, entity } = await targetCondition(s, data.target);
-  const internal = canSeeInternal(s) ? data.internal : false;
+  // Tarefas são só da equipe: comentários nelas são sempre internos.
+  const internal = entity.type === "task" ? true : canSeeInternal(s) ? data.internal : false;
   const [row] = await s.db
     .insert(comments)
     .values({ organizationId: s.actor.orgId, authorUserId: s.actor.userId, body: data.body, internal, ...values })

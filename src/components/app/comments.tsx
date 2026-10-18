@@ -33,17 +33,21 @@ export function Comments({
   comments,
   allowInternal,
   defaultInternal = true,
+  lockInternal = false,
   placeholder = "Escreva um comentário…",
 }: {
   target: CommentTarget;
   comments: CommentItem[];
   allowInternal: boolean;
   defaultInternal?: boolean;
+  /** Registros só da equipe (ex.: tarefas): todo comentário é interno, sem opção de torná-lo visível. */
+  lockInternal?: boolean;
   placeholder?: string;
 }) {
   const ws = useWorkspace();
   const [body, setBody] = useState("");
-  const [internal, setInternal] = useState(allowInternal && defaultInternal);
+  const [internalChoice, setInternal] = useState(allowInternal && defaultInternal);
+  const internal = lockInternal || internalChoice;
   const add = useOrgAction(addCommentAction, { onSuccess: () => setBody("") });
   const remove = useOrgAction(deleteCommentAction);
   const isAdmin = ws.permissions.includes("org.manage");
@@ -113,7 +117,7 @@ export function Comments({
           aria-label="Novo comentário"
         />
         <div className="flex flex-wrap items-center justify-between gap-2">
-          {allowInternal ? (
+          {allowInternal && !lockInternal ? (
             <label className="flex items-center gap-2 text-xs text-fg-muted">
               <Switch checked={internal} onCheckedChange={setInternal} aria-label="Comentário interno" />
               {internal ? "Interno: só a equipe vê" : "Visível para o cliente"}

@@ -1,0 +1,92 @@
+import Anthropic from "@anthropic-ai/sdk";
+import { estimateCostMicros } from "../pricing";
+import { AiProviderError, type AiProvider, type GenerateRequest, type GenerateResult } from "../types";
+
+export const ANTHROPIC_MODELS = [
+  { id: "claude-opus-5-5", label: "Claude Opus 5.5 (padrão, mais capaz)" },
+  { id: "claude-sonnet-5-5", label: "Claude Sonnet 5.5 (rápido e econômico)" },
+  { id: "claude-haiku-5-5", label: "Claude Haiku 5.5 (alto volume, menor custo)" },
+];
+
+/**
+ * Provedor Anthropic (API oficial, SDK @anthropic-ai/sdk).
+ * - Streaming para não estourar tempo limite em respostas longas.
+ * - `fallbacks: "default"`: se os filtros de segurança recusarem o pedido, a
+ *   própria API refaz a chamada no modelo recomendado (beta server-side-fallback).
+ * - Erros tipados do SDK são traduzidos para mensagens em português.
+ */
+export function createAnthropicProvider(apiKey: string): AiProvider {
+  const client = new Anthropic({ apiKey, maxRetries: 2, timeout: 5 * 60 * 1000 });
+
+  async function generate(req: GenerateRequest): Promise<GenerateResult> {
+    const fallbacksSupported = req.model !== "claude-haiku-5-5";
+    try {
+      const stream = client.beta.messages.stream(
+        {
+          model: req.model,
+          max_tokens: req.maxTokens,
+          system: req.system,
+          messages: [{ role: "user", content: req.prompt }],
+          output_config: {
+            effort: "medium",
+            ...(req.jsonSchema ? { format: { type: "json_schema", schema: req.jsonSchema } } : {}),
+          },
+          ...(fallbacksSupported ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
+        },
+        { signal: req.signal },
+      );
+      if (req.onText) stream.on("text", (delta) => req.onText!(delta));
+      const message = await stream.finalMessage();
+
+      if (message.stop_reason === "refusal") {
+        throw new AiProviderError(
+          "O provedor recusou este pedido pelas políticas de uso. Reformule o pedido e tente novamente.",
+          "refusal",
+        );
+      }
+      const text = message.content
+        .filter((b): b is Extract<(typeof message.content)[number], { type: "text" }> => b.type === "text")
+        .map((b) => b.text)
+        .join("");
+      const inputTokens = message.usage.input_tokens + (message.usage.cache_read_input_tokens ?? 0);
+      const outputTokens = message.usage.output_tokens;
+      return {
+        text,
+        model: message.model,
+        inputTokens,
+        outputTokens,
+        costMicros: estimateCostMicros(req.model, inputTokens, outputTokens),
+        stopReason: message.stop_reason,
+      };
+    } catch (err) {
+      if (err instanceof AiProviderError) throw err;
+      if (err instanceof Anthropic.AuthenticationError || err instanceof Anthropic.PermissionDeniedError) {
+        throw new AiProviderError("Chave de API da Anthropic inválida ou sem permissão.", "auth");
+      }
+      if (err instanceof Anthropic.RateLimitError) {
+        throw new AiProviderError(
+          "Limite de requisições do provedor atingido. Aguarde um pouco e tente de novo.",
+          "rate_limit",
+        );
+      }
+      if (err instanceof Anthropic.BadRequestError) {
+        throw new AiProviderError(`Pedido recusado pelo provedor: ${err.message}`, "bad_request");
+      }
+      if (err instanceof Anthropic.APIConnectionError || err instanceof Anthropic.InternalServerError) {
+        throw new AiProviderError("O provedor de IA está indisponível no momento. Tente novamente.", "unavailable");
+      }
+      if (err instanceof Anthropic.APIError) {
+        throw new AiProviderError(`Erro do provedor (${err.status ?? "?"}).`, "unavailable");
+      }
+      throw err;
+    }
+  }
+
+  return {
+    id: "anthropic",
+    label: "Anthropic (Claude)",
+    defaultModel: "claude-opus-5-5",
+    models: ANTHROPIC_MODELS,
+    generate,
+  };
+}
