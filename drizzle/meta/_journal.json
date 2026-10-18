@@ -92,6 +92,13 @@
       "when": 1792340171653,
       "tag": "0012_foto_grupo",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792342000031,
+      "tag": "0013_avisos_chat",
+      "breakpoints": true
     }
   ]
 }

@@ -8,3 +8,5 @@ export const updateNotificationPreferencesAction = orgAction(
   prefs.updateNotificationPreferences,
   { refresh: false },
 );
+
+export const updateChatAlertsAction = orgAction(prefs.chatAlertsInput, prefs.updateChatAlertPrefs, { refresh: false });

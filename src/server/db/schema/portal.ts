@@ -89,6 +89,8 @@ export const notificationPreferences = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     email: jsonb().$type<Record<string, boolean>>().notNull().default({}),
     inApp: jsonb().$type<Record<string, boolean>>().notNull().default({}),
+    /** Avisos de mensagens do chat (janela flutuante, som, notificações do sistema). Ver lib/chat-alerts. */
+    alerts: jsonb().$type<Record<string, unknown>>().notNull().default({}),
     ...timestamps,
   },
   (t) => [primaryKey({ columns: [t.organizationId, t.userId] }), index().on(t.userId)],

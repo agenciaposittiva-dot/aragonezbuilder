@@ -1765,3 +1765,142 @@ export async function recentAlerts(s: Scope, since: Date) {
     .orderBy(desc(notifications.createdAt))
     .limit(5);
 }
+
+/* ------------------------------------------------------------------ */
+/* Caixa de entrada dos avisos (janela flutuante, som, sistema)        */
+/* ------------------------------------------------------------------ */
+
+export type InboxMessage = {
+  id: string;
+  conversationId: string;
+  seq: number;
+  /** `image`: foto atual do grupo/canal (nas diretas, a de quem escreveu). */
+  conversation: { kind: Conversation["kind"]; name: string; image: string | null };
+  author: { id: string | null; name: string; image: string | null };
+  excerpt: string;
+  mention: boolean;
+  attachments: number;
+  createdAt: string;
+  /** Idade da mensagem pelo relógio do servidor (o do navegador pode estar errado). */
+  ageMs: number;
+};
+
+export type InboxWatch = { conversationId: string; lastReadSeq: number; gone: boolean };
+
+/** Margem para mensagens gravadas em transações que começaram antes da busca anterior. */
+const INBOX_OVERLAP_MS = 20_000;
+/** Depois de muito tempo sem conexão, avisos antigos não voltam (o contador continua certo). */
+const INBOX_MAX_AGE_MS = 15 * 60_000;
+
+/**
+ * Mensagens novas PARA a pessoa desde o último cursor: só conversas em que ela
+ * participa e que ainda pode ver, sem as próprias mensagens, sem avisos do
+ * sistema, sem apagadas, já lidas, silenciadas ou com "nenhum aviso" (e, com
+ * "só menções", apenas as que a mencionam). A deduplicação final (por id) é
+ * do navegador; o cursor é o relógio do servidor.
+ */
+export async function chatInbox(
+  s: Scope,
+  opts: { since: number; after: number | null; watch: string[] },
+): Promise<{ now: number; messages: InboxMessage[]; watch: InboxWatch[] }> {
+  assertChat(s);
+  const me = s.actor.userId;
+  const nowMs = Date.now();
+  const from = new Date(
+    Math.max(opts.since, opts.after ? opts.after - INBOX_OVERLAP_MS : opts.since, nowMs - INBOX_MAX_AGE_MS),
+  );
+  const res = await s.db.execute<{
+    id: string;
+    conversation_id: string;
+    seq: string;
+    body: string;
+    mentions: string[] | null;
+    created_at: string;
+    age_ms: number;
+    conv_kind: Conversation["kind"];
+    conv_name: string | null;
+    conv_image_hash: string | null;
+    author_id: string | null;
+    author_name: string | null;
+    author_image: string | null;
+    attachments: number;
+  }>(sql`
+    select m.id, m.conversation_id, m.seq, m.body, m.mentions, m.created_at,
+      (extract(epoch from (now() - m.created_at)) * 1000)::int as age_ms,
+      ${chatConversations.kind} as conv_kind, ${chatConversations.name} as conv_name,
+      ${chatConversations.imageHash} as conv_image_hash,
+      u.id as author_id, u.name as author_name, u.image as author_image,
+      (select count(*)::int from ${chatAttachments} a where a.message_id = m.id) as attachments
+    from ${chatParticipants}
+    join ${chatConversations} on ${chatConversations.id} = ${chatParticipants.conversationId}
+    join ${chatMessages} m on m.conversation_id = ${chatParticipants.conversationId}
+      and m.seq > ${chatParticipants.lastReadSeq}
+    left join ${user} u on u.id = m.author_user_id
+    where ${chatParticipants.userId} = ${me}
+      and ${chatConversations.lastMessageAt} > ${from}
+      and ${chatConversations.archivedAt} is null
+      and ${chatParticipants.notify} <> 'none'
+      and (${chatParticipants.mutedUntil} is null or ${chatParticipants.mutedUntil} < now())
+      and m.created_at > ${from}
+      and m.kind = 'text' and m.deleted_at is null
+      and m.author_user_id is distinct from ${me}
+      and (${chatParticipants.notify} = 'all' or ${me} = any(m.mentions))
+      and ${linkedVisible(s)}
+    order by m.created_at asc, m.seq asc
+    limit 60
+  `);
+
+  const mentionIds = [...new Set(res.rows.flatMap((r) => extractMentions(r.body)))];
+  const names = new Map<string, string>();
+  if (mentionIds.length) {
+    const rows = await s.db
+      .select({ id: user.id, name: user.name })
+      .from(user)
+      .where(inArray(user.id, mentionIds.slice(0, 200)));
+    for (const r of rows) names.set(r.id, r.name);
+  }
+  const messages = res.rows.map<InboxMessage>((r) => ({
+    id: r.id,
+    conversationId: r.conversation_id,
+    seq: Number(r.seq),
+    conversation: {
+      kind: r.conv_kind,
+      // Direta: o nome da conversa é quem escreveu (a outra pessoa).
+      name: r.conv_kind === "direct" ? (r.author_name ?? "Conversa direta") : (r.conv_name ?? "Conversa"),
+      image: conversationImage({
+        id: r.conversation_id,
+        kind: r.conv_kind,
+        imageHash: r.conv_image_hash,
+        otherImage: r.author_image,
+      }),
+    },
+    author: { id: r.author_id, name: r.author_name ?? "Pessoa removida", image: r.author_image },
+    excerpt: excerpt(r.body, (id) => names.get(id), 140),
+    mention: (r.mentions ?? []).includes(me),
+    attachments: r.attachments,
+    createdAt: new Date(r.created_at).toISOString(),
+    ageMs: Math.max(0, r.age_ms),
+  }));
+
+  // Janelas abertas no navegador: lidas em outro lugar (outra aba/aparelho) ou sem acesso somem.
+  const ids = [...new Set(opts.watch.filter((id) => uuid.safeParse(id).success))].slice(0, 20);
+  let watch: InboxWatch[] = [];
+  if (ids.length) {
+    const rows = await s.db
+      .select({ conversationId: chatParticipants.conversationId, lastReadSeq: chatParticipants.lastReadSeq })
+      .from(chatParticipants)
+      .innerJoin(chatConversations, eq(chatConversations.id, chatParticipants.conversationId))
+      .where(
+        and(
+          eq(chatParticipants.userId, me),
+          inArray(chatParticipants.conversationId, ids),
+          sql`${chatParticipants.notify} <> 'none'`,
+          sql`(${chatParticipants.mutedUntil} is null or ${chatParticipants.mutedUntil} < now())`,
+          linkedVisible(s),
+        ),
+      );
+    const byId = new Map(rows.map((r) => [r.conversationId, Number(r.lastReadSeq)]));
+    watch = ids.map((id) => ({ conversationId: id, lastReadSeq: byId.get(id) ?? 0, gone: !byId.has(id) }));
+  }
+  return { now: nowMs, messages, watch };
+}

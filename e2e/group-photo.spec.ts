@@ -166,17 +166,23 @@ test.describe("foto de grupo do chat", () => {
     );
     await closeDetails(rafael);
 
-    // Aviso (menção) mostra a foto atual do grupo no sino do Rafael.
+    // Fora do chat, a janela flutuante e o aviso do sino do Rafael mostram a foto atual do grupo.
+    await rafael.goto(ORG);
+    await rafael.waitForLoadState("networkidle");
     const composer = helena.getByRole("textbox", { name: "Mensagem" });
     await composer.fill(`Veja a capa, @Rafael Nunes! ${token}`);
     await composer.press("Enter");
     await expect(helena.getByTestId("chat-message").filter({ hasText: `Veja a capa` })).toBeVisible();
-    await rafael.getByRole("button", { name: /Notificações/ }).click();
+    const floating = rafael.locator('[aria-label="Notificações de mensagens"]');
+    await expect(floating.getByTestId("chat-alert-group-photo")).toHaveAttribute("src", first, { timeout: 30_000 });
+    await rafael.getByRole("button", { name: /^Notificações/ }).click();
     const notice = rafael.getByRole("dialog").getByRole("listitem").filter({ hasText: group }).first();
     await expect(notice.getByTestId("chat-conversation-photo")).toHaveAttribute("src", first);
     await rafael.keyboard.press("Escape");
 
     // Recarregar mantém a foto.
+    await rafael.goto(`${ORG}/chat/${conversationId}`);
+    await expect(headerImg(rafael)).toHaveAttribute("src", first);
     await rafael.reload();
     await expect(headerImg(rafael)).toHaveAttribute("src", first);
 

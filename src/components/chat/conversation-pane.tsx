@@ -432,7 +432,7 @@ export function ConversationPane({
                 <DropdownMenuLabel>Avisos desta conversa</DropdownMenuLabel>
                 {(
                   [
-                    ["all", "Diretas e menções"],
+                    ["all", "Todas as mensagens"],
                     ["mentions", "Só menções"],
                     ["none", "Nenhum"],
                   ] as const
