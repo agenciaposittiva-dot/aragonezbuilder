@@ -37,6 +37,24 @@ export const updateTimeSettingsAction = orgAction(timeSettingsInput, async (s, r
   await updateSettings(s, "time", timeSettingsInput.parse(raw));
 });
 
+const storageSettingsInput = z.object({
+  /** Cota em GB; vazio = sem cota da agência (vale o limite do provedor). */
+  quotaGb: z.coerce.number().positive("Use um número maior que zero").max(100_000).nullable(),
+  alertPercent: z.coerce.number().int().min(50).max(99),
+  designVersionRetention: z.coerce.number().int().min(5).max(500),
+  versionCheckpointMinutes: z.coerce.number().int().min(1).max(240),
+});
+
+export const updateStorageSettingsAction = orgAction(storageSettingsInput, async (s, raw) => {
+  const input = storageSettingsInput.parse(raw);
+  await updateSettings(s, "storage", {
+    quotaBytes: input.quotaGb ? Math.round(input.quotaGb * 1024 ** 3) : null,
+    alertPercent: input.alertPercent,
+    designVersionRetention: input.designVersionRetention,
+    versionCheckpointMinutes: input.versionCheckpointMinutes,
+  });
+});
+
 export const saveRoleAction = orgAction(roleInput, saveRole);
 export const deleteRoleAction = orgAction(z.object({ id: z.uuid() }), (s, { id }) => deleteRole(s, id));
 export const resetRoleAction = orgAction(z.object({ id: z.uuid() }), (s, { id }) => resetRole(s, id));

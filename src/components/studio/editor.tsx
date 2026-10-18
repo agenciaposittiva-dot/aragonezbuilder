@@ -1282,7 +1282,10 @@ export function DesignEditor({ design, brand, canWrite }: { design: EditorDesign
   );
 
   return (
-    <div className="fixed inset-0 z-[var(--z-overlay)] flex flex-col bg-bg" data-editor-ready={ready ? "true" : "false"}>
+    <div
+      className="fixed inset-0 z-[var(--z-overlay)] flex flex-col bg-bg"
+      data-editor-ready={ready ? "true" : "false"}
+    >
       <input
         ref={fileInputRef}
         type="file"

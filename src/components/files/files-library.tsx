@@ -1,18 +1,54 @@
-import { FolderOpen, LayoutGrid, List, Upload } from "lucide-react";
+import { FolderOpen, LayoutGrid, List, Palette, Upload } from "lucide-react";
 import Link from "next/link";
-import { ClearFilters, FilterBar, SearchFilter, SelectFilter } from "@/components/app/filters";
+import { ClearFilters, DateFilter, FilterBar, SearchFilter, SelectFilter } from "@/components/app/filters";
 import { Pagination } from "@/components/app/pagination";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { relativeFromNow } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { FILE_CATEGORIES, FILE_CATEGORY_LABEL, FILE_STATUS_LABEL, FILE_STATUSES } from "@/lib/validators/files";
-import type { FileListRow } from "@/server/services/files";
+import {
+  FILE_CATEGORIES,
+  FILE_CATEGORY_LABEL,
+  FILE_SORTS,
+  FILE_STATUS_LABEL,
+  FILE_STATUSES,
+  FILE_TYPES,
+} from "@/lib/validators/files";
+import type { FileListRow, StorageUsage } from "@/server/services/files";
+import { CloudNav } from "./cloud-nav";
 import { FileCollection } from "./file-collection";
 import { FolderTree, type FolderNode } from "./folder-tree";
+import { MobileCollapse } from "./mobile-collapse";
+import { StorageMeter } from "./storage-meter";
 import { UploadDialog } from "./upload-dialog";
 
 type Option = { id: string; name: string };
+
+/** Extras da Minha Nuvem (central): pastas lógicas, uso do armazenamento e artes recentes. */
+export type CloudExtras = {
+  usage: StorageUsage;
+  recentDesigns: { id: string; name: string; thumbnail: string | null; clientName: string | null; updatedAt: Date }[];
+  trashHref: string | null;
+  settingsHref: string | null;
+  studioHref: string;
+};
+
+const FILTER_KEYS = [
+  "q",
+  "category",
+  "status",
+  "tag",
+  "favorites",
+  "final",
+  "clientId",
+  "projectId",
+  "type",
+  "from",
+  "to",
+  "kind",
+  "section",
+];
 
 /**
  * Biblioteca de arquivos reutilizada na central, no cliente e no projeto.
@@ -30,7 +66,9 @@ export function FilesLibrary({
   clients,
   projects,
   canWrite,
+  canDelete = false,
   maxBytes,
+  cloud,
 }: {
   rows: FileListRow[];
   total: number;
@@ -43,7 +81,9 @@ export function FilesLibrary({
   clients?: Option[];
   projects?: (Option & { clientId: string })[];
   canWrite: boolean;
+  canDelete?: boolean;
   maxBytes: number;
+  cloud?: CloudExtras;
 }) {
   const view = searchParams.view === "list" ? "list" : "grid";
   const folderId =
@@ -55,9 +95,7 @@ export function FilesLibrary({
     const s = qs.toString();
     return s ? `${basePath}?${s}` : basePath;
   };
-  const filtered = ["q", "category", "status", "tag", "favorites", "final", "clientId", "projectId"].some(
-    (k) => searchParams[k],
-  );
+  const filtered = FILTER_KEYS.some((k) => searchParams[k]);
 
   const uploadButton = canWrite ? (
     <UploadDialog
@@ -75,11 +113,24 @@ export function FilesLibrary({
   ) : null;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
-      <aside className="lg:sticky lg:top-20 lg:self-start">
-        <Card className="p-2">
-          <FolderTree folders={folders} canWrite={canWrite} scope={scope} />
-        </Card>
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[230px_minmax(0,1fr)]">
+      <aside className="grid content-start gap-3 lg:sticky lg:top-20 lg:self-start">
+        {cloud ? <StorageMeter usage={cloud.usage} settingsHref={cloud.settingsHref} /> : null}
+        <MobileCollapse label={cloud ? "Seções, clientes e pastas" : "Pastas"}>
+          {cloud ? (
+            <Card className="p-2">
+              <CloudNav
+                basePath={basePath}
+                searchParams={searchParams}
+                clients={clients ?? []}
+                trashHref={cloud.trashHref}
+              />
+            </Card>
+          ) : null}
+          <Card className="p-2">
+            <FolderTree folders={folders} canWrite={canWrite} scope={scope} />
+          </Card>
+        </MobileCollapse>
       </aside>
       <div className="grid min-w-0 content-start gap-4">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -111,9 +162,23 @@ export function FilesLibrary({
               label="Status"
               options={FILE_STATUSES.map((st) => ({ value: st, label: FILE_STATUS_LABEL[st] }))}
             />
+            <SelectFilter
+              param="type"
+              label="Tipo"
+              options={Object.entries(FILE_TYPES).map(([value, label]) => ({ value, label }))}
+            />
             <SelectFilter param="final" label="Todos" options={[{ value: "1", label: "Aprovados e finais" }]} />
             <SelectFilter param="favorites" label="Favoritos" options={[{ value: "1", label: "Só favoritos" }]} />
-            <ClearFilters keys={["q", "category", "status", "tag", "favorites", "final", "clientId", "projectId"]} />
+            <DateFilter param="from" label="Alterado de" />
+            <DateFilter param="to" label="até" />
+            <SelectFilter
+              param="sort"
+              label="Ordem"
+              options={Object.entries(FILE_SORTS)
+                .filter(([value]) => value !== "recent")
+                .map(([value, label]) => ({ value, label }))}
+            />
+            <ClearFilters keys={[...FILTER_KEYS, "sort"]} />
           </FilterBar>
           <div className="flex items-center gap-2">
             <div
@@ -139,6 +204,36 @@ export function FilesLibrary({
             {uploadButton}
           </div>
         </div>
+        {cloud && !filtered && cloud.recentDesigns.length ? (
+          <Card className="p-4">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 className="flex items-center gap-1.5 text-sm font-semibold">
+                <Palette className="size-4" /> Artes editadas recentemente
+              </h2>
+              <Link href={cloud.studioHref} className="text-xs text-fg-muted hover:text-fg">
+                Abrir o Estúdio
+              </Link>
+            </div>
+            <ul className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+              {cloud.recentDesigns.map((d) => (
+                <li key={d.id} className="min-w-0">
+                  <Link href={`${cloud.studioHref}/${d.id}`} className="group block">
+                    <div className="flex aspect-square items-center justify-center overflow-hidden rounded-lg border border-border bg-surface-2 p-1.5 transition-colors group-hover:border-border-strong">
+                      {d.thumbnail ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={d.thumbnail} alt="" className="max-h-full max-w-full object-contain" />
+                      ) : (
+                        <Palette className="size-5 text-fg-subtle" />
+                      )}
+                    </div>
+                    <p className="mt-1 truncate text-xs font-medium">{d.name}</p>
+                    <p className="truncate text-[11px] text-fg-subtle">{relativeFromNow(d.updatedAt)}</p>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        ) : null}
         <Card>
           {rows.length === 0 ? (
             <EmptyState
@@ -153,7 +248,15 @@ export function FilesLibrary({
             />
           ) : (
             <>
-              <FileCollection files={rows} view={view} />
+              <FileCollection
+                files={rows}
+                view={view}
+                actions={
+                  canWrite || canDelete
+                    ? { canWrite, canDelete, folders: folders.map((f) => ({ id: f.id, name: f.name })) }
+                    : undefined
+                }
+              />
               <Pagination
                 page={page}
                 pageSize={pageSize}

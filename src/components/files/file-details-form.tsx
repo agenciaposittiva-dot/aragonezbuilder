@@ -3,7 +3,6 @@
 import { Share2, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/checkbox";
 import { Field } from "@/components/ui/field";
@@ -18,7 +17,8 @@ import {
   type FileCategory,
   type FileStatus,
 } from "@/lib/validators/files";
-import { deleteFileAction, setFileSharedAction, updateFileAction } from "@/server/actions/files";
+import { setFileSharedAction, updateFileAction } from "@/server/actions/files";
+import { FileDeleteDialog } from "./file-actions";
 
 type FileData = {
   id: string;
@@ -53,10 +53,7 @@ export function FileDetailsForm({
     success: "Compartilhamento atualizado",
     onError: () => setShared((v) => !v),
   });
-  const remove = useOrgAction(deleteFileAction, {
-    success: "Arquivo excluído",
-    onSuccess: () => router.replace(`/w/${orgSlug}/files`),
-  });
+  const [deleting, setDeleting] = useState(false);
 
   return (
     <div className="grid gap-5">
@@ -156,17 +153,17 @@ export function FileDetailsForm({
       ) : null}
 
       {canDelete ? (
-        <ConfirmDialog
-          title="Excluir arquivo?"
-          description="O arquivo sai da biblioteca e aprovações pendentes são canceladas. As versões ficam preservadas no histórico."
-          confirmLabel="Excluir"
-          onConfirm={() => remove.run({ fileId: file.id })}
-          trigger={
-            <Button variant="danger-ghost" size="sm" className="justify-self-start">
-              <Trash2 /> Excluir arquivo
-            </Button>
-          }
-        />
+        <>
+          <Button variant="danger-ghost" size="sm" className="justify-self-start" onClick={() => setDeleting(true)}>
+            <Trash2 /> Excluir arquivo
+          </Button>
+          <FileDeleteDialog
+            open={deleting}
+            onOpenChange={setDeleting}
+            file={{ id: file.id, name: file.name }}
+            onDeleted={() => router.replace(`/w/${orgSlug}/files`)}
+          />
+        </>
       ) : null}
     </div>
   );

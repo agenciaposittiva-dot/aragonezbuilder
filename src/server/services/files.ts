@@ -351,6 +351,7 @@ export async function listFiles(s: Scope, raw: z.input<typeof fileListParams>) {
           projectId: files.projectId,
           projectName: projects.name,
           projectVisible: projects.portalVisible,
+          folderId: files.folderId,
           updatedAt: files.updatedAt,
           versionId: fileVersions.id,
           versionNumber: fileVersions.versionNumber,

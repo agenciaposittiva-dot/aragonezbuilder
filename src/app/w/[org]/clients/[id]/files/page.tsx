@@ -20,6 +20,7 @@ export default async function ClientFilesPage({ params, searchParams }: PageProp
       scope={{ clientId: id }}
       projects={data.projects}
       canWrite={data.canWrite}
+      canDelete={data.canDelete}
       maxBytes={data.maxBytes}
     />
   );

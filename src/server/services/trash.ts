@@ -421,9 +421,7 @@ export async function listTrash(s: Scope): Promise<TrashItem[]> {
         purgeAt: purgeDate(r.deletedAt!),
         daysLeft: daysUntil(purgeDate(r.deletedAt!)),
         deletedByName: r.by,
-        blockedBy: r.projectDeletedAt
-          ? `O projeto ${r.projectName} está na lixeira. Restaure-o primeiro.`
-          : null,
+        blockedBy: r.projectDeletedAt ? `O projeto ${r.projectName} está na lixeira. Restaure-o primeiro.` : null,
       })),
     );
   }

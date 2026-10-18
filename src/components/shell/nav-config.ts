@@ -2,6 +2,7 @@ import {
   BarChart3,
   Bot,
   CheckCheck,
+  Cloud,
   FolderKanban,
   FolderOpen,
   Home,
@@ -65,7 +66,7 @@ export const WORKSPACE_NAV: NavGroup[] = [
     items: [
       { key: "clients", label: "Clientes", path: "/clients", icon: Users2, permission: "clients.read" },
       { key: "projects", label: "Projetos", path: "/projects", icon: FolderKanban, permission: "projects.read" },
-      { key: "files", label: "Arquivos", path: "/files", icon: FolderOpen, permission: "files.read" },
+      { key: "files", label: "Minha Nuvem", path: "/files", icon: Cloud, permission: "files.read" },
       { key: "studio", label: "Estúdio", path: "/studio", icon: Palette, permission: "designs.read" },
       { key: "ai", label: "Assistente IA", path: "/ai", icon: Bot, permission: "ai.use" },
     ],
