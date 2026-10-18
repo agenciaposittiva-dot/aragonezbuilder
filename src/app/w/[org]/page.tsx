@@ -49,7 +49,7 @@ function TaskGroup({
       <p className={`mb-1.5 text-xs font-medium ${tone === "danger" ? "text-danger" : "text-fg-subtle"}`}>
         {title} · {items.length}
       </p>
-      <ul className="grid">
+      <ul className="grid grid-cols-1">
         {items.map((t) => (
           <li key={t.id}>
             <Link
@@ -174,7 +174,7 @@ export default async function DashboardPage({ params }: PageProps<"/w/[org]">) {
                   description="Projetos com tarefas atrasadas ou prazo próximo e pouco avanço aparecem aqui."
                 />
               ) : (
-                <ul className="grid divide-y divide-border">
+                <ul className="grid grid-cols-1 divide-y divide-border">
                   {d.projectsAtRisk.map((p) => (
                     <li key={p.id}>
                       <Link
@@ -225,7 +225,7 @@ export default async function DashboardPage({ params }: PageProps<"/w/[org]">) {
                 {d.approvals.length === 0 ? (
                   <EmptyState compact icon={CheckCheck} title="Nenhuma revisão interna pendente" />
                 ) : (
-                  <ul className="grid divide-y divide-border">
+                  <ul className="grid grid-cols-1 divide-y divide-border">
                     {d.approvals.map((a) => (
                       <li key={a.id}>
                         <Link href={`${base}/files/${a.fileId}`} className="block py-2.5 hover:opacity-80">
@@ -260,7 +260,7 @@ export default async function DashboardPage({ params }: PageProps<"/w/[org]">) {
                 {d.requests.length === 0 ? (
                   <EmptyState compact icon={Inbox} title="Nenhuma solicitação esperando triagem" />
                 ) : (
-                  <ul className="grid divide-y divide-border">
+                  <ul className="grid grid-cols-1 divide-y divide-border">
                     {d.requests.map((r) => (
                       <li key={r.id}>
                         <Link
