@@ -204,7 +204,8 @@ export const DEFAULT_LIGHT = { background: "#f6f5f1", text: "#161513" };
 /** Problemas de contraste (texto x fundo exige 4,5:1, padrão AA). */
 export function contrastIssues(s: PortalSettings): { field: string; message: string }[] {
   const bg = s.colors.background ?? DEFAULT_LIGHT.background;
-  const fg = s.colors.text ?? DEFAULT_LIGHT.text;
+  // Mesma regra do tema (portalThemeStyle): com fundo próprio e sem cor de texto, o texto é escolhido para ser legível.
+  const fg = s.colors.text ?? (s.colors.background ? readableOn(bg) : DEFAULT_LIGHT.text);
   const out: { field: string; message: string }[] = [];
   const ratio = contrastRatio(bg, fg);
   if (ratio < 4.5) {

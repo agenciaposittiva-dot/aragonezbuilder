@@ -31,7 +31,7 @@ export default async function ClientLayout({ children, params }: LayoutProps<"/w
   const lead = team.find((t) => t.role === "lead");
 
   return (
-    <div className="grid gap-6">
+    <div className="grid min-w-0 grid-cols-1 gap-6">
       <div>
         <Breadcrumbs items={[{ label: "Clientes", href: `/w/${actor.orgSlug}/clients` }, { label: client.name }]} />
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -83,6 +83,7 @@ export default async function ClientLayout({ children, params }: LayoutProps<"/w
             ...(can(actor, "requests.read") ? [{ label: "Solicitações", href: `${base}/requests` }] : []),
             ...(can(actor, "files.read") ? [{ label: "Arquivos", href: `${base}/files` }] : []),
             { label: "Marca", href: `${base}/brand` },
+            { label: "Portal", href: `${base}/portal` },
             ...(can(actor, "finance.read") ? [{ label: "Financeiro", href: `${base}/finance` }] : []),
             { label: "Histórico", href: `${base}/history` },
           ]}

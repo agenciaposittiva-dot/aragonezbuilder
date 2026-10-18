@@ -26,6 +26,7 @@ export function PortalBanner({
   fallbackTitle,
   fallbackText,
   preview,
+  frameWidth,
 }: {
   settings: PortalSettings;
   name: string;
@@ -36,6 +37,8 @@ export function PortalBanner({
   fallbackText?: string | null;
   /** Na prévia, os links não navegam. */
   preview?: boolean;
+  /** Na prévia, largura simulada da tela (px) para calcular a altura como no aparelho. */
+  frameWidth?: number;
 }) {
   const b = settings.banner;
   const title = b.title ?? settings.welcomeTitle ?? fallbackTitle ?? `Bem-vindo ao portal de ${name}`;
@@ -45,12 +48,21 @@ export function PortalBanner({
   const overlay = hasImage ? OVERLAY[b.overlay](b.overlayOpacity) : undefined;
   const href = b.buttonUrl ? resolvePortalLink(b.buttonUrl, base) : null;
   const external = href ? isExternalLink(href) : false;
+  // Na prévia, a largura simulada decide a tipografia (as classes sm: dependem da tela de quem edita).
+  const small = frameWidth === undefined ? null : frameWidth < 640;
+  const pick = (responsive: string, mobile: string, desktop: string) =>
+    small === null ? responsive : small ? mobile : desktop;
 
   return (
     <section
       aria-label="Banner"
-      className="relative isolate overflow-hidden rounded-2xl border border-border"
-      style={{ height: `clamp(180px, 46vw, ${b.height}px)` }}
+      className="relative isolate flex overflow-hidden rounded-2xl border border-border"
+      style={{
+        // Altura mínima: em telas estreitas o conteúdo pode crescer sem ser cortado.
+        minHeight: frameWidth
+          ? `${Math.round(Math.min(b.height, Math.max(180, frameWidth * 0.46)))}px`
+          : `clamp(180px, 46vw, ${b.height}px)`,
+      }}
     >
       {hasImage ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -73,7 +85,9 @@ export function PortalBanner({
       {overlay ? <div aria-hidden="true" className="absolute inset-0 -z-10" style={{ background: overlay }} /> : null}
       <div
         className={cn(
-          "flex h-full flex-col gap-3 p-5 sm:p-8",
+          "flex w-full flex-col gap-3",
+          pick("p-5 sm:p-8", "p-5", "p-8"),
+          b.align === "left" && "items-start",
           b.align === "center" && "items-center text-center",
           b.align === "right" && "items-end text-right",
           b.verticalAlign === "top" && "justify-start",
@@ -84,13 +98,28 @@ export function PortalBanner({
       >
         {b.showLogo && logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={logoUrl} alt={name} className="max-h-10 w-auto max-w-[180px] object-contain sm:max-h-12" />
+          <img
+            src={logoUrl}
+            alt={name}
+            className={cn("w-auto max-w-[180px] object-contain", pick("max-h-10 sm:max-h-12", "max-h-10", "max-h-12"))}
+          />
         ) : null}
-        <h2 className="max-w-2xl text-xl leading-tight font-semibold tracking-tight text-balance sm:text-3xl">
+        <h2
+          className={cn(
+            "max-w-2xl leading-tight font-semibold tracking-tight text-balance",
+            pick("text-xl sm:text-3xl", "text-xl", "text-3xl"),
+          )}
+        >
           {title}
         </h2>
         {subtitle ? (
-          <p className={cn("max-w-xl text-sm leading-relaxed sm:text-base", darkText ? "opacity-80" : "opacity-90")}>
+          <p
+            className={cn(
+              "max-w-xl leading-relaxed",
+              pick("text-sm sm:text-base", "text-sm", "text-base"),
+              darkText ? "opacity-80" : "opacity-90",
+            )}
+          >
             {subtitle}
           </p>
         ) : null}
