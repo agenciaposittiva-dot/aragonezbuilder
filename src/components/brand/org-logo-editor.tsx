@@ -67,7 +67,7 @@ export async function uploadOrgLogo(
 }
 
 /** Abre a imagem no navegador para medir e validar antes de enquadrar. */
-function loadImage(file: File, maxBytes: number): Promise<SourceImage> {
+export function loadImage(file: File, maxBytes: number): Promise<SourceImage> {
   return new Promise((resolve, reject) => {
     const typeOk = (ORG_LOGO_TYPES as readonly string[]).includes(file.type) || /\.(png|jpe?g|webp)$/i.test(file.name);
     if (!typeOk) return reject(new Error("Formato não aceito. Use PNG (recomendado), JPG ou WebP."));

@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { PasswordForm } from "@/components/account/password-form";
+import { ProfilePhotoEditor } from "@/components/account/profile-photo-editor";
 import { ProfileForm } from "@/components/account/profile-form";
 import { NotificationPreferencesForm } from "@/components/account/notification-preferences-form";
 import { SessionsList } from "@/components/account/sessions-list";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { inOrg } from "@/server/authz";
+import { env } from "@/server/env";
 import { emailConfigured } from "@/server/mail";
 import { categoriesFor, getNotificationPreferences } from "@/server/services/notification-preferences";
 import { requirePortal } from "@/server/auth/portal";
@@ -21,6 +23,17 @@ export default async function PortalAccountPage({ params }: PageProps<"/portal/[
     <>
       <PageHeader title="Minha conta" description={`Acesso à área do cliente de ${actor.orgName}`} />
       <div className="grid max-w-3xl gap-6">
+        <Card id="foto" className="scroll-mt-20">
+          <CardHeader>
+            <div>
+              <CardTitle>Foto de perfil</CardTitle>
+              <CardDescription>Aparece para a agência nos comentários, aprovações e solicitações.</CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <ProfilePhotoEditor name={actor.name} src={actor.image} maxBytes={env.AVATAR_MAX_BYTES} />
+          </CardContent>
+        </Card>
         <Card>
           <CardHeader>
             <div>

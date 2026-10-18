@@ -28,9 +28,12 @@ export function UserMenu({ accountHref }: { accountHref: string }) {
         <Avatar name={ws.userName} src={ws.userImage} size="sm" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-60">
-        <DropdownMenuLabel className="font-normal">
-          <span className="block truncate text-sm font-medium text-fg">{ws.userName}</span>
-          <span className="block truncate text-xs text-fg-muted">{ws.userEmail}</span>
+        <DropdownMenuLabel className="flex items-center gap-2.5 font-normal">
+          <Avatar name={ws.userName} src={ws.userImage} size="lg" />
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-medium text-fg">{ws.userName}</span>
+            <span className="block truncate text-xs text-fg-muted">{ws.userEmail}</span>
+          </span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>

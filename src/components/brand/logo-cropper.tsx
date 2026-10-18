@@ -108,6 +108,7 @@ export function LogoCropper({
   background,
   onBackgroundChange,
   disabled,
+  variant = "logo",
 }: {
   img: SourceImage;
   crop: CropState;
@@ -115,7 +116,10 @@ export function LogoCropper({
   background: OrgLogoBackground;
   onBackgroundChange: (b: OrgLogoBackground) => void;
   disabled?: boolean;
+  /** "avatar": foto de perfil — prévias redondas e sem escolha de fundo. */
+  variant?: "logo" | "avatar";
 }) {
+  const avatar = variant === "avatar";
   const frameRef = useRef<HTMLDivElement>(null);
   const [frame, setFrame] = useState(280);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
@@ -232,7 +236,7 @@ export function LogoCropper({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={img.url}
-            alt="Logo em edição"
+            alt={avatar ? "Foto em edição" : "Logo em edição"}
             draggable={false}
             className="pointer-events-none absolute max-w-none select-none"
             style={{ left: p.left, top: p.top, width: p.width, height: p.height }}
@@ -246,11 +250,13 @@ export function LogoCropper({
         <div className="grid w-full gap-3 sm:w-auto">
           <p className="text-xs font-medium text-fg-muted">Prévia</p>
           <div className="flex items-end gap-3">
-            <CropPreview img={img} crop={crop} background={background} size={72} />
+            <CropPreview img={img} crop={crop} background={background} size={72} round={avatar} />
             <CropPreview img={img} crop={crop} background={background} size={44} round />
-            <CropPreview img={img} crop={crop} background={background} size={24} />
+            <CropPreview img={img} crop={crop} background={background} size={24} round={avatar} />
           </div>
-          <p className="max-w-[14rem] text-xs text-fg-subtle">Perfil, avatar redondo e menu lateral.</p>
+          <p className="max-w-[14rem] text-xs text-fg-subtle">
+            {avatar ? "Perfil, chat e comentários." : "Perfil, avatar redondo e menu lateral."}
+          </p>
         </div>
       </div>
 
@@ -307,7 +313,7 @@ export function LogoCropper({
             disabled={disabled}
             onClick={() => update(initialCrop(img))}
           >
-            <Scan /> Logo inteira
+            <Scan /> {avatar ? "Foto inteira" : "Logo inteira"}
           </Button>
           <Button
             type="button"
@@ -321,36 +327,42 @@ export function LogoCropper({
         </div>
       </div>
 
-      <fieldset className="grid gap-1.5" disabled={disabled}>
-        <legend className="mb-1.5 text-sm font-medium">Fundo</legend>
-        <div className="flex flex-wrap gap-2">
-          {(Object.keys(ORG_LOGO_BACKGROUNDS) as OrgLogoBackground[]).map((key) => (
-            <label
-              key={key}
-              className={cn(
-                "inline-flex cursor-pointer items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs transition-colors has-focus-visible:ring-2 has-focus-visible:ring-accent",
-                background === key
-                  ? "border-accent bg-accent-soft text-fg"
-                  : "border-border text-fg-muted hover:bg-surface-2",
-              )}
-            >
-              <input
-                type="radio"
-                name="logo-background"
-                value={key}
-                checked={background === key}
-                onChange={() => onBackgroundChange(key)}
-                className="sr-only"
-              />
-              <span className="size-4 rounded-sm ring-1 ring-border" style={backgroundStyle(key)} aria-hidden="true" />
-              {ORG_LOGO_BACKGROUNDS[key].label}
-            </label>
-          ))}
-        </div>
-        <p className="text-xs text-fg-subtle">
-          Transparente preserva o PNG original. Use escuro para logos claras e branco para logos escuras.
-        </p>
-      </fieldset>
+      {avatar ? null : (
+        <fieldset className="grid gap-1.5" disabled={disabled}>
+          <legend className="mb-1.5 text-sm font-medium">Fundo</legend>
+          <div className="flex flex-wrap gap-2">
+            {(Object.keys(ORG_LOGO_BACKGROUNDS) as OrgLogoBackground[]).map((key) => (
+              <label
+                key={key}
+                className={cn(
+                  "inline-flex cursor-pointer items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs transition-colors has-focus-visible:ring-2 has-focus-visible:ring-accent",
+                  background === key
+                    ? "border-accent bg-accent-soft text-fg"
+                    : "border-border text-fg-muted hover:bg-surface-2",
+                )}
+              >
+                <input
+                  type="radio"
+                  name="logo-background"
+                  value={key}
+                  checked={background === key}
+                  onChange={() => onBackgroundChange(key)}
+                  className="sr-only"
+                />
+                <span
+                  className="size-4 rounded-sm ring-1 ring-border"
+                  style={backgroundStyle(key)}
+                  aria-hidden="true"
+                />
+                {ORG_LOGO_BACKGROUNDS[key].label}
+              </label>
+            ))}
+          </div>
+          <p className="text-xs text-fg-subtle">
+            Transparente preserva o PNG original. Use escuro para logos claras e branco para logos escuras.
+          </p>
+        </fieldset>
+      )}
     </div>
   );
 }

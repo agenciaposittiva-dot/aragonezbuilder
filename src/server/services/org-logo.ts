@@ -57,13 +57,21 @@ function hexToRgba(hex: string | null) {
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
-/** Valida a imagem original e produz o PNG final (512×512, sem metadados). */
-export async function renderOrgLogo(input: OrgLogoUploadInput): Promise<Buffer> {
+/**
+ * Valida a imagem original e produz o PNG final (512×512, sem metadados).
+ * Também usado pela foto de perfil (`subject`/`maxBytes` próprios).
+ */
+export async function renderOrgLogo(
+  input: OrgLogoUploadInput,
+  opts: { maxBytes?: number; subject?: string } = {},
+): Promise<Buffer> {
   const { buffer } = input;
+  const maxBytes = opts.maxBytes ?? env.LOGO_MAX_BYTES;
+  const subject = opts.subject ?? "a logo";
   if (!buffer.length) throw new ValidationError("Nenhuma imagem enviada.");
-  if (buffer.length > env.LOGO_MAX_BYTES) {
+  if (buffer.length > maxBytes) {
     throw new ValidationError(
-      `A imagem tem ${formatBytes(buffer.length)}; o limite para a logo é ${formatBytes(env.LOGO_MAX_BYTES)}.`,
+      `A imagem tem ${formatBytes(buffer.length)}; o limite para ${subject} é ${formatBytes(maxBytes)}.`,
     );
   }
 
@@ -108,7 +116,7 @@ export async function renderOrgLogo(input: OrgLogoUploadInput): Promise<Buffer> 
   const ix1 = clamp(Math.round(left + size), 0, width);
   const iy1 = clamp(Math.round(top + size), 0, height);
   if (ix1 - ix0 < 1 || iy1 - iy0 < 1) {
-    throw new ValidationError("O enquadramento ficou fora da imagem. Centralize a logo e confirme de novo.");
+    throw new ValidationError(`O enquadramento ficou fora da imagem. Centralize ${subject} e confirme de novo.`);
   }
 
   const k = ORG_LOGO_SIZE / size;

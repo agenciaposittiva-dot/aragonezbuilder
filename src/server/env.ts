@@ -50,6 +50,8 @@ const schema = z.object({
   UPLOAD_MAX_BYTES: blankAsUndefined(z.coerce.number().int().positive().optional()),
   /** Tamanho máximo do arquivo de logo da agência (padrão: 5 MB, limitado ao de envio). */
   LOGO_MAX_BYTES: blankAsUndefined(z.coerce.number().int().positive().optional()),
+  /** Limite da foto de perfil (padrão 5 MB, nunca acima do limite de envio). */
+  AVATAR_MAX_BYTES: blankAsUndefined(z.coerce.number().int().positive().optional()),
   SMTP_HOST: optional,
   SMTP_PORT: z.coerce.number().int().default(587),
   SMTP_USER: optional,
@@ -79,12 +81,18 @@ type Parsed = z.infer<typeof schema>;
 
 export type Env = Omit<
   Parsed,
-  "STORAGE_DRIVER" | "UPLOAD_MAX_BYTES" | "LOGO_MAX_BYTES" | "DATABASE_RLS_ROLE" | "AI_DEFAULT_PROVIDER"
+  | "STORAGE_DRIVER"
+  | "UPLOAD_MAX_BYTES"
+  | "LOGO_MAX_BYTES"
+  | "AVATAR_MAX_BYTES"
+  | "DATABASE_RLS_ROLE"
+  | "AI_DEFAULT_PROVIDER"
 > & {
   AI_DEFAULT_PROVIDER: "anthropic" | "openai" | "gemini" | "demo";
   STORAGE_DRIVER: "local" | "s3" | "blob" | "database";
   UPLOAD_MAX_BYTES: number;
   LOGO_MAX_BYTES: number;
+  AVATAR_MAX_BYTES: number;
   /** Papel assumido nas transações, ou null quando a conexão já é um papel sem BYPASSRLS. */
   DATABASE_RLS_ROLE: string | null;
   /** Origens aceitas pelo login: APP_URL, endereços da Vercel e TRUSTED_ORIGINS. */
@@ -162,6 +170,7 @@ function finish(p: Parsed): Env {
             : "local"),
     UPLOAD_MAX_BYTES: uploadMax,
     LOGO_MAX_BYTES: Math.min(p.LOGO_MAX_BYTES ?? 5 * 1024 * 1024, uploadMax),
+    AVATAR_MAX_BYTES: Math.min(p.AVATAR_MAX_BYTES ?? 5 * 1024 * 1024, uploadMax),
     DATABASE_RLS_ROLE: rlsRole,
     AI_DEFAULT_PROVIDER:
       p.AI_DEFAULT_PROVIDER ??
