@@ -58,7 +58,14 @@ function daysUntil(date: Date) {
   return Math.max(0, Math.ceil((date.getTime() - Date.now()) / DAY));
 }
 
-export type ImpactItem = { key: string; label: string; count: number; effect: "trash" | "kept" | "unlinked" };
+export type ImpactItem = {
+  key: string;
+  /** Rótulo no plural; `one` é usado quando a contagem é 1. */
+  label: string;
+  one: string;
+  count: number;
+  effect: "trash" | "kept" | "unlinked";
+};
 
 /* ------------------------------------------------------------------ */
 /* Impacto (mostrado na confirmação)                                   */
@@ -94,15 +101,27 @@ export async function clientDeletionImpact(s: Scope, clientId: string) {
   `,
   );
   const items: ImpactItem[] = [
-    { key: "projects", label: "Projetos", count: c.projects ?? 0, effect: "trash" },
-    { key: "tasks", label: "Tarefas", count: c.tasks ?? 0, effect: "trash" },
-    { key: "files", label: "Arquivos", count: c.files ?? 0, effect: "trash" },
-    { key: "approvals", label: "Aprovações pendentes", count: c.approvals ?? 0, effect: "trash" },
-    { key: "requests", label: "Solicitações", count: c.requests ?? 0, effect: "trash" },
-    { key: "designs", label: "Artes do Estúdio", count: c.designs ?? 0, effect: "trash" },
-    { key: "invoices", label: "Faturas", count: c.invoices ?? 0, effect: "trash" },
-    { key: "contracts", label: "Contratos ativos", count: c.contracts ?? 0, effect: "trash" },
-    { key: "guests", label: "Convidados com acesso ao portal", count: c.guests ?? 0, effect: "trash" },
+    { key: "projects", label: "Projetos", one: "Projeto", count: c.projects ?? 0, effect: "trash" },
+    { key: "tasks", label: "Tarefas", one: "Tarefa", count: c.tasks ?? 0, effect: "trash" },
+    { key: "files", label: "Arquivos", one: "Arquivo", count: c.files ?? 0, effect: "trash" },
+    {
+      key: "approvals",
+      label: "Aprovações pendentes",
+      one: "Aprovação pendente",
+      count: c.approvals ?? 0,
+      effect: "trash",
+    },
+    { key: "requests", label: "Solicitações", one: "Solicitação", count: c.requests ?? 0, effect: "trash" },
+    { key: "designs", label: "Artes do Estúdio", one: "Arte do Estúdio", count: c.designs ?? 0, effect: "trash" },
+    { key: "invoices", label: "Faturas", one: "Fatura", count: c.invoices ?? 0, effect: "trash" },
+    { key: "contracts", label: "Contratos ativos", one: "Contrato ativo", count: c.contracts ?? 0, effect: "trash" },
+    {
+      key: "guests",
+      label: "Convidados com acesso ao portal",
+      one: "Convidado com acesso ao portal",
+      count: c.guests ?? 0,
+      effect: "trash",
+    },
   ];
   return { name: client.name, items, finance: (c.invoices ?? 0) + (c.contracts ?? 0) > 0 };
 }
@@ -127,12 +146,42 @@ export async function projectDeletionImpact(s: Scope, projectId: string) {
   `,
   );
   const items: ImpactItem[] = [
-    { key: "tasks", label: "Tarefas (com comentários, checklist e horas)", count: c.tasks ?? 0, effect: "trash" },
-    { key: "files", label: "Arquivos do projeto", count: c.files ?? 0, effect: "kept" },
-    { key: "approvals", label: "Aprovações pendentes", count: c.approvals ?? 0, effect: "trash" },
-    { key: "designs", label: "Artes ligadas ao projeto", count: c.designs ?? 0, effect: "kept" },
-    { key: "requests", label: "Solicitações de origem", count: c.requests ?? 0, effect: "unlinked" },
-    { key: "invoices", label: "Faturas do projeto", count: c.invoices ?? 0, effect: "unlinked" },
+    {
+      key: "tasks",
+      label: "Tarefas (com comentários, checklist e horas)",
+      one: "Tarefa (com comentários, checklist e horas)",
+      count: c.tasks ?? 0,
+      effect: "trash",
+    },
+    { key: "files", label: "Arquivos do projeto", one: "Arquivo do projeto", count: c.files ?? 0, effect: "kept" },
+    {
+      key: "approvals",
+      label: "Aprovações pendentes",
+      one: "Aprovação pendente",
+      count: c.approvals ?? 0,
+      effect: "trash",
+    },
+    {
+      key: "designs",
+      label: "Artes ligadas ao projeto",
+      one: "Arte ligada ao projeto",
+      count: c.designs ?? 0,
+      effect: "kept",
+    },
+    {
+      key: "requests",
+      label: "Solicitações de origem",
+      one: "Solicitação de origem",
+      count: c.requests ?? 0,
+      effect: "unlinked",
+    },
+    {
+      key: "invoices",
+      label: "Faturas do projeto",
+      one: "Fatura do projeto",
+      count: c.invoices ?? 0,
+      effect: "unlinked",
+    },
   ];
   return { name: project.name, items };
 }
@@ -527,10 +576,22 @@ export async function organizationDeletionImpact(s: Scope) {
   `,
   );
   const items: ImpactItem[] = [
-    { key: "clients", label: "Clientes (com portais)", count: c.clients ?? 0, effect: "trash" },
-    { key: "projects", label: "Projetos", count: c.projects ?? 0, effect: "trash" },
-    { key: "files", label: "Arquivos", count: c.files ?? 0, effect: "trash" },
-    { key: "members", label: "Pessoas com acesso (equipe e convidados)", count: c.members ?? 0, effect: "trash" },
+    {
+      key: "clients",
+      label: "Clientes (com portais)",
+      one: "Cliente (com portal)",
+      count: c.clients ?? 0,
+      effect: "trash",
+    },
+    { key: "projects", label: "Projetos", one: "Projeto", count: c.projects ?? 0, effect: "trash" },
+    { key: "files", label: "Arquivos", one: "Arquivo", count: c.files ?? 0, effect: "trash" },
+    {
+      key: "members",
+      label: "Pessoas com acesso (equipe e convidados)",
+      one: "Pessoa com acesso (equipe e convidados)",
+      count: c.members ?? 0,
+      effect: "trash",
+    },
   ];
   return { name: s.actor.orgName, items };
 }

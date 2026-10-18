@@ -11,7 +11,7 @@ import { requireActor } from "@/server/auth/session";
 import { listInternalMembers } from "@/server/services/members";
 import { getProject } from "@/server/services/projects";
 import { listTasks } from "@/server/services/tasks";
-import { listStatuses } from "@/server/services/workflow";
+import { listStatuses, listTransitions } from "@/server/services/workflow";
 
 export default async function ProjectTasksPage({ params, searchParams }: PageProps<"/w/[org]/projects/[id]/tasks">) {
   const { org, id } = await params;
@@ -26,6 +26,7 @@ export default async function ProjectTasksPage({ params, searchParams }: PagePro
     project: await getProject(s, id),
     list: await listTasks(s, query),
     statuses: await listStatuses(s, "task"),
+    transitions: await listTransitions(s),
     members: await listInternalMembers(s),
   }));
   const basePath = `/w/${actor.orgSlug}/projects/${id}/tasks`;
@@ -33,7 +34,7 @@ export default async function ProjectTasksPage({ params, searchParams }: PagePro
   const projectOpts = [{ id, name: data.project.project.name, clientName: data.project.clientName }];
 
   return (
-    <div className="grid gap-4">
+    <div className="grid grid-cols-1 gap-4">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           <MineToggle basePath={basePath} searchParams={sp} />
@@ -87,6 +88,9 @@ export default async function ProjectTasksPage({ params, searchParams }: PagePro
         canWrite={canWrite}
         projectId={id}
         assigneeMembershipId={filters.assignee === "me" ? actor.membershipId : undefined}
+        transitions={data.transitions}
+        members={data.members.map((m) => ({ membershipId: m.membershipId, name: m.name, image: m.image }))}
+        canAssign={can(actor, "tasks.assign")}
       />
     </div>
   );

@@ -8,7 +8,8 @@ test.describe("portal do cliente", () => {
     await page.goto(portal);
     await expect(page).toHaveURL(new RegExp(`${portal}/entrar`));
     await expect(page.getByRole("heading", { name: "Entrar no portal" })).toBeVisible();
-    await expect(page.getByText("Café Serra Azul").first()).toBeVisible();
+    // A identidade do cliente aparece em qualquer layout (o título de boas-vindas pode ficar só no computador).
+    await expect(page.getByText(/espaço de Café Serra Azul/)).toBeVisible();
     await expect(page.getByText("Criar conta da agência")).toHaveCount(0);
     await expectNoHorizontalScroll(page);
   });
@@ -24,7 +25,8 @@ test.describe("portal do cliente", () => {
   test("convidado entra, vê só o próprio cliente e é barrado em outro", async ({ page }) => {
     await login(page, DEMO.guest, `${portal}/entrar`);
     await expect(page).toHaveURL(new RegExp(`${portal}$`));
-    await expect(page.getByRole("link", { name: /Solicitar nova demanda/ })).toBeVisible();
+    // O banner personalizado pode repetir o botão; basta um visível.
+    await expect(page.getByRole("link", { name: /Solicitar nova demanda/ }).first()).toBeVisible();
     await expectNoHorizontalScroll(page);
 
     await page.goto(`/portal/${DEMO.org}/${DEMO.otherClient}`);

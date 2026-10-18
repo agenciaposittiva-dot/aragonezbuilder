@@ -52,7 +52,9 @@ export const clients = pgTable(
     unique("clients_org_slug_unique").on(t.organizationId, t.slug),
     index().on(t.organizationId, t.status),
     index("clients_name_trgm").using("gin", sql`${t.name} gin_trgm_ops`),
-    index("clients_trash_idx").on(t.organizationId, t.deletedAt).where(sql`${t.deletedAt} is not null`),
+    index("clients_trash_idx")
+      .on(t.organizationId, t.deletedAt)
+      .where(sql`${t.deletedAt} is not null`),
   ],
 );
 

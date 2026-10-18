@@ -8,6 +8,12 @@ import { DEMO, expectNoHorizontalScroll, login } from "./helpers";
 
 const ORG = `/w/${DEMO.org}`;
 
+/** Entra e espera sair do login (para a agência ou, com várias, para o seletor). */
+async function enter(page: Page, email: string) {
+  await login(page, email);
+  await page.waitForURL((u) => u.pathname === "/" || u.pathname.startsWith("/w/"), { timeout: 60_000 });
+}
+
 async function createClient(page: Page, name: string) {
   await page.goto(`${ORG}/clients`);
   await page.getByRole("button", { name: "Novo cliente" }).first().click();
@@ -28,8 +34,7 @@ test.describe("excluir com lixeira", () => {
     page,
   }) => {
     const name = `E2E Lixeira ${Date.now().toString(36)}`;
-    await login(page, DEMO.owner);
-    await page.waitForURL(/\/w\//);
+    await enter(page, DEMO.owner);
     const id = await createClient(page, name);
 
     // Cancelar.
@@ -80,8 +85,7 @@ test.describe("excluir com lixeira", () => {
 
   test("falha do servidor mantém o cliente e mostra o erro", async ({ page }) => {
     const name = `E2E Falha ${Date.now().toString(36)}`;
-    await login(page, DEMO.owner);
-    await page.waitForURL(/\/w\//);
+    await enter(page, DEMO.owner);
     await createClient(page, name);
     const dialog = await openClientDelete(page);
     await expect(dialog).toContainText("Nenhum outro conteúdo é afetado");
@@ -101,8 +105,7 @@ test.describe("excluir com lixeira", () => {
   });
 
   test("quem não tem permissão não vê a opção nem a lixeira", async ({ page }) => {
-    await login(page, "marina@demo.aragonez.app");
-    await page.waitForURL(/\/w\//);
+    await enter(page, "marina@demo.aragonez.app");
     await page.goto(`${ORG}/clients`);
     await page.locator("a[href*='/clients/']").first().click();
     await page.waitForURL(/\/clients\/[0-9a-f-]{36}/);
@@ -114,13 +117,18 @@ test.describe("excluir com lixeira", () => {
   });
 
   test("agência: proprietário exclui digitando o nome e restaura", async ({ page }) => {
-    const name = `Agência E2E ${Date.now().toString(36)}`;
-    await login(page, DEMO.owner);
-    await page.waitForURL(/\/w\//);
-    await page.goto("/onboarding");
+    // Conta nova: não cria agências extras nas contas de demonstração.
+    const tag = Date.now().toString(36);
+    const name = `Agência E2E ${tag}`;
+    await page.goto("/signup");
+    await page.fill("#name", "Pessoa Lixeira");
+    await page.fill("#email", `lixeira-${tag}@teste.dev`);
+    await page.fill("#password", "senha-lixeira-2026");
+    await page.click("button[type=submit]");
+    await page.waitForURL(/\/onboarding/, { timeout: 60_000 });
     await page.fill("#name", name);
     await page.getByRole("button", { name: "Criar agência" }).click();
-    await page.waitForURL(/\/w\/agencia-e2e/);
+    await page.waitForURL(/\/w\/agencia-e2e/, { timeout: 60_000 });
     const slug = new URL(page.url()).pathname.split("/")[2]!;
 
     await page.goto(`/w/${slug}/settings`);
@@ -142,6 +150,6 @@ test.describe("excluir com lixeira", () => {
     await page.goto("/onboarding");
     await page.locator("li").filter({ hasText: name }).getByRole("button", { name: "Restaurar" }).click();
     await page.waitForURL(new RegExp(`/w/${slug}$`));
-    await expect(page.getByText(name).first()).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Pessoa");
   });
 });

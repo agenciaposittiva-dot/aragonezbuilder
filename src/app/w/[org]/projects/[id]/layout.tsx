@@ -36,8 +36,8 @@ export default async function ProjectLayout({ children, params }: LayoutProps<"/
   const progress = tasks.total ? Math.round((tasks.done / tasks.total) * 100) : 0;
 
   return (
-    <div className="grid gap-6">
-      <div>
+    <div className="grid min-w-0 grid-cols-1 gap-6">
+      <div className="min-w-0">
         <Breadcrumbs
           items={[
             { label: "Projetos", href: `${base}/projects` },

@@ -65,7 +65,9 @@ export const projects = pgTable(
     index().on(t.organizationId, t.statusId),
     index().on(t.organizationId, t.dueDate),
     index("projects_name_trgm").using("gin", sql`${t.name} gin_trgm_ops`),
-    index("projects_trash_idx").on(t.organizationId, t.deletedAt).where(sql`${t.deletedAt} is not null`),
+    index("projects_trash_idx")
+      .on(t.organizationId, t.deletedAt)
+      .where(sql`${t.deletedAt} is not null`),
   ],
 );
 

@@ -232,7 +232,7 @@ export default async function TasksPage({ params, searchParams }: PageProps<"/w/
       </PageHeader>
 
       {data.my ? (
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {(
             [
               ["Vencidas", data.my.overdue, "Nada vencido. Bom trabalho."],
@@ -252,7 +252,7 @@ export default async function TasksPage({ params, searchParams }: PageProps<"/w/
           ))}
         </div>
       ) : data.focus ? (
-        <div className="grid gap-6">
+        <div className="grid grid-cols-1 gap-6">
           <Card>
             <CardHeader>
               <div>

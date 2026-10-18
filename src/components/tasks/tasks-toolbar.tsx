@@ -66,9 +66,19 @@ export function TasksViewSwitcher({
     icon: <CalendarDays />,
     href: hrefWith(basePath, searchParams, { view: "calendar" }),
   };
+  const timeline = {
+    label: "Linha do tempo",
+    value: "timeline",
+    icon: <GanttChartSquare />,
+    href: hrefWith(basePath, searchParams, { view: "timeline", month: null }),
+  };
   // O primeiro item é o ativo quando não há ?view= na URL.
   return (
-    <SegmentedNav param="view" items={defaultView === "board" ? [board, list, calendar] : [list, board, calendar]} />
+    <SegmentedNav
+      param="view"
+      className="max-w-full overflow-x-auto"
+      items={defaultView === "board" ? [board, list, calendar, timeline] : [list, board, calendar, timeline]}
+    />
   );
 }
 

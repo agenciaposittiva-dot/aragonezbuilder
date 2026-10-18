@@ -26,11 +26,14 @@ export const organizationDeletionImpactAction = orgAction(z.object({}), (s) => o
   refresh: false,
 });
 
+// Cliente e projeto são excluídos a partir da própria página, que deixa de existir:
+// a interface navega para a lista em vez de re-renderizar a página excluída.
 export const trashClientAction = orgAction(
   z.object({ id: z.uuid(), confirmFinance: z.boolean().optional() }),
   (s, i) => trashClient(s, i.id, { confirmFinance: i.confirmFinance }),
+  { refresh: false },
 );
-export const trashProjectAction = orgAction(id, (s, i) => trashProject(s, i.id));
+export const trashProjectAction = orgAction(id, (s, i) => trashProject(s, i.id), { refresh: false });
 export const trashDesignAction = orgAction(id, (s, i) => trashDesign(s, i.id));
 export const restoreFromTrashAction = orgAction(item, (s, i) => restoreFromTrash(s, i.kind, i.id));
 export const purgeFromTrashAction = orgAction(item, (s, i) => purgeFromTrash(s, i.kind, i.id));

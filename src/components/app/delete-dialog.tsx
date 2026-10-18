@@ -23,7 +23,7 @@ type Result<T> =
   { ok: true; data: T } | { ok: false; error: string; code?: string; fieldErrors?: Record<string, string[]> };
 
 export type DeleteImpact = {
-  items: { key: string; label: string; count: number; effect: "trash" | "kept" | "unlinked" }[];
+  items: { key: string; label: string; one: string; count: number; effect: "trash" | "kept" | "unlinked" }[];
   finance?: boolean;
 };
 
@@ -171,7 +171,8 @@ function DeleteDialogContent<T>({
                   {affected.map((i) => (
                     <li key={i.key} className="flex flex-wrap items-baseline justify-between gap-x-3">
                       <span className="min-w-0">
-                        <span className="tabular font-semibold">{i.count}</span> {i.label.toLowerCase()}
+                        <span className="tabular font-semibold">{i.count}</span>{" "}
+                        {(i.count === 1 ? i.one : i.label).toLowerCase()}
                       </span>
                       <span className={cn("text-xs", i.effect === "trash" ? "text-warning" : "text-fg-muted")}>
                         {EFFECT[i.effect]}
