@@ -49,6 +49,14 @@ const req = (jsonSchema?: Record<string, unknown>) => ({
   jsonSchema,
 });
 type Message = { role: string; content: string };
+/** A chamada precisa falhar; devolve o erro do provedor. */
+const failure = (p: Promise<unknown>) =>
+  p.then(
+    () => {
+      throw new Error("A chamada deveria ter falhado.");
+    },
+    (e: unknown) => e as AiProviderError,
+  );
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -165,5 +173,42 @@ describe("Anthropic", () => {
     body = mock.generationCalls().at(-1)!.body!;
     expect(body.system).toBe("Você é um assistente.");
     expect(body.output_config).toMatchObject({ format: { type: "json_schema", schema: PLAN_JSON_SCHEMA } });
+  });
+});
+
+describe("conta sem créditos", () => {
+  it("Anthropic e OpenAI: mensagem clara em português, sem o JSON da API", async () => {
+    stubFetch(() =>
+      json(
+        {
+          type: "error",
+          error: {
+            type: "invalid_request_error",
+            message: "Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing.",
+          },
+        },
+        400,
+      ),
+    );
+    const a = await failure(
+      createAnthropicProvider("k").generate({ ...req(PLAN_JSON_SCHEMA), model: "claude-sonnet-5-5" }),
+    );
+    expect(a).toBeInstanceOf(AiProviderError);
+    expect(a.message).toMatch(/^A conta da Anthropic \(Claude\) está sem créditos/);
+    expect(a.message).not.toContain("{");
+    expect(a.kind).toBe("config");
+
+    stubFetch(() => json({ error: { message: "You exceeded your current quota", code: "insufficient_quota" } }, 429));
+    const o = await failure(createOpenAiProvider("k").generate(req()));
+    expect(o.message).toMatch(/^A conta da OpenAI \(ChatGPT\) está sem créditos/);
+    expect(o.kind).toBe("config");
+  });
+
+  it("outros pedidos recusados mostram só a mensagem da API", async () => {
+    stubFetch(() =>
+      json({ type: "error", error: { type: "invalid_request_error", message: "max_tokens: too large" } }, 400),
+    );
+    const a = await failure(createAnthropicProvider("k").generate({ ...req(), model: "claude-sonnet-5-5" }));
+    expect(a.message).toBe("Pedido recusado pelo provedor: max_tokens: too large");
   });
 });

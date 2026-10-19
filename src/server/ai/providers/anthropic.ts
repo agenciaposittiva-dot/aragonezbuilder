@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { isNoCredits, noCreditsError } from "../errors";
 import { withSchemaInstruction } from "../json-schema";
 import { estimateCostMicros } from "../pricing";
 import { AiProviderError, type AiProvider, type GenerateRequest, type GenerateResult } from "../types";
@@ -96,7 +97,10 @@ export function createAnthropicProvider(apiKey: string): AiProvider {
         );
       }
       if (err instanceof Anthropic.BadRequestError) {
-        throw new AiProviderError(`Pedido recusado pelo provedor: ${err.message}`, "bad_request");
+        // Mensagem da API sem o JSON bruto ("400 {...}").
+        const detail = (err.error as { error?: { message?: string } } | undefined)?.error?.message ?? err.message;
+        if (isNoCredits(detail)) throw noCreditsError("Anthropic (Claude)", "console.anthropic.com → Plans & Billing");
+        throw new AiProviderError(`Pedido recusado pelo provedor: ${detail}`, "bad_request");
       }
       if (err instanceof Anthropic.APIConnectionError || err instanceof Anthropic.InternalServerError) {
         throw new AiProviderError("O provedor de IA está indisponível no momento. Tente novamente.", "unavailable");

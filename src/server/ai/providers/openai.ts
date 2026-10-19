@@ -7,6 +7,7 @@ import {
   type ImageRequest,
   type ImageResult,
 } from "../types";
+import { isNoCredits, noCreditsError } from "../errors";
 import { isStrictCompatible, withSchemaInstruction } from "../json-schema";
 
 /** Modelos disponíveis para a chave (cache por processo, 1 hora). */
@@ -101,10 +102,13 @@ export function createOpenAiProvider(apiKey: string): AiProvider {
       console.warn("[ia] OpenAI recusou json_schema; repetindo em modo JSON", await errorDetail(res));
       res = await call("json");
     }
-    if (res.status === 401 || res.status === 403) throw new AiProviderError("Chave de API da OpenAI inválida.", "auth");
-    if (res.status === 429) throw new AiProviderError("Limite de requisições da OpenAI atingido.", "rate_limit");
     if (!res.ok) {
-      console.warn("[ia] erro da OpenAI", res.status, await errorDetail(res));
+      const detail = await errorDetail(res);
+      if (isNoCredits(detail)) throw noCreditsError("OpenAI (ChatGPT)", "platform.openai.com → Billing");
+      if (res.status === 401 || res.status === 403)
+        throw new AiProviderError("Chave de API da OpenAI inválida.", "auth");
+      if (res.status === 429) throw new AiProviderError("Limite de requisições da OpenAI atingido.", "rate_limit");
+      console.warn("[ia] erro da OpenAI", res.status, detail);
       throw new AiProviderError(`Erro da OpenAI (${res.status}).`, res.status >= 500 ? "unavailable" : "bad_request");
     }
     const data = (await res.json()) as {
@@ -147,6 +151,8 @@ export async function generateOpenAiImage(apiKey: string, req: ImageRequest): Pr
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: { code?: string; message?: string } };
     const code = body.error?.code ?? "";
+    if (isNoCredits(`${code} ${body.error?.message ?? ""}`))
+      throw noCreditsError("OpenAI (ChatGPT)", "platform.openai.com → Billing");
     if (res.status === 401 || res.status === 403) throw new AiProviderError("Chave de API da OpenAI inválida.", "auth");
     if (res.status === 429) throw new AiProviderError("Limite de requisições da OpenAI atingido.", "rate_limit");
     if (/moderation|content_policy|safety/i.test(code)) {
@@ -203,6 +209,8 @@ export async function editOpenAiImage(apiKey: string, req: ImageEditRequest): Pr
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: { code?: string; message?: string } };
     const code = body.error?.code ?? "";
+    if (isNoCredits(`${code} ${body.error?.message ?? ""}`))
+      throw noCreditsError("OpenAI (ChatGPT)", "platform.openai.com → Billing");
     if (res.status === 401 || res.status === 403) throw new AiProviderError("Chave de API da OpenAI inválida.", "auth");
     if (res.status === 429) throw new AiProviderError("Limite de requisições da OpenAI atingido.", "rate_limit");
     if (/moderation|content_policy|safety/i.test(code)) {
