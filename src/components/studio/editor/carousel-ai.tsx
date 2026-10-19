@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Field } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/input";
-import { fontsOf, SLIDE_ROLE_LABEL, type DesignOp } from "@/lib/design-doc";
+import { fontsOf, fontWeightsOf, SLIDE_ROLE_LABEL, type DesignOp } from "@/lib/design-doc";
 import {
   carouselVariantAction,
   regenerateCarouselSlideAction,
@@ -76,7 +76,7 @@ export function CarouselAiDialog({
     setRevision(revision);
     // Fontes novas (outra direção visual): mede e desenha de novo quando carregarem.
     const families = fontsOf(store.doc);
-    void ensureFonts(families).then(() => store.scene?.refreshFonts(families));
+    void ensureFonts(families, fontWeightsOf(store.doc)).then(() => store.scene?.refreshFonts(families));
   };
 
   const close = () => {

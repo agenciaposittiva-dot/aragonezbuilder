@@ -47,7 +47,15 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { useWorkspace } from "@/components/shell/workspace-context";
 import { outcomeFromAction, useAutosave } from "@/hooks/use-autosave";
 import { clearLocalDraft, loadLocalDraft, type LocalDraft } from "@/lib/autosave/local-draft";
-import { applyOperations, assetsOf, fontsOf, locate, readDesignDocument, type DesignDocument } from "@/lib/design-doc";
+import {
+  applyOperations,
+  assetsOf,
+  fontsOf,
+  fontWeightsOf,
+  locate,
+  readDesignDocument,
+  type DesignDocument,
+} from "@/lib/design-doc";
 import { cn } from "@/lib/utils";
 import {
   createNamedVersionAction,
@@ -931,7 +939,7 @@ export function DesignEditor({
 /** Fontes e imagens prontas antes de desenhar (o texto é medido com a fonte real). */
 async function preload(doc: DesignDocument) {
   const [, images] = await Promise.all([
-    ensureFonts(fontsOf(doc)),
+    ensureFonts(fontsOf(doc), fontWeightsOf(doc)),
     Promise.all(assetsOf(doc).map((a) => loadImage(a.src))),
   ]);
   return images.filter((i) => i.missing).length;

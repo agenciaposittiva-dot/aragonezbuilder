@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { assetsOf, fontsOf, type DesignDocument } from "@/lib/design-doc";
+import { assetsOf, fontsOf, fontWeightsOf, type DesignDocument } from "@/lib/design-doc";
 import type { PreviewDesign } from "@/lib/preview-data";
 
 /*
@@ -42,7 +42,7 @@ async function renderDesign(design: PreviewDesign, signal: { cancelled: boolean 
   ]);
   const doc = design.document;
   const [, images] = await Promise.all([
-    ensureFonts(fontsOf(doc)),
+    ensureFonts(fontsOf(doc), fontWeightsOf(doc)),
     Promise.all(assetsOf(doc).map((a) => loadImage(a.src))),
   ]);
   const holder = document.createElement("div");

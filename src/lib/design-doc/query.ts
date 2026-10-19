@@ -114,6 +114,17 @@ export function fontsOf(doc: DesignDocument): string[] {
   return [...set];
 }
 
+/** Pesos de fonte usados por família (para carregar os pesos além de 400/700). */
+export function fontWeightsOf(doc: DesignDocument): Record<string, number[]> {
+  const out: Record<string, Set<number>> = {};
+  const add = (family: string, weight: number) => (out[family] ??= new Set()).add(weight);
+  for (const loc of allObjects(doc, { components: true })) {
+    if (loc.object.type === "text") add(loc.object.fontFamily, loc.object.fontWeight);
+  }
+  for (const s of doc.styles?.text ?? []) add(s.fontFamily, s.fontWeight);
+  return Object.fromEntries(Object.entries(out).map(([f, w]) => [f, [...w]]));
+}
+
 /** Cores sólidas usadas no documento, da mais frequente para a menos. */
 export function colorsOf(doc: DesignDocument, pageId?: string): string[] {
   const freq = new Map<string, number>();

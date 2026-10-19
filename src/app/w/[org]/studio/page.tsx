@@ -5,6 +5,7 @@ import { FilterBar, SearchFilter, SelectFilter } from "@/components/app/filters"
 import { DesignCardActions } from "@/components/studio/design-card-actions";
 import { ImportTemplateDialog } from "@/components/studio/import-template-dialog";
 import { NewDesignDialog } from "@/components/studio/new-design-dialog";
+import { TemplateLibrary } from "@/components/studio/template-library";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
@@ -16,6 +17,7 @@ import { getPickerData } from "@/server/services/ai-models";
 import { clientOptions } from "@/server/services/clients";
 import { listDesigns } from "@/server/services/designs";
 import { projectOptions } from "@/server/services/projects";
+import { listTemplateLibrary } from "@/server/services/template-library";
 
 export const metadata: Metadata = { title: "Estúdio" };
 
@@ -33,6 +35,7 @@ export default async function StudioPage({ params, searchParams }: PageProps<"/w
     clients: await clientOptions(s),
     projects: await projectOptions(s),
     picker: canAi && can(actor, "designs.write") ? await getPickerData(s) : null,
+    library: tab === "templates" ? await listTemplateLibrary(s) : null,
   }));
   const base = `/w/${actor.orgSlug}/studio`;
   const canWrite = can(actor, "designs.write");
@@ -108,6 +111,12 @@ export default async function StudioPage({ params, searchParams }: PageProps<"/w
           </FilterBar>
         </div>
       </PageHeader>
+
+      {data.library ? (
+        <div className="mb-6">
+          <TemplateLibrary items={data.library} />
+        </div>
+      ) : null}
 
       {data.items.length === 0 ? (
         <div className="rounded-xl border border-border bg-surface">

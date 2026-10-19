@@ -1,6 +1,6 @@
 "use client";
 
-import { fontsOf } from "@/lib/design-doc";
+import { fontsOf, fontWeightsOf } from "@/lib/design-doc";
 import { buildPdf } from "@/lib/design-doc/pdf";
 import { buildZip } from "@/lib/zip";
 import { linkDesignOutputAction } from "@/server/actions/designs";
@@ -40,7 +40,7 @@ const canvasBlob = (c: HTMLCanvasElement, type: string, quality?: number) =>
   );
 
 async function prepare(ctx: Ctx) {
-  await ensureFonts(fontsOf(ctx.store.doc));
+  await ensureFonts(fontsOf(ctx.store.doc), fontWeightsOf(ctx.store.doc));
   // Textos são medidos de novo com as fontes carregadas antes de desenhar.
   ctx.scene.refreshFonts(fontsOf(ctx.store.doc));
   await new Promise((r) => requestAnimationFrame(() => r(null)));

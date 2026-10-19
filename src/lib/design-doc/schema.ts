@@ -229,6 +229,8 @@ export type DesignMeta = {
   generator?: GeneratorMeta;
   /** Template criado a partir de uma imagem enviada (JPG/PNG). */
   imported?: ImportedMeta;
+  /** Modelo adicionado da biblioteca de modelos prontos (chave e versão). */
+  library?: { key: string; version: number };
 };
 
 export type DesignDocument = {
@@ -459,6 +461,7 @@ export const designMetaSchema: z.ZodType<DesignMeta> = z.object({
   pdfOutputFileId: z.uuid().nullable().optional(),
   generator: generatorMetaSchema.optional(),
   imported: importedMetaSchema.optional(),
+  library: z.object({ key: z.string().min(1).max(60), version: z.number().int().min(1).max(1000) }).optional(),
 });
 
 export const designDocumentSchema: z.ZodType<DesignDocument> = z.object({

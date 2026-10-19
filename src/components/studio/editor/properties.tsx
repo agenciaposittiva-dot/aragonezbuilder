@@ -602,7 +602,7 @@ function TextSection({
         label="Fonte"
         value={o.fontFamily}
         onChange={async (f) => {
-          await ensureFont(f);
+          await ensureFont(f, [o.fontWeight]);
           style({ fontFamily: f });
         }}
         options={allFonts.map((f) => ({ value: f, label: f }))}
@@ -611,7 +611,11 @@ function TextSection({
         <SelectField
           label="Peso"
           value={String(o.fontWeight)}
-          onChange={(v) => style({ fontWeight: Number(v) })}
+          onChange={async (v) => {
+            // Pesos além de 400/700 (ex.: fino) carregam antes de desenhar.
+            await ensureFont(o.fontFamily, [Number(v)]);
+            style({ fontWeight: Number(v) });
+          }}
           options={WEIGHTS}
         />
         <NumberField
