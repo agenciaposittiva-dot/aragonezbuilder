@@ -51,19 +51,22 @@ export function CarouselGenerator({
   picker,
   defaultClientId,
   canSaveFiles,
+  task,
 }: {
   clients: { id: string; name: string }[];
   projects: { id: string; name: string; clientId: string }[];
   picker: { providers: PickerProvider[]; preferences: AiPreference[] };
   defaultClientId?: string;
   canSaveFiles: boolean;
+  /** Gerado a partir de uma demanda: cliente e projeto fixos, e a arte nasce vinculada à tarefa. */
+  task?: { id: string; title: string; projectId: string; clientId: string };
 }) {
   const router = useRouter();
   const { orgSlug } = useWorkspace();
   const [mode, setMode] = useState<"quick" | "full">("quick");
   const [topic, setTopic] = useState("");
-  const [clientId, setClientId] = useState(defaultClientId ?? "");
-  const [projectId, setProjectId] = useState("");
+  const [clientId, setClientId] = useState(task?.clientId ?? defaultClientId ?? "");
+  const [projectId, setProjectId] = useState(task?.projectId ?? "");
   const [objective, setObjective] = useState("");
   const [audience, setAudience] = useState("");
   const [slides, setSlides] = useState("auto");
@@ -119,7 +122,8 @@ export function CarouselGenerator({
           mode,
           topic,
           clientId: clientId || null,
-          projectId: full && projectId ? projectId : null,
+          projectId: task ? task.projectId : full && projectId ? projectId : null,
+          taskId: task?.id ?? null,
           objective: full ? objective || undefined : undefined,
           audience: full ? audience || undefined : undefined,
           tone: full ? tone || undefined : undefined,
@@ -262,6 +266,15 @@ export function CarouselGenerator({
             disabled={busy}
           />
         </Field>
+        {task ? (
+          <p
+            className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-fg-muted"
+            data-testid="carousel-task"
+          >
+            Para a demanda <span className="font-medium text-fg">“{task.title}”</span>: o carrossel fica vinculado a ela
+            e ao projeto.
+          </p>
+        ) : null}
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
             label="Cliente"
@@ -271,7 +284,7 @@ export function CarouselGenerator({
             <NativeSelect
               id="cg-client"
               value={clientId}
-              disabled={busy}
+              disabled={busy || !!task}
               onChange={(e) => {
                 setClientId(e.target.value);
                 setProjectId("");
@@ -293,7 +306,7 @@ export function CarouselGenerator({
                 id="cg-project"
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
-                disabled={busy}
+                disabled={busy || !!task}
               >
                 <option value="">Nenhum</option>
                 {visibleProjects.map((p) => (

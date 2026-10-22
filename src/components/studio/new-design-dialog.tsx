@@ -29,6 +29,7 @@ export function NewDesignDialog({
   templates,
   canManageTemplates,
   defaultTemplateId,
+  link,
 }: {
   trigger: React.ReactNode;
   clients: { id: string; name: string }[];
@@ -36,6 +37,11 @@ export function NewDesignDialog({
   templates: { id: string; name: string; width: number; height: number; thumbnail: string | null }[];
   canManageTemplates: boolean;
   defaultTemplateId?: string;
+  /**
+   * Arte criada a partir de uma demanda (ou projeto): cliente, projeto e tarefa
+   * já definidos e fixos — a arte nasce vinculada, sem cópia de dados.
+   */
+  link?: { clientId: string | null; projectId: string | null; taskId?: string | null; label: string };
 }) {
   const router = useRouter();
   const { orgSlug } = useWorkspace();
@@ -44,8 +50,8 @@ export function NewDesignDialog({
   const [custom, setCustom] = useState({ width: 1080, height: 1080 });
   const [pages, setPages] = useState(3);
   const [templateId, setTemplateId] = useState(defaultTemplateId ?? "");
-  const [clientId, setClientId] = useState("");
-  const [projectId, setProjectId] = useState("");
+  const [clientId, setClientId] = useState(link?.clientId ?? "");
+  const [projectId, setProjectId] = useState(link?.projectId ?? "");
   const [name, setName] = useState("");
   const [isTemplate, setIsTemplate] = useState(false);
   const create = useOrgAction(createDesignAction, {
@@ -79,6 +85,7 @@ export function NewDesignDialog({
               height: size.height,
               clientId,
               projectId,
+              taskId: link?.taskId ?? null,
               templateId,
               isTemplate,
               ...(templateId
@@ -202,36 +209,45 @@ export function NewDesignDialog({
                 ) : null}
               </div>
             ) : null}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Cliente" htmlFor="d-client" hint="Libera as cores, fontes e logos da marca no editor.">
-                <NativeSelect
-                  id="d-client"
-                  value={clientId}
-                  onChange={(e) => {
-                    setClientId(e.target.value);
-                    setProjectId("");
-                  }}
-                >
-                  <option value="">Nenhum</option>
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </NativeSelect>
-              </Field>
-              <Field label="Projeto" htmlFor="d-project">
-                <NativeSelect id="d-project" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-                  <option value="">Nenhum</option>
-                  {visibleProjects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {clientId ? p.name : `${p.clientName} · ${p.name}`}
-                    </option>
-                  ))}
-                </NativeSelect>
-              </Field>
-            </div>
-            {canManageTemplates ? (
+            {link ? (
+              <p
+                className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-fg-muted"
+                data-testid="design-link"
+              >
+                Vinculada a: <span className="font-medium text-fg">{link.label}</span>
+              </p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Cliente" htmlFor="d-client" hint="Libera as cores, fontes e logos da marca no editor.">
+                  <NativeSelect
+                    id="d-client"
+                    value={clientId}
+                    onChange={(e) => {
+                      setClientId(e.target.value);
+                      setProjectId("");
+                    }}
+                  >
+                    <option value="">Nenhum</option>
+                    {clients.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </Field>
+                <Field label="Projeto" htmlFor="d-project">
+                  <NativeSelect id="d-project" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+                    <option value="">Nenhum</option>
+                    {visibleProjects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {clientId ? p.name : `${p.clientName} · ${p.name}`}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </Field>
+              </div>
+            )}
+            {canManageTemplates && !link?.taskId ? (
               <label className="flex items-center gap-2 text-sm">
                 <Checkbox checked={isTemplate} onCheckedChange={(v) => setIsTemplate(v === true)} />
                 Salvar como template reutilizável

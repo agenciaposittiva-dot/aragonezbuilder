@@ -37,6 +37,7 @@ import {
   inOrg,
   type Actor,
   type Scope,
+  assertTaskAccess,
 } from "@/server/authz";
 import { brandProfiles, clients, files, fileVersions } from "@/server/db/schema";
 import { ConflictError, NotFoundError, ValidationError } from "@/server/errors";
@@ -79,6 +80,8 @@ export const carouselGenerateInput = z.object({
   topic: z.string().trim().min(3, "Descreva o assunto do carrossel.").max(300),
   clientId: z.uuid().nullable().optional(),
   projectId: z.uuid().nullable().optional(),
+  /** Demanda (tarefa) de origem: a arte nasce vinculada a ela (e ao projeto dela). */
+  taskId: z.uuid().nullable().optional(),
   name: z.string().trim().max(120).optional(),
   objective: z.string().trim().max(500).optional(),
   audience: z.string().trim().max(500).optional(),
@@ -269,6 +272,12 @@ export async function prepareCarousel(s: Scope, raw: CarouselGenerateInput): Pro
   assertInternal(s.actor);
   assertCan(s.actor, "designs.write");
   const data = carouselGenerateInput.parse(raw);
+  // Demanda de origem conferida ANTES de gastar a IA (a mesma regra vale de novo ao salvar).
+  if (data.taskId) {
+    const t = await assertTaskAccess(s, data.taskId);
+    if (data.projectId && data.projectId !== t.projectId)
+      throw new ValidationError("A demanda não pertence ao projeto escolhido.");
+  }
   const text = await prepareStructured(s, { module: MODULE, task: "planning", selection: data.selection });
   const clientId = data.clientId ?? null;
   const client = clientId ? await loadClient(s, clientId, text.allowClientContext) : null;
@@ -530,6 +539,7 @@ export async function runCarouselGeneration(
         height: size.height,
         clientId,
         projectId: data.projectId ?? null,
+        taskId: data.taskId ?? null,
         preset: size.preset,
         document: document as unknown as Record<string, unknown>,
       }),
@@ -902,6 +912,8 @@ export async function createCarouselVariant(s: Scope, raw: z.input<typeof varian
     height: d.height,
     clientId: d.clientId,
     projectId: d.projectId,
+    // A segunda versão continua ligada à mesma demanda.
+    taskId: d.taskId,
     preset: FORMAT_SIZE[meta.input.format].preset,
     document: document as unknown as Record<string, unknown>,
   });
