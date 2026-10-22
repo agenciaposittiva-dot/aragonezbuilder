@@ -14,6 +14,7 @@ import {
   Megaphone,
   MessagesSquare,
   Palette,
+  Repeat,
   ScanSearch,
   Settings,
   Share2,
@@ -107,6 +108,7 @@ export const WORKSPACE_NAV: NavGroup[] = [
     items: [
       { key: "projects", label: "Projetos", path: "/projects", icon: FolderKanban, permission: "projects.read" },
       { key: "tasks", label: "Tarefas da equipe", path: "/tasks", icon: ListChecks, permission: "tasks.read" },
+      { key: "routines", label: "Rotina", path: "/rotina", icon: Repeat, permission: "tasks.read" },
       {
         key: "requests",
         label: "Solicitações",

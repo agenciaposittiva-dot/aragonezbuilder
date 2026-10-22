@@ -183,3 +183,41 @@ export const fileFavorites = pgTable(
     }).onDelete("cascade"),
   ],
 );
+
+/**
+ * Biblioteca de referências: links salvos pela equipe (YouTube, Pinterest,
+ * Instagram, TikTok, Behance ou qualquer página), por cliente/projeto, com
+ * nota e etiquetas. Só o endereço é guardado; nada é baixado do link.
+ */
+export const referenceLinks = pgTable(
+  "reference_links",
+  {
+    id: id(),
+    organizationId: uuid()
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    clientId: uuid(),
+    projectId: uuid(),
+    url: text().notNull(),
+    title: text().notNull(),
+    /** youtube | instagram | pinterest | tiktok | behance | dribbble | link */
+    kind: text().notNull().default("link"),
+    note: text(),
+    tags: text().array().notNull().default(sql`'{}'::text[]`),
+    createdByUserId: text().references(() => user.id, { onDelete: "set null" }),
+    ...timestamps,
+  },
+  (t) => [
+    unique().on(t.organizationId, t.id),
+    foreignKey({
+      columns: [t.organizationId, t.clientId],
+      foreignColumns: [clients.organizationId, clients.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [t.organizationId, t.projectId],
+      foreignColumns: [projects.organizationId, projects.id],
+    }).onDelete("cascade"),
+    index().on(t.organizationId, t.createdAt.desc()),
+    index("reference_links_title_trgm").using("gin", sql`${t.title} gin_trgm_ops`),
+  ],
+);

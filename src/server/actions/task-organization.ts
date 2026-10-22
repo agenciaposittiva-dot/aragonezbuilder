@@ -1,8 +1,9 @@
 "use server";
 
 import { z } from "zod";
-import { applyTemplateInput, labelInput, savedViewInput, templateInput } from "@/lib/validators/tasks";
+import { applyTemplateInput, labelInput, routineInput, savedViewInput, templateInput } from "@/lib/validators/tasks";
 import * as labels from "@/server/services/task-labels";
+import * as routines from "@/server/services/task-routines";
 import * as templates from "@/server/services/task-templates";
 import { orgAction } from "./safe-action";
 
@@ -28,3 +29,10 @@ export const templateFromTaskAction = orgAction(
   z.object({ taskId: z.uuid(), name: z.string().trim().max(120).optional() }),
   (s, i) => templates.templateFromTask(s, i.taskId, i.name),
 );
+
+/* Rotina (tarefas recorrentes) */
+export const saveRoutineAction = orgAction(routineInput, routines.saveRoutine);
+export const setRoutineActiveAction = orgAction(z.object({ id: z.uuid(), active: z.boolean() }), (s, i) =>
+  routines.setRoutineActive(s, i.id, i.active),
+);
+export const deleteRoutineAction = orgAction(idInput, (s, i) => routines.deleteRoutine(s, i.id));

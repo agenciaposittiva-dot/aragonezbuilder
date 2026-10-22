@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { FilesLibrary } from "@/components/files/files-library";
+import { LibraryTabs } from "@/components/files/library-tabs";
 import { PageHeader } from "@/components/ui/page-header";
 import { can, inOrg } from "@/server/authz";
 import { requireActor } from "@/server/auth/session";
@@ -18,7 +19,9 @@ export default async function FilesPage({ params, searchParams }: PageProps<"/w/
       <PageHeader
         title="Biblioteca"
         description="Todos os arquivos da agência e dos clientes, com versões, aprovações e organização por cliente — salvos no servidor, disponíveis em qualquer aparelho."
-      />
+      >
+        <LibraryTabs base={base} />
+      </PageHeader>
       <FilesLibrary
         rows={data.list.rows}
         total={data.list.total}

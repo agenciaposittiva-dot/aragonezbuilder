@@ -143,3 +143,71 @@ export const folderInput = z.object({
   clientId: optionalUuid,
   projectId: optionalUuid,
 });
+
+/* Biblioteca de referências (links) ----------------------------------- */
+
+export const REFERENCE_KINDS = ["youtube", "instagram", "pinterest", "tiktok", "behance", "dribbble", "link"] as const;
+export type ReferenceKind = (typeof REFERENCE_KINDS)[number];
+export const REFERENCE_KIND_LABEL: Record<ReferenceKind, string> = {
+  youtube: "YouTube",
+  instagram: "Instagram",
+  pinterest: "Pinterest",
+  tiktok: "TikTok",
+  behance: "Behance",
+  dribbble: "Dribbble",
+  link: "Link",
+};
+
+/** Identifica a origem pelo endereço (sem acessar o link). */
+export function referenceKindOf(url: string): ReferenceKind {
+  let host = "";
+  try {
+    host = new URL(url).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return "link";
+  }
+  if (host === "youtu.be" || host.endsWith("youtube.com")) return "youtube";
+  if (host.endsWith("instagram.com")) return "instagram";
+  if (host.endsWith("pinterest.com") || host === "pin.it" || /^pinterest\.[a-z.]+$/.test(host)) return "pinterest";
+  if (host.endsWith("tiktok.com")) return "tiktok";
+  if (host.endsWith("behance.net")) return "behance";
+  if (host.endsWith("dribbble.com")) return "dribbble";
+  return "link";
+}
+
+/** Miniatura do YouTube montada pelo id do vídeo (sem acessar a página). */
+export function youtubeThumb(url: string): string | null {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./, "");
+    const id =
+      host === "youtu.be"
+        ? u.pathname.slice(1)
+        : u.pathname.startsWith("/shorts/")
+          ? u.pathname.split("/")[2]
+          : u.searchParams.get("v");
+    return id && /^[A-Za-z0-9_-]{6,20}$/.test(id) ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : null;
+  } catch {
+    return null;
+  }
+}
+
+export const referenceInput = z.object({
+  id: z.uuid().optional().nullable(),
+  url: z
+    .string()
+    .trim()
+    .max(1000)
+    .refine((v) => /^https:\/\/[^\s<>"']+$/i.test(v), "Use um link que comece com https://"),
+  title: z.string().trim().max(200).optional().nullable(),
+  note: z.string().trim().max(2000).optional().nullable(),
+  clientId: z.uuid().optional().nullable().or(z.literal("")),
+  projectId: z.uuid().optional().nullable().or(z.literal("")),
+  tags: z.array(z.string().trim().min(1).max(40)).max(12).default([]),
+});
+
+export const referenceListParams = z.object({
+  q: z.string().trim().max(100).optional(),
+  clientId: z.uuid().optional(),
+  kind: z.enum(REFERENCE_KINDS).optional(),
+});
