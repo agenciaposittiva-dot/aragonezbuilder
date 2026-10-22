@@ -43,6 +43,7 @@ export async function scanOverdueTasks(): Promise<number> {
       join workflow_statuses ws on ws.id = t.status_id and ws.organization_id = t.organization_id
       where t.completed_at is null
         and t.archived_at is null
+        and t.deleted_at is null
         and p.deleted_at is null
         and ${orgAlive(sql`t.organization_id`)}
         and ws.category not in ('done', 'cancelled')

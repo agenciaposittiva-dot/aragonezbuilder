@@ -199,6 +199,21 @@ export const CHANGELOG: ChangelogEntry[] = [
     tests: ["tests/routines-references.test.ts — escopo por cliente", "e2e/routines-references.spec.ts"],
     notes: "O servidor não acessa os links salvos; só o YouTube tem miniatura.",
   },
+  {
+    n: 15,
+    date: "2026-10-22",
+    module: "Notificações",
+    title: "Lembretes de prazo sem empilhar",
+    description:
+      "Avisos repetidos de tarefa atrasada, prazo próximo e lembrete de aprovação substituem o aviso anterior ainda não lido do mesmo item. O aviso de atraso agora traz o nome da tarefa e a data do prazo, e abre a tarefa.",
+    fixed:
+      "Uma tarefa atrasada gerava um novo “Tarefa atrasada” por dia, sem o nome da tarefa no título, enchendo a lista de notificações.",
+    status: "tested",
+    tests: [
+      "tests/tasks-automation.test.ts — um aviso não lido por tarefa, link correto e tarefa na lixeira sem aviso",
+    ],
+    notes: "Depois de lido, o lembrete seguinte chega como novo; o lido continua no histórico.",
+  },
 ];
 
 export const CHANGELOG_MODULES = [...new Set(CHANGELOG.map((e) => e.module))].sort((a, b) =>

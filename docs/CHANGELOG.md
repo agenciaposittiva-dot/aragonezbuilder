@@ -6,6 +6,17 @@ Publicação em produção depende da implantação de cada ambiente.
 
 `tests/changelog.test.ts` confere que os dois registros estão iguais e que os testes citados existem.
 
+## #15 — Lembretes de prazo sem empilhar
+
+- **Data:** 2026-10-22
+- **Módulo:** Notificações
+- **Status:** Implementado e testado
+- **Descrição:** Avisos repetidos de tarefa atrasada, prazo próximo e lembrete de aprovação substituem o aviso anterior ainda não lido do mesmo item. O aviso de atraso agora traz o nome da tarefa e a data do prazo, e abre a tarefa.
+- **Problema resolvido:** Uma tarefa atrasada gerava um novo “Tarefa atrasada” por dia, sem o nome da tarefa no título, enchendo a lista de notificações.
+- **Testes executados:**
+  - tests/tasks-automation.test.ts — um aviso não lido por tarefa, link correto e tarefa na lixeira sem aviso
+- **Observações:** Depois de lido, o lembrete seguinte chega como novo; o lido continua no histórico.
+
 ## #14 — Referências por link
 
 - **Data:** 2026-10-22
