@@ -79,7 +79,7 @@ export const designMetaInput = z.object({
  * Artes visíveis: fora da lixeira, sem cliente (internas) ou de clientes no
  * escopo do ator, e cujo projeto (se houver) também não está na lixeira.
  */
-function designScope(s: Scope) {
+export function designScope(s: Scope) {
   const visibleClients = s.db.select({ id: clients.id }).from(clients).where(clientScope(s.actor));
   return and(
     isNull(designs.deletedAt),

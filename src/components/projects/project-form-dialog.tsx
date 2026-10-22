@@ -35,16 +35,19 @@ export function ProjectFormDialog({
   members,
   defaultClientId,
   canSetBudget,
+  defaultOpen = false,
 }: {
   trigger: React.ReactNode;
   clients: { id: string; name: string }[];
   members: MemberLite[];
   defaultClientId?: string;
   canSetBudget: boolean;
+  /** Abre ao carregar (atalho "Criar projeto": ?novo=1). */
+  defaultOpen?: boolean;
 }) {
   const router = useRouter();
   const { orgSlug, membershipId } = useWorkspace();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [withStages, setWithStages] = useState(true);
   const form = useForm<FormValues>({
     resolver: zodResolver(projectInput) as never,

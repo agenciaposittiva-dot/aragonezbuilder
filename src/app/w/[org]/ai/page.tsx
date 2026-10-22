@@ -16,7 +16,11 @@ import { projectOptions } from "@/server/services/projects";
 
 export const metadata: Metadata = { title: "Criação com IA" };
 
-export default async function AiPage({ params }: PageProps<"/w/[org]/ai">) {
+export default async function AiPage({ params, searchParams }: PageProps<"/w/[org]/ai">) {
+  const sp = await searchParams;
+  // Atalho do painel: ?ferramenta=imagem (ou a chave de uma operação de texto).
+  const ferramenta =
+    typeof sp.ferramenta === "string" ? (sp.ferramenta === "imagem" ? "image" : sp.ferramenta) : undefined;
   const { org } = await params;
   const actor = await requireActor(org, { kind: "internal", permission: "ai.use" });
   const data = await inOrg(actor, async (s) => {
@@ -51,6 +55,7 @@ export default async function AiPage({ params }: PageProps<"/w/[org]/ai">) {
         }
       />
       <AiStudio
+        initialOp={ferramenta}
         status={{
           enabled: data.settings.enabled,
           configured: ready.length > 0,
