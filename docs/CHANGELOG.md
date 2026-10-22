@@ -6,6 +6,18 @@ Publicação em produção depende da implantação de cada ambiente.
 
 `tests/changelog.test.ts` confere que os dois registros estão iguais e que os testes citados existem.
 
+## #16 — Me guie: primeiros passos, dicas da tela e tour
+
+- **Data:** 2026-10-22
+- **Módulo:** Navegação
+- **Status:** Implementado e testado
+- **Descrição:** Botão “Me guie” no cabeçalho abre um painel com os primeiros passos da agência (calculados com os dados reais e só os que a pessoa pode fazer), progresso, “Ir agora”, dicas da tela atual, tour rápido com “Refazer o tour” e “Esconder o botão” (volta pelo menu do perfil).
+- **Problema resolvido:** Quem chegava à plataforma não tinha um roteiro do que configurar nem dicas de cada tela.
+- **Testes executados:**
+  - tests/guide.test.ts — 3 testes (passos pelo banco e por permissão)
+  - e2e/guide.spec.ts — desktop e celular
+- **Observações:** A preferência de esconder o botão e a posição do tour ficam no aparelho de quem vê; os passos vêm sempre do servidor.
+
 ## #15 — Lembretes de prazo sem empilhar
 
 - **Data:** 2026-10-22

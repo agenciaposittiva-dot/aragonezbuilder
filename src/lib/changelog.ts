@@ -214,6 +214,22 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
     notes: "Depois de lido, o lembrete seguinte chega como novo; o lido continua no histórico.",
   },
+  {
+    n: 16,
+    date: "2026-10-22",
+    module: "Navegação",
+    title: "Me guie: primeiros passos, dicas da tela e tour",
+    description:
+      "Botão “Me guie” no cabeçalho abre um painel com os primeiros passos da agência (calculados com os dados reais e só os que a pessoa pode fazer), progresso, “Ir agora”, dicas da tela atual, tour rápido com “Refazer o tour” e “Esconder o botão” (volta pelo menu do perfil).",
+    fixed: "Quem chegava à plataforma não tinha um roteiro do que configurar nem dicas de cada tela.",
+    status: "tested",
+    tests: [
+      "tests/guide.test.ts — 3 testes (passos pelo banco e por permissão)",
+      "e2e/guide.spec.ts — desktop e celular",
+    ],
+    notes:
+      "A preferência de esconder o botão e a posição do tour ficam no aparelho de quem vê; os passos vêm sempre do servidor.",
+  },
 ];
 
 export const CHANGELOG_MODULES = [...new Set(CHANGELOG.map((e) => e.module))].sort((a, b) =>

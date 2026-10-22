@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { GuideButton } from "./guide-panel";
 import type { NavKey } from "./nav-registry";
 import { NotificationsBell } from "./notifications-bell";
 import type { ClientTreeData } from "./client-tree";
@@ -59,8 +60,9 @@ export function AppHeader({
         </span>
       </button>
       <div className="ml-auto flex items-center gap-1.5">
+        <GuideButton base={base} />
         <NotificationsBell initialUnread={unread} />
-        <UserMenu accountHref={accountHref} />
+        <UserMenu accountHref={accountHref} guide />
       </div>
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
