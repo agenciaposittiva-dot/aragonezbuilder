@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { Tx } from "@/server/db";
 import { domainEvents, emailOutbox, files, notifications } from "@/server/db/schema";
 import { env } from "@/server/env";
@@ -118,11 +118,12 @@ async function draftsFor(tx: Tx, ev: DomainEvent): Promise<Draft[]> {
     }
 
     case "task.overdue": {
+      const date = str(p.dueDate).split("-").reverse().join("/");
       return [
         {
           recipients: await membersByIds(tx, org, [str(p.assigneeMembershipId)]),
-          title: "Tarefa atrasada",
-          body: str(p.title) || null,
+          title: `Tarefa atrasada: ${str(p.title)}`,
+          body: date ? `O prazo era ${date}.` : null,
           internalPath: `/tasks/${str(p.taskId) || ev.entityId}`,
         },
       ];
@@ -471,6 +472,13 @@ async function commentDrafts(tx: Tx, ev: DomainEvent, p: Record<string, unknown>
 }
 
 /**
+ * Lembretes repetidos (verificação diária, prazo próximo, lembrete de
+ * aprovação): o aviso novo substitui o anterior ainda não lido do mesmo item,
+ * em vez de empilhar um por dia.
+ */
+const REPLACES_UNREAD = new Set(["task.overdue", "task.due_soon", "approval.reminder"]);
+
+/**
  * Gera e grava as notificações de um evento (na transação do despachante).
  * - nunca notifica quem causou o evento;
  * - usuários de cliente só recebem quando há caminho no portal;
@@ -525,6 +533,20 @@ export async function applyNotifications(tx: Tx, ev: DomainEvent): Promise<numbe
         emails.push({ to: r.email, subject: `${d.title} · ${APP_NAME}`, html, text });
       }
     }
+  }
+  if (rows.length && ev.entityId && REPLACES_UNREAD.has(ev.type)) {
+    await tx.delete(notifications).where(
+      and(
+        eq(notifications.organizationId, ev.organizationId),
+        inArray(
+          notifications.userId,
+          rows.map((r) => r.userId),
+        ),
+        eq(notifications.type, ev.type),
+        eq(notifications.entityId, ev.entityId),
+        isNull(notifications.readAt),
+      ),
+    );
   }
   if (rows.length) await tx.insert(notifications).values(rows);
   if (emails.length) await tx.insert(emailOutbox).values(emails);

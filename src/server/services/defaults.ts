@@ -45,6 +45,13 @@ export const DEFAULT_TASK_STATUSES: StatusSeed[] = [
   { key: "cancelled", name: "Cancelada", category: "cancelled", color: "zinc" },
 ];
 
+/** Categorias de clientes de toda agência nova (a equipe pode renomear, reordenar e criar outras). */
+export const DEFAULT_CLIENT_CATEGORIES: { name: string; color: string }[] = [
+  { name: "Clientes ativos", color: "green" },
+  { name: "Projetos avulsos", color: "amber" },
+  { name: "Ex-clientes", color: "slate" },
+];
+
 export const DEFAULT_PROJECT_STATUSES: StatusSeed[] = [
   {
     key: "planning",

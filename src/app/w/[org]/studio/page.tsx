@@ -16,10 +16,11 @@ import { requireActor } from "@/server/auth/session";
 import { getPickerData } from "@/server/services/ai-models";
 import { clientOptions } from "@/server/services/clients";
 import { listDesigns } from "@/server/services/designs";
+import { maxUploadBytes } from "@/server/services/files";
 import { projectOptions } from "@/server/services/projects";
 import { listTemplateLibrary } from "@/server/services/template-library";
 
-export const metadata: Metadata = { title: "Estúdio" };
+export const metadata: Metadata = { title: "Estúdio de Carrosséis" };
 
 export default async function StudioPage({ params, searchParams }: PageProps<"/w/[org]/studio">) {
   const { org } = await params;
@@ -36,6 +37,7 @@ export default async function StudioPage({ params, searchParams }: PageProps<"/w
     projects: await projectOptions(s),
     picker: canAi && can(actor, "designs.write") ? await getPickerData(s) : null,
     library: tab === "templates" ? await listTemplateLibrary(s) : null,
+    maxBytes: maxUploadBytes(s),
   }));
   const base = `/w/${actor.orgSlug}/studio`;
   const canWrite = can(actor, "designs.write");
@@ -61,7 +63,7 @@ export default async function StudioPage({ params, searchParams }: PageProps<"/w
   return (
     <>
       <PageHeader
-        title="Estúdio"
+        title="Estúdio de Carrosséis"
         description="Editor de artes com a identidade de cada cliente. Exporte direto para Arquivos e envie para aprovação."
         actions={
           canWrite ? (
@@ -82,6 +84,7 @@ export default async function StudioPage({ params, searchParams }: PageProps<"/w
                 clients={data.clients}
                 canManageTemplates={canTemplates}
                 picker={data.picker}
+                maxBytes={data.maxBytes}
               />
               {dialog(
                 <Button variant="primary">

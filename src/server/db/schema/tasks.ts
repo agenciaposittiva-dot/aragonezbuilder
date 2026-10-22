@@ -8,6 +8,7 @@ import {
   index,
   integer,
   jsonb,
+  pgEnum,
   pgTable,
   primaryKey,
   text,
@@ -21,6 +22,59 @@ import { user } from "./auth";
 import { memberships, organizations, workflowStatuses } from "./core";
 import { priority, projects, projectStages } from "./projects";
 import { requests } from "./requests";
+
+export const recurrenceFrequency = pgEnum("recurrence_frequency", ["daily", "weekly", "monthly"]);
+
+/**
+ * Rotina: regra que cria uma tarefa (demanda) recorrente num projeto — todo
+ * dia, toda semana num dia da semana ou todo mês num dia do mês. O worker/cron
+ * gera a tarefa na data (`next_run_on`) e avança para a próxima; a tarefa
+ * gerada guarda `recurrence_id` + `recurrence_on` (único: nunca duplica).
+ */
+export const taskRecurrences = pgTable(
+  "task_recurrences",
+  {
+    id: id(),
+    organizationId: uuid()
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    projectId: uuid().notNull(),
+    title: text().notNull(),
+    description: text(),
+    assigneeMembershipId: uuid(),
+    priority: priority().notNull().default("medium"),
+    frequency: recurrenceFrequency().notNull(),
+    /** A cada N dias/semanas/meses. */
+    interval: integer().notNull().default(1),
+    /** Semanal: 0 (domingo) a 6 (sábado). */
+    weekday: integer(),
+    /** Mensal: 1 a 28 (evita meses curtos). */
+    monthday: integer(),
+    /** Prazo da tarefa gerada: dias depois da data da ocorrência (0 = no mesmo dia). */
+    dueInDays: integer().notNull().default(0),
+    nextRunOn: date({ mode: "string" }).notNull(),
+    active: boolean().notNull().default(true),
+    lastRunOn: date({ mode: "string" }),
+    createdByUserId: text().references(() => user.id, { onDelete: "set null" }),
+    ...timestamps,
+  },
+  (t) => [
+    unique().on(t.organizationId, t.id),
+    foreignKey({
+      columns: [t.organizationId, t.projectId],
+      foreignColumns: [projects.organizationId, projects.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [t.organizationId, t.assigneeMembershipId],
+      foreignColumns: [memberships.organizationId, memberships.id],
+    }),
+    index().on(t.active, t.nextRunOn),
+    check("task_recurrences_interval", sql`${t.interval} between 1 and 12`),
+    check("task_recurrences_weekday", sql`${t.weekday} is null or ${t.weekday} between 0 and 6`),
+    check("task_recurrences_monthday", sql`${t.monthday} is null or ${t.monthday} between 1 and 28`),
+    check("task_recurrences_due", sql`${t.dueInDays} between 0 and 60`),
+  ],
+);
 
 export const tasks = pgTable(
   "tasks",
@@ -45,6 +99,9 @@ export const tasks = pgTable(
     position: doublePrecision().notNull().default(0),
     completedAt: tstz(),
     archivedAt: tstz(),
+    /** Gerada por uma rotina (e em qual data): impede gerar a mesma ocorrência duas vezes. */
+    recurrenceId: uuid().references((): AnyPgColumn => taskRecurrences.id, { onDelete: "set null" }),
+    recurrenceOn: date({ mode: "string" }),
     /**
      * Lixeira: ao excluir, `deleted_at` e `archived_at` recebem a mesma data (a
      * tarefa some de todas as listas que já ignoram arquivadas). Restaurar limpa
@@ -84,6 +141,9 @@ export const tasks = pgTable(
     index("tasks_trash_idx")
       .on(t.organizationId, t.deletedAt)
       .where(sql`${t.deletedAt} is not null`),
+    uniqueIndex("tasks_recurrence_occurrence_unique")
+      .on(t.recurrenceId, t.recurrenceOn)
+      .where(sql`${t.recurrenceId} is not null`),
   ],
 );
 

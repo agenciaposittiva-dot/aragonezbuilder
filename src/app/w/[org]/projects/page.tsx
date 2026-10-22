@@ -44,6 +44,7 @@ export default async function ProjectsPage({ params, searchParams }: PageProps<"
       clients={clients}
       members={memberLite}
       canSetBudget={can(actor, "finance.write")}
+      defaultOpen={sp.novo === "1"}
       trigger={
         <Button variant="primary">
           <Plus /> Novo projeto

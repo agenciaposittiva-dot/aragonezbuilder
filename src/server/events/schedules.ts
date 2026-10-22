@@ -3,6 +3,7 @@ import { withSystem } from "@/server/db";
 import { auditLogs, domainEvents, invoices } from "@/server/db/schema";
 import { nextCounter } from "@/server/services/finance";
 import { cleanupPendingChatAttachments } from "@/server/services/chat-attachments";
+import { generateRoutineTasks } from "@/server/services/task-routines";
 import { purgeExpiredTrash } from "@/server/services/trash";
 import { refreshDueSources } from "@/server/services/trends";
 
@@ -42,6 +43,7 @@ export async function scanOverdueTasks(): Promise<number> {
       join workflow_statuses ws on ws.id = t.status_id and ws.organization_id = t.organization_id
       where t.completed_at is null
         and t.archived_at is null
+        and t.deleted_at is null
         and p.deleted_at is null
         and ${orgAlive(sql`t.organization_id`)}
         and ws.category not in ('done', 'cancelled')
@@ -256,6 +258,7 @@ export async function runDueSchedules() {
     overdueInvoices: await markOverdueInvoices(),
     recurringInvoices: await generateRecurringInvoices(),
     approvalReminders: await remindPendingApprovals(),
+    routines: await generateRoutineTasks(),
     trash: await purgeExpiredTrash(),
     chatAttachments: await cleanupPendingChatAttachments(),
     // Radar de Tendências: fontes vencidas de todas as agências, com orçamento de tempo.
@@ -274,6 +277,12 @@ export const SCHEDULES = [
     cron: "0 6 * * *",
     run: () => generateRecurringInvoices(),
     label: "Faturas recorrentes",
+  },
+  {
+    name: "cron-task-routines",
+    cron: "45 5 * * *",
+    run: async () => (await generateRoutineTasks()).created,
+    label: "Rotina (tarefas recorrentes)",
   },
   {
     name: "cron-approval-reminders",

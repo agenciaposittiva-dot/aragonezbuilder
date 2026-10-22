@@ -10,6 +10,7 @@ import { env } from "@/server/env";
 import {
   auditLogs,
   briefingTemplates,
+  clientCategories,
   memberships,
   organizations,
   roles,
@@ -21,6 +22,7 @@ import { ValidationError } from "@/server/errors";
 import { recordActivity } from "./activity";
 import {
   DEFAULT_BRIEFING_TEMPLATES,
+  DEFAULT_CLIENT_CATEGORIES,
   DEFAULT_PROJECT_STATUSES,
   DEFAULT_PROJECT_TRANSITIONS,
   DEFAULT_TASK_STATUSES,
@@ -103,6 +105,9 @@ export async function createOrganization(userId: string, input: z.infer<typeof c
         ...t,
       })),
     );
+    await tx
+      .insert(clientCategories)
+      .values(DEFAULT_CLIENT_CATEGORIES.map((c, position) => ({ organizationId: orgId, ...c, position })));
     await tx.insert(auditLogs).values({
       organizationId: orgId,
       actorUserId: userId,

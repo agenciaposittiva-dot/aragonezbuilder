@@ -55,7 +55,8 @@ export function SaveIndicator({
   const content = (
     <>
       {icon}
-      <span className={cn(compact && "sr-only sm:not-sr-only")}>{label}</span>
+      {/* `not-sr-only` volta a `white-space: normal`; o nowrap precisa vir junto para não quebrar em 3 linhas. */}
+      <span className={cn(compact && "sr-only xl:not-sr-only xl:whitespace-nowrap")}>{label}</span>
       {status === "error" && onRetry ? <RotateCw className="size-3" /> : null}
     </>
   );

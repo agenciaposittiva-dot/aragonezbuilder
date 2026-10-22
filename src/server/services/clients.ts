@@ -24,6 +24,7 @@ import { assertCan, assertClientAccess, assertInternal, can, clientScope, type S
 import { inSequence } from "@/server/db/sequence";
 import { NotFoundError } from "@/server/errors";
 import { diff, recordActivity } from "./activity";
+import { resolveCategoryId } from "./client-categories";
 import { uniqueClientSlug } from "./client-slug";
 import { assertActiveMembers } from "./members";
 
@@ -36,6 +37,11 @@ export async function listClients(s: Scope, raw: z.input<typeof clientListParams
     clientScope(s.actor),
     p.archived ? isNotNull(clients.archivedAt) : isNull(clients.archivedAt),
     p.status ? eq(clients.status, p.status) : undefined,
+    p.category === "none"
+      ? isNull(clients.categoryId)
+      : p.category
+        ? eq(clients.categoryId, p.category)
+        : undefined,
     p.q
       ? or(ilike(clients.name, ESC(p.q)), ilike(clients.legalName, ESC(p.q)), ilike(clients.document, ESC(p.q)))
       : undefined,
@@ -62,6 +68,7 @@ export async function listClients(s: Scope, raw: z.input<typeof clientListParams
           industry: clients.industry,
           status: clients.status,
           email: clients.email,
+          categoryId: clients.categoryId,
           archivedAt: clients.archivedAt,
           createdAt: clients.createdAt,
           leadName: lead.name,
@@ -146,6 +153,7 @@ export async function createClient(s: Scope, raw: z.input<typeof clientInput>) {
   assertCan(s.actor, "clients.write");
   const data = clientInput.parse(raw);
   await assertActiveMembers(s, [data.leadMembershipId]);
+  const categoryId = await resolveCategoryId(s, data.categoryId);
 
   const [row] = await s.db
     .insert(clients)
@@ -161,6 +169,7 @@ export async function createClient(s: Scope, raw: z.input<typeof clientInput>) {
       industry: data.industry,
       address: data.address,
       status: data.status,
+      categoryId,
       notesInternal: data.notesInternal,
       createdByUserId: s.actor.userId,
     })
@@ -205,6 +214,8 @@ export async function updateClient(s: Scope, id: string, raw: z.input<typeof cli
     address: data.address,
     status: data.status,
     notesInternal: data.notesInternal,
+    // Ausente na entrada = mantém a categoria atual (outros formulários não a enviam).
+    ...(data.categoryId !== undefined ? { categoryId: await resolveCategoryId(s, data.categoryId) } : {}),
   };
   const changes = diff(before, patch);
   await s.db.update(clients).set(patch).where(eq(clients.id, id));

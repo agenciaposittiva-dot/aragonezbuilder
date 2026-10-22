@@ -52,7 +52,9 @@ export async function fileToDataUrl(file: Blob, maxSide = 2048): Promise<string>
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
       const el = new Image();
       el.onload = () => resolve(el);
-      el.onerror = reject;
+      // O evento de erro não tem mensagem: sem isto o aviso aparecia vazio.
+      el.onerror = () =>
+        reject(new Error("Não foi possível ler esta imagem. O arquivo pode estar corrompido ou em formato não suportado."));
       el.src = url;
     });
     const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));

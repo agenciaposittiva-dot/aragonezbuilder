@@ -237,3 +237,32 @@ export function parseDuration(input: string): number | null {
   if (/^\d+$/.test(v)) return Number(v);
   return null;
 }
+
+/* Rotina (tarefas recorrentes) --------------------------------------- */
+
+export const ROUTINE_FREQUENCY_LABEL = { daily: "Diária", weekly: "Semanal", monthly: "Mensal" } as const;
+
+export const routineInput = z
+  .object({
+    id: optionalUuid,
+    projectId: uuid,
+    title: requiredText("o título", 300),
+    description: optionalText(5000),
+    assigneeMembershipId: optionalUuid,
+    priority: priorityEnum.default("medium"),
+    frequency: z.enum(["daily", "weekly", "monthly"]),
+    interval: z.coerce.number().int().min(1, "Mínimo 1").max(12, "Máximo 12").default(1),
+    weekday: z.coerce.number().int().min(0).max(6).nullable().optional(),
+    monthday: z.coerce.number().int().min(1, "Use de 1 a 28").max(28, "Use de 1 a 28").nullable().optional(),
+    dueInDays: z.coerce.number().int().min(0).max(60, "No máximo 60 dias").default(0),
+    /** Primeira data possível (padrão: hoje). */
+    startOn: isoDate,
+  })
+  .refine((d) => d.frequency !== "weekly" || d.weekday !== null && d.weekday !== undefined, {
+    message: "Escolha o dia da semana",
+    path: ["weekday"],
+  })
+  .refine((d) => d.frequency !== "monthly" || !!d.monthday, {
+    message: "Escolha o dia do mês",
+    path: ["monthday"],
+  });

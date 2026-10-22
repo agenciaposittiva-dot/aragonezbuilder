@@ -4,13 +4,15 @@ import { notFound } from "next/navigation";
 import { ClientHeaderActions } from "@/components/clients/client-header-actions";
 import { ClientStatusBadge } from "@/components/clients/client-status";
 import { Avatar } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
+import { Badge, STATUS_COLORS } from "@/components/ui/badge";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { UnderlineTabs } from "@/components/ui/underline-tabs";
 import { can, inOrg } from "@/server/authz";
 import { requireActor } from "@/server/auth/session";
+import { cn } from "@/lib/utils";
 import { NotFoundError } from "@/server/errors";
+import { listClientCategories } from "@/server/services/client-categories";
 import { getClient } from "@/server/services/clients";
 import { clientLogoVersions } from "@/server/services/files";
 import { listInternalMembers } from "@/server/services/members";
@@ -22,7 +24,12 @@ export default async function ClientLayout({ children, params }: LayoutProps<"/w
     try {
       const detail = await getClient(s, id);
       const logos = detail.client.logoFileId ? await clientLogoVersions(s, [id]) : new Map<string, string>();
-      return { detail, members: await listInternalMembers(s), logoVersionId: logos.get(id) ?? null };
+      return {
+        detail,
+        members: await listInternalMembers(s),
+        logoVersionId: logos.get(id) ?? null,
+        categories: (await listClientCategories(s)).categories,
+      };
     } catch (e) {
       if (e instanceof NotFoundError) return null;
       throw e;
@@ -32,6 +39,7 @@ export default async function ClientLayout({ children, params }: LayoutProps<"/w
   const { client, team } = data.detail;
   const base = `/w/${actor.orgSlug}/clients/${id}`;
   const lead = team.find((t) => t.role === "lead");
+  const category = data.categories.find((c) => c.id === client.categoryId) ?? null;
 
   return (
     <div className="grid min-w-0 grid-cols-1 gap-6">
@@ -51,6 +59,16 @@ export default async function ClientLayout({ children, params }: LayoutProps<"/w
                 <h1 className="truncate text-xl font-semibold tracking-tight">{client.name}</h1>
                 <ClientStatusBadge status={client.status} />
                 {client.archivedAt ? <Badge tone="warning">Arquivado</Badge> : null}
+                {category ? (
+                  <Link
+                    href={`/w/${actor.orgSlug}/clients?category=${category.id}`}
+                    className="inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[11px] text-fg-muted hover:text-fg"
+                    title="Ver clientes desta categoria"
+                  >
+                    <span className={cn("size-1.5 rounded-full", STATUS_COLORS[category.color]?.dot)} aria-hidden="true" />
+                    {category.name}
+                  </Link>
+                ) : null}
               </div>
               <p className="mt-0.5 truncate text-sm text-fg-muted">
                 {[client.industry, lead ? `Atendimento: ${lead.name}` : null].filter(Boolean).join(" · ") || "—"}
@@ -78,8 +96,10 @@ export default async function ClientLayout({ children, params }: LayoutProps<"/w
                 address: client.address,
                 status: client.status,
                 notesInternal: client.notesInternal,
+                categoryId: client.categoryId ?? "",
                 archived: !!client.archivedAt,
               }}
+              categories={data.categories.map((c) => ({ id: c.id, name: c.name }))}
               members={data.members.map((m) => ({ membershipId: m.membershipId, name: m.name }))}
               canWrite={can(actor, "clients.write")}
               canArchive={can(actor, "clients.archive")}

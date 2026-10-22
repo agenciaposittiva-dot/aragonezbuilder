@@ -136,7 +136,7 @@ test("1–4 e 18: dois portais com identidades diferentes e um sem personalizaç
   await expect(anon.getByText(`Portal ${A}`)).toHaveCount(0);
   // 18. Sem personalização: login funciona com o padrão da agência e o nome do cliente.
   await anon.goto(`/portal/${DEMO.org}/${state.slugC}/entrar`);
-  await expect(anon.getByRole("heading", { name: "Entrar no portal" })).toBeVisible();
+  await expect(anon.getByRole("heading", { name: "Bem-vindo" })).toBeVisible();
   await expect(anon.getByText(new RegExp(`espaço de ${C}`))).toBeVisible();
   await anon.context().close();
 });

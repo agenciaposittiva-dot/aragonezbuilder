@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { orgAction } from "./safe-action";
+import { guideSteps } from "@/server/services/guide";
 import { globalSearch } from "@/server/services/search";
 import { listNotifications, markRead, markReadInput, unreadCount } from "@/server/services/notifications";
 
@@ -16,3 +17,5 @@ export const notificationsAction = orgAction(
 );
 
 export const markNotificationsReadAction = orgAction(markReadInput, markRead, { refresh: false });
+
+export const guideAction = orgAction(z.object({}), (s) => guideSteps(s), { refresh: false });

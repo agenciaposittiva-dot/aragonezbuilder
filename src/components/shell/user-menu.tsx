@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOut, Palette, ShieldCheck, UserRound } from "lucide-react";
+import { Compass, LogOut, Palette, ShieldCheck, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Avatar } from "@/components/ui/avatar";
@@ -16,12 +16,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { authClient } from "@/lib/auth-client";
+import { useGuideHidden } from "./guide-panel";
 import { ThemeMenuItems } from "./theme-toggle";
 import { useWorkspace } from "./workspace-context";
 
-export function UserMenu({ accountHref }: { accountHref: string }) {
+/** `guide`: oferece mostrar de novo o botão "Me guie" escondido (só na área da equipe). */
+export function UserMenu({ accountHref, guide = false }: { accountHref: string; guide?: boolean }) {
   const ws = useWorkspace();
   const router = useRouter();
+  const [guideHidden, setGuideHidden] = useGuideHidden();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="rounded-full" aria-label="Menu do perfil">
@@ -54,6 +57,11 @@ export function UserMenu({ accountHref }: { accountHref: string }) {
             <ThemeMenuItems />
           </DropdownMenuSubContent>
         </DropdownMenuSub>
+        {guide && guideHidden ? (
+          <DropdownMenuItem onSelect={() => setGuideHidden(false)}>
+            <Compass /> Mostrar o botão “Me guie”
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onSelect={async () => {

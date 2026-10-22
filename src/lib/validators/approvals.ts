@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isoDate, optionalText, optionalUuid, uuid } from "./common";
+import { isoDate, optionalText, optionalUuid, requiredText, uuid } from "./common";
 
 export const APPROVAL_STAGE_LABEL = { internal: "Revisão interna", client: "Aprovação do cliente" } as const;
 export const APPROVAL_STATUS_LABEL = {
@@ -33,3 +33,31 @@ export const approvalListParams = z.object({
   projectId: z.uuid().optional(),
   clientId: z.uuid().optional(),
 });
+
+/* Link de aprovação (sem conta) ------------------------------------- */
+
+export const APPROVAL_LINK_DAYS = { min: 1, max: 30, default: 7 } as const;
+
+export const approvalLinkInput = z.object({
+  clientId: uuid,
+  fileIds: z.array(uuid).min(1, "Escolha ao menos um arquivo").max(60, "No máximo 60 arquivos por link"),
+  label: requiredText("o nome do link", 80),
+  days: z.coerce
+    .number()
+    .int()
+    .min(APPROVAL_LINK_DAYS.min, "Validade mínima de 1 dia")
+    .max(APPROVAL_LINK_DAYS.max, "Validade máxima de 30 dias")
+    .default(APPROVAL_LINK_DAYS.default),
+});
+
+export const approvalLinkDecisionInput = z
+  .object({
+    fileId: uuid,
+    decision: z.enum(["approved", "changes_requested"]),
+    note: optionalText(2000),
+    name: z.string().trim().min(2, "Informe seu nome").max(80),
+  })
+  .refine((d) => d.decision === "approved" || !!d.note, {
+    message: "Descreva os ajustes necessários",
+    path: ["note"],
+  });

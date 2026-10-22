@@ -9,6 +9,7 @@ import { WorkspaceProvider } from "@/components/shell/workspace-context";
 import { can, inOrg } from "@/server/authz";
 import { listUserOrganizations } from "@/server/authz/actor";
 import { requireActor } from "@/server/auth/session";
+import { clientCategoryTree } from "@/server/services/client-categories";
 import { getChatAlertPrefs } from "@/server/services/notification-preferences";
 import { getShellCounts } from "@/server/services/shell";
 
@@ -26,12 +27,14 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps<
   const { org } = await params;
   const actor = await requireActor(org, { kind: "internal" });
   const chat = can(actor, "chat.use");
-  const [orgs, counts, alerts, cookieStore] = await Promise.all([
+  const [orgs, counts, alerts, tree, cookieStore] = await Promise.all([
     listUserOrganizations(actor.userId),
     inOrg(actor, getShellCounts),
     chat ? inOrg(actor, getChatAlertPrefs) : null,
+    can(actor, "clients.read") ? inOrg(actor, (s) => clientCategoryTree(s)) : null,
     cookies(),
   ]);
+  const clientTree = tree ? { ...tree, canManage: can(actor, "clients.write") } : null;
   const since = openedAt();
   const base = `/w/${actor.orgSlug}`;
   const collapsed = cookieStore.get("sidebar_collapsed")?.value === "1";
@@ -61,6 +64,7 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps<
             badges={counts.badges}
             orgs={orgs.map((o) => ({ slug: o.slug, name: o.name, logoUrl: o.logoSrc, kind: o.kind }))}
             defaultCollapsed={collapsed}
+            clientTree={clientTree}
           />
           <div className="flex min-w-0 flex-1 flex-col">
             <AppHeader
@@ -70,6 +74,7 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps<
               orgs={orgs.map((o) => ({ slug: o.slug, name: o.name, logoUrl: o.logoSrc, kind: o.kind }))}
               unread={counts.unread}
               accountHref={`${base}/account`}
+              clientTree={clientTree}
             />
             <main id="conteudo" className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 sm:px-6 lg:px-8">
               {children}

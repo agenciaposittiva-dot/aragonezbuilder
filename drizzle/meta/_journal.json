@@ -113,6 +113,27 @@
       "when": 1792358331322,
       "tag": "0015_radar_marca",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1792697200349,
+      "tag": "0016_clientes_categorias",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792700565590,
+      "tag": "0017_aprovacao_por_link",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792702623882,
+      "tag": "0018_rotina_e_referencias",
+      "breakpoints": true
     }
   ]
 }
