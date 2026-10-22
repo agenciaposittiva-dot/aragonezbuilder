@@ -83,7 +83,11 @@ export function PortalPreview({
             logoAltUrl={logoAltUrl}
             backgroundUrl={imageUrl(settings.login.backgroundFileId)}
           >
-            <SampleLoginForm name={name} />
+            <SampleLoginForm
+              name={name}
+              dark={settings.login.layout === "card"}
+              privacy={!!settings.login.privacyUrl}
+            />
           </PortalLoginView>
         ) : (
           <SampleHome
@@ -104,28 +108,38 @@ export function PortalPreview({
   );
 }
 
-function SampleLoginForm({ name }: { name: string }) {
+function SampleLoginForm({ name, dark, privacy }: { name: string; dark: boolean; privacy: boolean }) {
+  const field = dark ? "border-white/15 bg-white/[0.06] text-white placeholder:text-white/40" : undefined;
   return (
-    <div className="grid gap-5" aria-label="Prévia do formulário de login">
+    <div className={cn("grid gap-5", dark && "text-white")} aria-label="Prévia do formulário de login">
       <div>
         <div className="flex items-center gap-2">
-          <h1 className="text-xl font-semibold tracking-tight">Entrar no portal</h1>
+          <h1 className={cn("font-semibold tracking-tight", dark ? "text-2xl" : "text-xl")}>
+            {dark ? "Bem-vindo" : "Entrar no portal"}
+          </h1>
           <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-medium text-fg-muted">Prévia</span>
         </div>
-        <p className="mt-1 text-sm text-fg-muted">Use o e-mail do seu convite para acessar o espaço de {name}.</p>
+        <p className={cn("mt-1 text-sm", dark ? "text-white/70" : "text-fg-muted")}>
+          {dark
+            ? `Digite seu e-mail e senha para acessar o espaço de ${name}.`
+            : `Use o e-mail do seu convite para acessar o espaço de ${name}.`}
+        </p>
       </div>
       <div className="grid gap-1.5">
         <span className="text-sm font-medium">E-mail</span>
-        <Input disabled placeholder="voce@empresa.com" />
+        <Input disabled placeholder="email@exemplo.com" className={field} />
       </div>
       <div className="grid gap-1.5">
         <span className="text-sm font-medium">Senha</span>
-        <Input disabled type="password" placeholder="••••••••" />
+        <Input disabled type="password" placeholder="••••••••" className={field} />
       </div>
-      <span className="text-sm text-accent-text">Esqueci a senha</span>
-      <Button type="button" variant="primary" size="lg" disabled className="disabled:opacity-100">
+      <span className={cn("text-sm", dark ? "text-[var(--portal-highlight)]" : "text-accent-text")}>Esqueci a senha</span>
+      <Button type="button" variant={dark ? "accent" : "primary"} size="lg" disabled className="disabled:opacity-100">
         Entrar
       </Button>
+      {privacy ? (
+        <span className={cn("text-center text-xs", dark ? "text-white/60" : "text-fg-muted")}>Política de Privacidade</span>
+      ) : null}
     </div>
   );
 }

@@ -28,6 +28,8 @@ import {
   readableOn,
   type PortalSection,
   type PortalSettings,
+  LOGIN_LAYOUT_LABEL,
+  LOGIN_LAYOUTS,
 } from "@/lib/portal-settings";
 import { cn } from "@/lib/utils";
 import {
@@ -561,13 +563,30 @@ export function PortalCustomizer({
               </div>
             </CardHeader>
             <CardContent className="grid gap-5 sm:grid-cols-[minmax(0,240px)_1fr]">
+              <Field label="Layout" htmlFor="pc-login-layout" className="sm:col-span-2">
+                <NativeSelect
+                  id="pc-login-layout"
+                  value={settings.login.layout}
+                  onChange={(e) => patchLogin({ layout: e.target.value as PortalSettings["login"]["layout"] })}
+                >
+                  {LOGIN_LAYOUTS.map((l) => (
+                    <option key={l} value={l}>
+                      {LOGIN_LAYOUT_LABEL[l]}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </Field>
               <ImagePicker
                 {...pickerProps}
                 id="pc-login-bg"
-                label="Imagem de fundo"
-                recommendation="Retrato, 1600×2000 (JPEG ou WebP)"
+                label={settings.login.layout === "card" ? "Arte ao lado do login" : "Imagem de fundo"}
+                recommendation={
+                  settings.login.layout === "card"
+                    ? "Paisagem, 1920×1080 (JPEG ou WebP). Logo do cliente no topo: 400×160."
+                    : "Retrato, 1600×2000 (JPEG ou WebP)"
+                }
                 category="brand_asset"
-                aspect="aspect-[4/5]"
+                aspect={settings.login.layout === "card" ? "aspect-video" : "aspect-[4/5]"}
                 value={settings.login.backgroundFileId}
                 onChange={(v) => patchLogin({ backgroundFileId: v })}
                 error={errors["login.backgroundFileId"]}
@@ -598,6 +617,21 @@ export function PortalCustomizer({
                     maxLength={400}
                     value={settings.login.message ?? ""}
                     onChange={(e) => patchLogin({ message: orNull(e.target.value) })}
+                  />
+                </Field>
+                <Field
+                  label="Link da política de privacidade"
+                  htmlFor="pc-login-privacy"
+                  hint="Opcional. Aparece abaixo do botão Entrar."
+                  error={errors["login.privacyUrl"]}
+                >
+                  <Input
+                    id="pc-login-privacy"
+                    type="url"
+                    placeholder="https://"
+                    maxLength={500}
+                    value={settings.login.privacyUrl ?? ""}
+                    onChange={(e) => patchLogin({ privacyUrl: orNull(e.target.value) })}
                   />
                 </Field>
               </div>

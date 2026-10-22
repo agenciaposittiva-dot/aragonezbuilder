@@ -160,7 +160,7 @@ export const PORTAL_NAV: NavGroup[] = [
       },
       {
         key: "requests",
-        label: "Solicitações",
+        label: "Demandas",
         path: "/requests",
         icon: Inbox,
         permission: ["requests.read", "requests.write"],

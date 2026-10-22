@@ -7,7 +7,7 @@ test.describe("portal do cliente", () => {
   test("sem sessão, o endereço do cliente leva ao login com a identidade dele", async ({ page }) => {
     await page.goto(portal);
     await expect(page).toHaveURL(new RegExp(`${portal}/entrar`));
-    await expect(page.getByRole("heading", { name: "Entrar no portal" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Bem-vindo" })).toBeVisible();
     // A identidade do cliente aparece em qualquer layout (o título de boas-vindas pode ficar só no computador).
     await expect(page.getByText(/espaço de Café Serra Azul/)).toBeVisible();
     await expect(page.getByText("Criar conta da agência")).toHaveCount(0);

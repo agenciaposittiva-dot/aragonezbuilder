@@ -43,6 +43,12 @@ const safeUrl = z
 
 const link = z.object({ label: z.string().trim().min(1, "Informe o texto").max(60), url: safeUrl });
 
+/** Login: cartão com arte ao lado (logo do cliente no topo) ou duas colunas em tela cheia. */
+export const LOGIN_LAYOUTS = ["card", "split"] as const;
+export const LOGIN_LAYOUT_LABEL: Record<(typeof LOGIN_LAYOUTS)[number], string> = {
+  card: "Cartão com arte (logo no topo)",
+  split: "Duas colunas em tela cheia",
+};
 export const BANNER_ALIGN = ["left", "center", "right"] as const;
 export const BANNER_VALIGN = ["top", "center", "bottom"] as const;
 export const BANNER_OVERLAY = ["none", "light", "dark", "gradient"] as const;
@@ -97,6 +103,12 @@ export const portalSettingsSchema = z.object({
       backgroundFileId: fileRef,
       title: text(120),
       message: text(400),
+      layout: z.enum(LOGIN_LAYOUTS).default("card"),
+      /** Link "Política de privacidade" abaixo do botão (opcional). */
+      privacyUrl: z
+        .union([safeUrl, z.literal(""), z.null()])
+        .optional()
+        .transform((v) => (v ? v : null)),
     })
     .prefault({}),
   banner: z
