@@ -1,6 +1,7 @@
-import { and, count, eq, inArray } from "drizzle-orm";
-import { approvals, clients, files, requests } from "@/server/db/schema";
-import { can, clientScope, type Scope } from "@/server/authz";
+import { and, count, eq, inArray, isNull, lte } from "drizzle-orm";
+import { todayISO } from "@/lib/format";
+import { approvals, clients, files, requests, tasks } from "@/server/db/schema";
+import { can, clientScope, taskScope, type Scope } from "@/server/authz";
 import { unreadTotal } from "./chat";
 import { unreadCount } from "./notifications";
 
@@ -36,10 +37,28 @@ export async function getShellCounts(s: Scope) {
     pendingApprovals = r?.n ?? 0;
   }
 
+  // Minhas demandas que pedem atenção agora: abertas, comigo, atrasadas ou para hoje.
+  let demands = 0;
+  if (s.actor.kind === "internal" && can(s.actor, "tasks.read")) {
+    const [r] = await s.db
+      .select({ n: count() })
+      .from(tasks)
+      .where(
+        and(
+          taskScope(s.actor),
+          isNull(tasks.archivedAt),
+          isNull(tasks.completedAt),
+          eq(tasks.assigneeMembershipId, s.actor.membershipId),
+          lte(tasks.dueDate, todayISO()),
+        ),
+      );
+    demands = r?.n ?? 0;
+  }
+
   const chat = await unreadTotal(s);
 
   return {
     unread,
-    badges: { requests: pendingRequests, approvals: pendingApprovals, chat },
+    badges: { requests: pendingRequests, approvals: pendingApprovals, chat, demands },
   };
 }

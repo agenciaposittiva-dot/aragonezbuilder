@@ -14,7 +14,7 @@ import { inOrg } from "@/server/authz";
 import { requireActor } from "@/server/auth/session";
 import { getDashboard, type DashboardData } from "@/server/services/dashboard";
 
-export const metadata: Metadata = { title: "Início" };
+export const metadata: Metadata = { title: "Dashboard" };
 
 const LONG_DATE = new Intl.DateTimeFormat("pt-BR", {
   weekday: "long",

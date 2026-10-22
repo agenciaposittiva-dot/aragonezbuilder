@@ -3,11 +3,15 @@
 import { z } from "zod";
 import {
   brandProfileInput,
+  clientCategoryInput,
+  clientCategoryMoveInput,
+  clientCategoryOrderInput,
   clientInput,
   clientMembersInput,
   contactInput,
   serviceInput,
 } from "@/lib/validators/clients";
+import * as categories from "@/server/services/client-categories";
 import * as clients from "@/server/services/clients";
 import { orgAction } from "./safe-action";
 
@@ -38,3 +42,11 @@ export const deleteServiceAction = orgAction(
 );
 
 export const updateBrandProfileAction = orgAction(brandProfileInput, clients.updateBrandProfile);
+
+/* Categorias de clientes */
+export const saveClientCategoryAction = orgAction(clientCategoryInput, categories.saveClientCategory);
+export const reorderClientCategoriesAction = orgAction(clientCategoryOrderInput, categories.reorderClientCategories);
+export const deleteClientCategoryAction = orgAction(z.object({ id: z.uuid() }), (s, { id }) =>
+  categories.deleteClientCategory(s, id),
+);
+export const setClientCategoryAction = orgAction(clientCategoryMoveInput, categories.setClientCategory);

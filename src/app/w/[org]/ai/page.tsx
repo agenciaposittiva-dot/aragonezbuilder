@@ -14,7 +14,7 @@ import { designAiTargets } from "@/server/services/design-ai";
 import { getSettings } from "@/server/services/organizations";
 import { projectOptions } from "@/server/services/projects";
 
-export const metadata: Metadata = { title: "Assistente IA" };
+export const metadata: Metadata = { title: "Criação com IA" };
 
 export default async function AiPage({ params }: PageProps<"/w/[org]/ai">) {
   const { org } = await params;
@@ -38,7 +38,7 @@ export default async function AiPage({ params }: PageProps<"/w/[org]/ai">) {
   return (
     <>
       <PageHeader
-        title="Assistente IA"
+        title="Criação com IA"
         description="Ideias, textos, roteiros, planejamentos e imagens com o contexto de cada marca. Você revisa tudo antes de usar."
         actions={
           can(actor, "designs.write") ? (

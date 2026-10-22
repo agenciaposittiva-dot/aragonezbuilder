@@ -258,9 +258,9 @@ test.describe("Radar de Marca", () => {
     await enter(page);
     for (const [url, heading] of [
       [`${ORG}/trends`, "Radar de Tendências"],
-      [`${ORG}/content`, "Conteúdos"],
+      [`${ORG}/content`, "Redes sociais"],
       [`${ORG}/clients`, "Clientes"],
-      [`${ORG}/studio`, "Estúdio"],
+      [`${ORG}/studio`, "Estúdio de Carrosséis"],
     ] as const) {
       await open(page, url);
       await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();

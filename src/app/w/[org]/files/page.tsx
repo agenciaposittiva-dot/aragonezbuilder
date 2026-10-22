@@ -5,7 +5,7 @@ import { can, inOrg } from "@/server/authz";
 import { requireActor } from "@/server/auth/session";
 import { loadCloud } from "@/server/services/files-page";
 
-export const metadata: Metadata = { title: "Minha Nuvem" };
+export const metadata: Metadata = { title: "Biblioteca" };
 
 export default async function FilesPage({ params, searchParams }: PageProps<"/w/[org]/files">) {
   const { org } = await params;
@@ -16,7 +16,7 @@ export default async function FilesPage({ params, searchParams }: PageProps<"/w/
   return (
     <>
       <PageHeader
-        title="Minha Nuvem"
+        title="Biblioteca"
         description="Todos os arquivos da agência e dos clientes, com versões, aprovações e organização por cliente — salvos no servidor, disponíveis em qualquer aparelho."
       />
       <FilesLibrary

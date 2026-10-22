@@ -20,7 +20,7 @@ import { maxUploadBytes } from "@/server/services/files";
 import { projectOptions } from "@/server/services/projects";
 import { listTemplateLibrary } from "@/server/services/template-library";
 
-export const metadata: Metadata = { title: "Estúdio" };
+export const metadata: Metadata = { title: "Estúdio de Carrosséis" };
 
 export default async function StudioPage({ params, searchParams }: PageProps<"/w/[org]/studio">) {
   const { org } = await params;
@@ -63,7 +63,7 @@ export default async function StudioPage({ params, searchParams }: PageProps<"/w
   return (
     <>
       <PageHeader
-        title="Estúdio"
+        title="Estúdio de Carrosséis"
         description="Editor de artes com a identidade de cada cliente. Exporte direto para Arquivos e envie para aprovação."
         actions={
           canWrite ? (

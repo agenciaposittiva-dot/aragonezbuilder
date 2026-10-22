@@ -7,7 +7,8 @@ import { Kbd } from "@/components/ui/kbd";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import type { NavKey } from "./nav-registry";
 import { NotificationsBell } from "./notifications-bell";
-import { OrgSwitcher, SidebarNav, type OrgOption } from "./sidebar";
+import type { ClientTreeData } from "./client-tree";
+import { OrgSwitcher, SidebarBrand, SidebarNav, type OrgOption } from "./sidebar";
 import { UserMenu } from "./user-menu";
 
 export function AppHeader({
@@ -17,6 +18,7 @@ export function AppHeader({
   orgs,
   unread,
   accountHref,
+  clientTree,
 }: {
   nav: NavKey;
   base: string;
@@ -24,6 +26,7 @@ export function AppHeader({
   orgs: OrgOption[];
   unread: number;
   accountHref: string;
+  clientTree?: ClientTreeData | null;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMac, setIsMac] = useState(true);
@@ -68,11 +71,20 @@ export function AppHeader({
           aria-describedby={undefined}
         >
           <SheetTitle className="sr-only">Menu</SheetTitle>
-          <div className="flex h-14 items-center px-3 pr-12">
+          <div className="flex h-14 shrink-0 items-center px-3 pr-12">
+            <SidebarBrand />
+          </div>
+          <div className="px-3 pb-2">
             <OrgSwitcher orgs={orgs} />
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-            <SidebarNav nav={nav} base={base} badges={badges} onNavigate={() => setMobileOpen(false)} />
+          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+            <SidebarNav
+              nav={nav}
+              base={base}
+              badges={badges}
+              onNavigate={() => setMobileOpen(false)}
+              clientTree={clientTree}
+            />
           </div>
         </SheetContent>
       </Sheet>

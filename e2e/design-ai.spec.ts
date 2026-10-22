@@ -358,7 +358,7 @@ test.describe("chat de edição de artes por IA", () => {
     expect(res.status).toBe(403);
     expect(res.body.error).toMatch(/permissão/);
     await page.goto(`${ORG}/ai`);
-    await expect(page.getByRole("heading", { name: "Assistente IA" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Criação com IA" })).toBeVisible();
     await expect(page.getByTestId("design-ai-section")).toHaveCount(0);
   });
 });
