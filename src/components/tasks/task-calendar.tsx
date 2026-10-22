@@ -13,7 +13,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { AlertTriangle, CalendarClock, ChevronLeft, ChevronRight, GripVertical } from "lucide-react";
+import { AlertTriangle, CalendarClock, ChevronLeft, ChevronRight, GripVertical, Plus } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useId, useMemo, useState } from "react";
@@ -24,6 +24,8 @@ import { useOrgAction } from "@/hooks/use-action";
 import { todayISO } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { updateTaskAction } from "@/server/actions/tasks";
+import type { MemberLite } from "@/components/app/member-picker";
+import { TaskFormDialog, type ProjectOption } from "./task-form-dialog";
 
 export type CalendarMode = "month" | "week" | "day";
 
@@ -99,6 +101,7 @@ export function TaskCalendar({
   unscheduled = [],
   base,
   canWrite,
+  createWith,
 }: {
   mode: CalendarMode;
   /** Mês: primeiro dia; semana: domingo; dia: a própria data. */
@@ -109,10 +112,14 @@ export function TaskCalendar({
   unscheduled?: CalendarTask[];
   base: string;
   canWrite: boolean;
+  /** Criar uma demanda a partir de um dia (prazo já preenchido). Sem isso, o calendário só mostra e reagenda. */
+  createWith?: { projects: ProjectOption[]; members: MemberLite[]; defaultProjectId?: string };
 }) {
   const pathname = usePathname();
   const params = useSearchParams();
   const update = useOrgAction(updateTaskAction);
+  const [createOn, setCreateOn] = useState<string | null>(null);
+  const onCreate = canWrite && createWith ? (date: string) => setCreateOn(date) : undefined;
   const dndId = useId();
   const [overrides, setOverrides] = useState<Record<string, string | null>>({});
   const [dragging, setDragging] = useState<CalendarTask | null>(null);
@@ -264,6 +271,7 @@ export function TaskCalendar({
                   canWrite={canWrite}
                   dayHref={navFor("day", date)}
                   onMove={moveTo}
+                  onCreate={onCreate}
                 />
               ) : (
                 <div
@@ -278,6 +286,20 @@ export function TaskCalendar({
         {canWrite && mode !== "day" ? <UnscheduledTray tasks={tray} base={base} /> : null}
       </div>
       <DragOverlay>{dragging ? <Chip task={dragging} overlay /> : null}</DragOverlay>
+      {createWith ? (
+        <TaskFormDialog
+          // Remonta a cada dia escolhido: o prazo vem preenchido com a data clicada.
+          key={createOn ?? "fechado"}
+          noun="demanda"
+          openAfterCreate={false}
+          projects={createWith.projects}
+          members={createWith.members}
+          defaultProjectId={createWith.defaultProjectId}
+          defaultDueDate={createOn ?? undefined}
+          open={!!createOn}
+          onOpenChange={(v) => !v && setCreateOn(null)}
+        />
+      ) : null}
     </DndContext>
   );
 }
@@ -291,6 +313,7 @@ function DayCell({
   canWrite,
   dayHref,
   onMove,
+  onCreate,
 }: {
   date: string;
   mode: CalendarMode;
@@ -300,6 +323,7 @@ function DayCell({
   canWrite: boolean;
   dayHref: string;
   onMove: (task: CalendarTask, date: string | null) => void;
+  onCreate?: (date: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: date, disabled: !canWrite });
   const overload = overloadOf(tasks);
@@ -317,6 +341,15 @@ function DayCell({
     }
     return (
       <div ref={setNodeRef} className={cn("grid gap-4 p-4", isOver && "bg-accent/5")}>
+        {onCreate ? (
+          <button
+            type="button"
+            onClick={() => onCreate(date)}
+            className="inline-flex w-fit items-center gap-1.5 rounded-md border border-dashed border-border px-2.5 py-1.5 text-xs text-fg-muted hover:border-border-strong hover:text-fg"
+          >
+            <Plus className="size-3.5" /> Nova demanda neste dia
+          </button>
+        ) : null}
         {overload.length ? <OverloadNote people={overload} /> : null}
         {tasks.length === 0 ? (
           <p className="text-sm text-fg-muted">Nenhuma entrega com prazo neste dia.</p>
@@ -364,7 +397,7 @@ function DayCell({
       data-date={date}
       aria-label={dayLabel(date)}
       className={cn(
-        "min-w-0 p-1 sm:p-1.5",
+        "group/day min-w-0 p-1 sm:p-1.5",
         mode === "month" && "min-h-20 border-r border-b border-border sm:min-h-28 [&:nth-child(7n)]:border-r-0",
         mode === "week" && "min-h-24 md:min-h-72",
         isOver && "bg-accent/10",
@@ -391,6 +424,17 @@ function DayCell({
               Sobrecarga: {overload.map((p) => `${p.name} (${p.count} entregas)`).join(", ")}
             </span>
           </span>
+        ) : null}
+        {onCreate ? (
+          <button
+            type="button"
+            onClick={() => onCreate(date)}
+            aria-label={`Nova demanda em ${dayLabel(date)}`}
+            title="Nova demanda neste dia"
+            className="ml-auto inline-flex size-6 items-center justify-center rounded-md text-fg-subtle opacity-0 group-hover/day:opacity-100 hover:bg-surface-2 hover:text-fg focus:opacity-100 [@media(hover:none)]:opacity-100"
+          >
+            <Plus className="size-3.5" />
+          </button>
         ) : null}
       </div>
       <ul className="grid grid-cols-1 gap-0.5">

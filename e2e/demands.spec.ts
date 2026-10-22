@@ -138,4 +138,33 @@ test.describe("menu lateral e minhas demandas", () => {
     }
     await expectNoHorizontalScroll(page);
   });
+
+  test("calendário pelo menu: criar demanda num dia e ela aparece naquele dia", async ({ page }) => {
+    await enter(page);
+    if (isMobile(page)) await page.goto(`${ORG}/tasks?view=calendar`);
+    else await page.locator("aside").getByRole("link", { name: "Calendário" }).click();
+    await expect(page).toHaveURL(/view=calendar/);
+    await expect(page.getByRole("heading", { level: 1, name: "Calendário" })).toBeVisible();
+    if (!isMobile(page)) {
+      await expect(page.locator('aside a[aria-current="page"]')).toHaveText("Calendário");
+    }
+    const target = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(
+      new Date(Date.now() + 9 * 86_400_000),
+    );
+    await page.goto(`${ORG}/tasks?view=calendar&month=${target.slice(0, 7)}`);
+    const cell = page.locator(`[data-date="${target}"]`);
+    await cell.hover();
+    await cell.getByRole("button", { name: /Nova demanda em/ }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.locator("#t-due")).toHaveValue(target);
+    const title = `Post do calendário ${Date.now().toString(36)}`;
+    await dialog.locator("#t-title").fill(title);
+    await dialog.locator("#t-project").selectOption({ index: 1 });
+    await dialog.getByRole("button", { name: "Criar" }).click();
+    await expect(dialog).toBeHidden();
+    // A visão do mês mostra até 3 por dia; a do dia lista todas (é a mesma tarefa, com o prazo escolhido).
+    await page.goto(`${ORG}/tasks?view=calendar&cal=day&date=${target}`);
+    await expect(page.getByText(title)).toBeVisible();
+    await expectNoHorizontalScroll(page);
+  });
 });
