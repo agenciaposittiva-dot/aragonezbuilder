@@ -78,3 +78,49 @@ Legenda: ✅ concluído e verificado · 🟡 parcial · ⏳ planejado/pendente.
 
 O estado de cada item é atualizado ao final de cada etapa. O detalhamento técnico de
 cada mudança fica em `docs/CHANGELOG.md`.
+
+### 4.1 Problemas da seção 3
+
+| # | Estado | O que foi feito (item em `docs/CHANGELOG.md`) |
+| --- | --- | --- |
+| 1 | ✅ | Painéis recolhíveis e recolhimento automático com o chat aberto; canvas de 380 → 636 px em 1024 px (#1). |
+| 2 | ✅ | Indicador de salvamento em uma linha (`xl:whitespace-nowrap`) (#1). |
+| 3 | ✅ | Validação, redução e recompressão no navegador e mensagens específicas por erro (#3). |
+| 4 | ✅ | Menu lateral com cabeçalho, organização, recolher e nova ordem (#4). |
+| 5 | ✅ | Categorias de clientes com migração aditiva 0016 (#5). |
+| 6 | ✅ | Tela Minhas demandas (#6). |
+| 7 | ✅ | Dashboard com Estúdio, atalhos, projetos recentes e atividade com links (#11). |
+| 8 | ✅ | Calendário no menu e criação a partir de um dia (#12). |
+| 9 | ✅ | Artes da demanda e aba Artes no projeto (#10). |
+| 10 | ✅ | Guia “Me guie” com passos reais (#16). |
+| 11 | ⏳ | Pendente: inserir imagem gerada direto no editor, transformar texto do assistente em demanda, enviar o projeto na geração de imagem, histórico sem JSON cru. |
+| 12 | 🟡 | Página Atualizações criada (#14 a #16 e anteriores). Histórico de atividades da agência continua no Dashboard e em cada registro; não há uma página única. |
+| 13 | ⏳ | Pendente: artes do Estúdio na busca global. |
+| 14 | ⏳ | Pendente: confirmação ao excluir pasta; mudar cliente/projeto de um arquivo depois do envio. |
+| 15 | ⏳ | Pendente: tema “Sistema” acompanhando o sistema operacional sem recarregar; cor de destaque. |
+| 16 | ⏳ | Pendente: etiquetas, arquivados, ordenação e grade com miniaturas em Projetos. |
+| 17 | ⏳ | Pendente: preferência da OpenAI sobre a demonstração em tarefas estruturadas. |
+| 18 | ⏳ | Fora do escopo desta fase: Vendas/CRM e publicação em redes sociais. O menu não aponta para módulos inexistentes. |
+
+### 4.2 Pedidos posteriores (prompts complementares)
+
+| Pedido | Estado | Item |
+| --- | --- | --- |
+| Portal do cliente com login no estilo da referência e página de demandas só do cliente | ✅ | #7, #8 |
+| Aprovação por link, sem conta | ✅ | #9 |
+| Rotina (tarefas recorrentes) | ✅ | #13 |
+| Referências por link na Biblioteca | ✅ | #14 |
+| Notificações de prazo sem empilhar | ✅ | #15 |
+| Página de atualizações só com o que foi testado | ✅ | `/w/[org]/updates` + `tests/changelog.test.ts` |
+| CRM / Vendas | ⏳ | Não iniciado (não escolhido nas prioridades). |
+| Publicação no Instagram, integração com Google Drive, conexão com Claude/ChatGPT (MCP), Fórum | ⏳ | Não iniciados; nenhum botão ou menu foi criado para eles. |
+| Assistente de IA no editor com propor → prévia → aplicar/cancelar → histórico | ✅ (já existia) | `design-ai-chat.tsx`: cada resposta é uma proposta com prévia antes/depois, aplicar ou cancelar, desfazer e histórico. Mantido sem alteração. |
+
+### 4.3 Validação final (22/10/2026)
+
+- `npm run typecheck`: sem erros.
+- `npm run lint`: sem erros.
+- `npm test`: 54 arquivos, 474 testes aprovados (Postgres real).
+- `npm run build`: concluído.
+- Playwright (desktop 1360×860 e celular 390×844): ver resultado abaixo.
+
