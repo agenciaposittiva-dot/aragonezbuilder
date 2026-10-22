@@ -40,8 +40,8 @@ import {
   Type,
   Unlock,
 } from "lucide-react";
-import { useState } from "react";
-import { locate, type DesignObject, type DesignObjectType } from "@/lib/design-doc";
+import { useEffect, useRef, useState } from "react";
+import { locate, type DesignObject, type DesignObjectType, type DesignPage } from "@/lib/design-doc";
 import { cn } from "@/lib/utils";
 import type { EditorActions } from "./actions";
 import { useEditor, type EditorStore } from "./store";
@@ -100,6 +100,7 @@ export function PagesList({
   const sensors = useDndSensors();
   const [editing, setEditing] = useState<string | null>(null);
   const carousel = !!doc.meta?.carousel;
+  const thumbs = usePageThumbs(store, doc.pages, carousel);
   const onDragEnd = (e: DragEndEvent) => {
     if (!e.over || e.active.id === e.over.id) return;
     const to = doc.pages.findIndex((p) => p.id === e.over!.id);
@@ -132,12 +133,13 @@ export function PagesList({
                   <div
                     data-page-id={p.id}
                     className={cn(
-                      "group flex items-center gap-1.5 rounded-md border px-1.5 py-1 text-sm",
+                      "group relative flex items-center gap-1.5 rounded-md border px-1.5 py-1 text-sm",
                       p.id === active ? "border-accent bg-accent-soft/50" : "border-transparent hover:bg-surface-2",
                     )}
                   >
                     {canWrite ? handle : null}
                     <span className="w-5 shrink-0 text-center text-[11px] text-fg-subtle tabular-nums">{i + 1}</span>
+                    <PageThumb src={thumbs[p.id]} page={p} />
                     {editing === p.id ? (
                       <input
                         autoFocus
@@ -164,14 +166,15 @@ export function PagesList({
                         onDoubleClick={() => canWrite && setEditing(p.id)}
                         aria-current={p.id === active ? "page" : undefined}
                       >
-                        {p.name || `Página ${i + 1}`}
-                        <span className="ml-1 text-[11px] text-fg-subtle">
+                        <span className="block truncate">{p.name || `Página ${i + 1}`}</span>
+                        <span className="block text-[11px] text-fg-subtle tabular-nums">
                           {p.width}×{p.height}
                         </span>
                       </button>
                     )}
                     {canWrite ? (
-                      <span className="flex shrink-0 items-center opacity-70 group-hover:opacity-100">
+                      // Sobrepostos ao nome no hover/foco: o nome da página não fica espremido.
+                      <span className="absolute top-1/2 right-1 flex -translate-y-1/2 items-center rounded-md bg-surface/95 opacity-0 shadow-xs transition-opacity group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
                         <RowButton
                           label={`Mover ${p.name} para cima`}
                           disabled={i === 0}
@@ -207,6 +210,64 @@ export function PagesList({
       </DndContext>
     </section>
   );
+}
+
+/** Miniatura real da página (desenhada pela cena) ou um quadro com a proporção enquanto carrega. */
+function PageThumb({ src, page }: { src?: string; page: DesignPage }) {
+  const ratio = page.width / page.height;
+  const w = ratio >= 1 ? 40 : Math.round(40 * ratio);
+  const h = ratio >= 1 ? Math.round(40 / ratio) : 40;
+  return (
+    <span className="flex size-10 shrink-0 items-center justify-center" aria-hidden="true">
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element -- data URL local, sem otimização de imagem
+        <img src={src} alt="" width={w} height={h} className="rounded-[3px] border border-border object-cover" />
+      ) : (
+        <span className="rounded-[3px] border border-border bg-surface-2" style={{ width: w, height: h }} />
+      )}
+    </span>
+  );
+}
+
+/**
+ * Miniaturas das páginas, atualizadas ~0,7 s depois da última alteração e só
+ * para as páginas que mudaram (no carrossel, também as vizinhas: um elemento pode
+ * atravessar a divisa). Não desenha durante a edição de texto.
+ */
+function usePageThumbs(store: EditorStore, pages: DesignPage[], carousel: boolean) {
+  const [thumbs, setThumbs] = useState<Record<string, string>>({});
+  const rendered = useRef(new Map<string, DesignPage>());
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const scene = store.scene;
+      if (!scene || scene.isEditingText()) return;
+      const changed = new Set<number>();
+      pages.forEach((p, i) => {
+        if (rendered.current.get(p.id) === p) return;
+        changed.add(i);
+        if (carousel) {
+          changed.add(i - 1);
+          changed.add(i + 1);
+        }
+      });
+      if (!changed.size) return;
+      const next: Record<string, string> = {};
+      for (const i of changed) {
+        const p = pages[i];
+        if (!p) continue;
+        try {
+          const scale = Math.min(1, 96 / Math.max(p.width, p.height));
+          next[p.id] = scene.renderPage(p.id, scale, { background: "#ffffff" }).toDataURL("image/jpeg", 0.7);
+          rendered.current.set(p.id, p);
+        } catch {
+          // Página ainda não desenhada: tenta na próxima alteração.
+        }
+      }
+      setThumbs((cur) => ({ ...cur, ...next }));
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [store, pages, carousel]);
+  return thumbs;
 }
 
 function RowButton({

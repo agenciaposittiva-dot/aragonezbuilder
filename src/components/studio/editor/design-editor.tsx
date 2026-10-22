@@ -11,6 +11,7 @@ import {
   Maximize,
   MoreHorizontal,
   Palette,
+  PanelRight,
   Plus,
   Redo2,
   Send,
@@ -141,6 +142,12 @@ export function DesignEditor({
   const [name, setName] = useState(design.name);
   const [carouselAi, setCarouselAi] = useState<CarouselAiMode | null>(null);
   const [, setEditingText] = useState(false);
+  // Painéis recolhíveis (preferência deste navegador). Abaixo de 1280 px o chat de IA
+  // recolhe o painel esquerdo enquanto está aberto, para o canvas nunca ficar espremido.
+  const [leftCollapsed, setLeftCollapsed] = usePanelPref("editor:left-collapsed");
+  const [propsHidden, setPropsHidden] = usePanelPref("editor:props-hidden");
+  const narrow = useNarrow();
+  const leftClosed = leftCollapsed || (aiOpen && narrow);
 
   const canUndo = useEditor(store, (s) => s.canUndo);
   const canRedo = useEditor(store, (s) => s.canRedo);
@@ -257,6 +264,9 @@ export function DesignEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
+
+  // Referência estável: o observador de tamanho do canvas não é recriado a cada renderização.
+  const onCanvasReady = useCallback((size: { width: number; height: number }) => void startScene(size), [startScene]);
 
   useEffect(() => {
     return () => {
@@ -505,7 +515,11 @@ export function DesignEditor({
   const pickImage = () => fileInputRef.current?.click();
   const openPanel = (t: LeftTab) => {
     if (typeof window !== "undefined" && window.innerWidth < 1024) setMobileSheet(t === "layers" ? "layers" : t);
-    else setTab(t);
+    else {
+      setTab(t);
+      setLeftCollapsed(false);
+      if (aiOpen && narrow) setAiOpen(false);
+    }
   };
 
   const panelProps = {
@@ -647,14 +661,33 @@ export function DesignEditor({
         </DropdownMenu>
         {canWrite ? (
           // Entre 1024 e 1280 px o painel de propriedades vira gaveta, para o canvas não ficar apertado.
-          <Button
-            variant="ghost"
-            size="sm"
-            className="hidden lg:inline-flex xl:hidden"
-            onClick={() => setMobileSheet("props")}
-          >
-            <SlidersHorizontal /> Propriedades
-          </Button>
+          <Tooltip content="Propriedades">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="hidden lg:inline-flex xl:hidden"
+              onClick={() => setMobileSheet("props")}
+              aria-label="Propriedades"
+            >
+              <SlidersHorizontal />
+            </Button>
+          </Tooltip>
+        ) : null}
+        {canWrite && !aiOpen ? (
+          // Em telas largas o painel fica ao lado do canvas e pode ser recolhido.
+          <Tooltip content={propsHidden ? "Mostrar propriedades" : "Recolher propriedades"}>
+            <Button
+              variant={propsHidden ? "ghost" : "secondary"}
+              size="icon-sm"
+              className="hidden xl:inline-flex"
+              onClick={() => setPropsHidden(!propsHidden)}
+              aria-label={propsHidden ? "Mostrar propriedades" : "Recolher propriedades"}
+              aria-pressed={!propsHidden}
+              data-testid="toggle-properties"
+            >
+              <PanelRight />
+            </Button>
+          </Tooltip>
         ) : null}
         <Button
           variant="secondary"
@@ -766,10 +799,24 @@ export function DesignEditor({
       <div className="flex min-h-0 flex-1">
         {canWrite ? (
           <aside
-            className="hidden w-[304px] shrink-0 flex-col border-r border-border bg-surface lg:flex"
+            className={cn(
+              "hidden shrink-0 flex-col border-r border-border bg-surface lg:flex",
+              leftClosed ? "w-12" : "w-[304px]",
+            )}
             data-testid="editor-left-panel"
+            data-collapsed={leftClosed ? "true" : "false"}
           >
-            <LeftPanel {...panelProps} tab={tab} onTab={setTab} />
+            <LeftPanel
+              {...panelProps}
+              tab={tab}
+              onTab={setTab}
+              collapsed={leftClosed}
+              onCollapsedChange={(v) => {
+                setLeftCollapsed(v);
+                // Abrir o painel com o chat aberto numa tela média: o chat cede o lugar.
+                if (!v && aiOpen && narrow) setAiOpen(false);
+              }}
+            />
           </aside>
         ) : null}
 
@@ -779,7 +826,7 @@ export function DesignEditor({
           actions={actions}
           canWrite={canWrite}
           canvasRef={canvasRef}
-          onReady={(size) => void startScene(size)}
+          onReady={onCanvasReady}
           onPickImage={pickImage}
           onComponents={() => openPanel("components")}
           ready={ready}
@@ -798,7 +845,7 @@ export function DesignEditor({
             </div>
             <DesignAiChat host={{ ...aiHost, where: aiWhere }} />
           </aside>
-        ) : canWrite ? (
+        ) : canWrite && !propsHidden ? (
           <aside
             className="hidden w-[288px] shrink-0 scrollbar-thin overflow-y-auto border-l border-border bg-surface xl:block"
             data-testid="properties-panel"
@@ -965,5 +1012,52 @@ function ShortcutsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: 
         </DialogBody>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Preferência de painel recolhido, guardada só neste navegador (conveniência; nada essencial). */
+function usePanelPref(key: string): [boolean, (v: boolean) => void] {
+  const value = useSyncExternalStore(
+    (fn) => {
+      window.addEventListener("storage", fn);
+      window.addEventListener(`pref:${key}`, fn);
+      return () => {
+        window.removeEventListener("storage", fn);
+        window.removeEventListener(`pref:${key}`, fn);
+      };
+    },
+    () => {
+      try {
+        return window.localStorage.getItem(key) === "1";
+      } catch {
+        return false;
+      }
+    },
+    () => false,
+  );
+  const set = useCallback(
+    (v: boolean) => {
+      try {
+        window.localStorage.setItem(key, v ? "1" : "0");
+      } catch {
+        // Sem armazenamento (navegação privada): vale só até recarregar.
+      }
+      window.dispatchEvent(new Event(`pref:${key}`));
+    },
+    [key],
+  );
+  return [value, set];
+}
+
+/** Abaixo de 1280 px (notebooks e tablets na horizontal). */
+function useNarrow() {
+  return useSyncExternalStore(
+    (fn) => {
+      const mq = window.matchMedia("(max-width: 1279.98px)");
+      mq.addEventListener("change", fn);
+      return () => mq.removeEventListener("change", fn);
+    },
+    () => window.matchMedia("(max-width: 1279.98px)").matches,
+    () => false,
   );
 }

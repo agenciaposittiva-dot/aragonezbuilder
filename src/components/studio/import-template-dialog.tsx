@@ -21,6 +21,7 @@ import {
 import { Field } from "@/components/ui/field";
 import { Input, NativeSelect } from "@/components/ui/input";
 import type { AiPreference, AiSelection, PickerProvider } from "@/lib/ai-select";
+import { formatMB, ImagePrepareError, prepareImageForUpload, uploadHttpError } from "./prepare-image";
 
 /**
  * Importar JPG/PNG como modelo: a imagem vai para Arquivos e vira a camada
@@ -32,11 +33,14 @@ export function ImportTemplateDialog({
   clients,
   canManageTemplates,
   picker,
+  maxBytes,
 }: {
   trigger: React.ReactNode;
   clients: { id: string; name: string }[];
   canManageTemplates: boolean;
   picker: { providers: PickerProvider[]; preferences: AiPreference[] } | null;
+  /** Limite de envio efetivo da agência (servidor e configurações). */
+  maxBytes: number;
 }) {
   const router = useRouter();
   const { orgSlug } = useWorkspace();
@@ -50,6 +54,8 @@ export function ImportTemplateDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [costPrompt, setCostPrompt] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
   const vision = !!picker?.providers.some(
     (p) => p.ready && p.models.some((m) => m.caps.imageInput !== "no" && m.kind === "text"),
   );
@@ -70,16 +76,17 @@ export function ImportTemplateDialog({
     if (confirmCost) form.set("confirmCost", "true");
     try {
       const res = await fetch("/api/studio/import-template", { method: "POST", body: form });
-      const json = (await res.json().catch(() => ({}))) as {
+      const json = (await res.json().catch(() => null)) as {
         ok?: boolean;
         id?: string;
         message?: string;
         error?: string;
         code?: string;
-      };
-      if (!res.ok || !json.ok || !json.id) {
-        if (json.code === "cost_confirmation") setCostPrompt(json.error ?? "Confirme o custo para continuar.");
-        else setError(json.error ?? "Não foi possível importar a imagem.");
+      } | null;
+      if (!res.ok || !json?.ok || !json.id) {
+        if (json?.code === "cost_confirmation") setCostPrompt(json.error ?? "Confirme o custo para continuar.");
+        // Resposta sem JSON = veio do provedor de hospedagem (limite de corpo, tempo esgotado).
+        else setError(json?.error ?? uploadHttpError(res.status, maxBytes));
         return;
       }
       toast.success(json.message ?? "Template criado.");
@@ -103,19 +110,41 @@ export function ImportTemplateDialog({
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="grid gap-4">
-          <Field label="Imagem (JPG ou PNG)" htmlFor="it-file" required>
+          <Field label="Imagem (JPG, PNG ou WebP)" htmlFor="it-file" hint={`Até ${formatMB(maxBytes)}. Imagens maiores ou com mais de 4096 px são reduzidas antes do envio.`} required>
             <Input
               id="it-file"
               type="file"
               accept="image/png,image/jpeg,image/webp"
               disabled={busy}
-              onChange={(e) => {
+              onChange={async (e) => {
                 const f = e.target.files?.[0] ?? null;
-                setFile(f);
-                if (f && !name) setName(f.name.replace(/\.[a-z0-9]+$/i, ""));
+                setFile(null);
+                setError(null);
+                setNote(null);
+                if (!f) return;
+                // Formato, leitura e tamanho conferidos aqui: o erro aparece antes de enviar.
+                setChecking(true);
+                try {
+                  const prepared = await prepareImageForUpload(f, { maxBytes });
+                  setFile(prepared.file);
+                  setNote(prepared.note ?? `${prepared.width} × ${prepared.height} px · ${formatMB(prepared.file.size)}`);
+                  if (!name) setName(f.name.replace(/\.[a-z0-9]+$/i, ""));
+                } catch (err) {
+                  setError(
+                    err instanceof ImagePrepareError ? err.message : "Não foi possível preparar esta imagem no navegador.",
+                  );
+                } finally {
+                  setChecking(false);
+                }
               }}
             />
           </Field>
+          {checking ? <p className="-mt-2 text-xs text-fg-muted">Conferindo a imagem…</p> : null}
+          {note && !checking ? (
+            <p className="-mt-2 text-xs text-fg-muted" data-testid="import-note">
+              {note}
+            </p>
+          ) : null}
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Nome" htmlFor="it-name">
               <Input
@@ -200,7 +229,7 @@ export function ImportTemplateDialog({
           <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
             Cancelar
           </Button>
-          <Button variant="primary" onClick={() => void submit()} disabled={!file} loading={busy}>
+          <Button variant="primary" onClick={() => void submit()} disabled={!file || checking} loading={busy}>
             <ImageUp /> Importar
           </Button>
         </DialogFooter>
