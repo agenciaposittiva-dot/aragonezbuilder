@@ -128,13 +128,17 @@ export function NewDesignDialog({
               />
             </Field>
             {templates.length ? (
-              <Field label="Modelo">
-                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+              <Field
+                label="Modelo"
+                hint="Role para o lado para ver todos; a galeria do Estúdio mostra a prévia de cada um."
+              >
+                {/* Faixa rolável: a altura da caixa não cresce com a quantidade de modelos (celular inclusive). */}
+                <div className="-mx-1 flex snap-x scrollbar-thin gap-2 overflow-x-auto px-1 pb-1">
                   <button
                     type="button"
                     onClick={() => setTemplateId("")}
                     className={cn(
-                      "flex aspect-square items-center justify-center rounded-lg border text-xs text-fg-muted",
+                      "flex size-24 shrink-0 snap-start items-center justify-center rounded-lg border text-xs text-fg-muted",
                       !templateId ? "border-accent ring-2 ring-accent/40" : "border-border hover:border-border-strong",
                     )}
                   >
@@ -146,8 +150,9 @@ export function NewDesignDialog({
                       type="button"
                       onClick={() => setTemplateId(t.id)}
                       title={t.name}
+                      aria-pressed={templateId === t.id}
                       className={cn(
-                        "relative overflow-hidden rounded-lg border bg-surface-2",
+                        "relative size-24 shrink-0 snap-start overflow-hidden rounded-lg border bg-surface-2",
                         templateId === t.id
                           ? "border-accent ring-2 ring-accent/40"
                           : "border-border hover:border-border-strong",
@@ -155,9 +160,9 @@ export function NewDesignDialog({
                     >
                       {t.thumbnail ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={t.thumbnail} alt="" className="aspect-square w-full object-contain" />
+                        <img src={t.thumbnail} alt="" className="size-full object-contain" />
                       ) : (
-                        <span className="flex aspect-square items-center justify-center text-[11px] text-fg-muted">
+                        <span className="flex size-full items-center justify-center p-1 text-center text-[11px] leading-tight text-fg-muted">
                           {t.name}
                         </span>
                       )}

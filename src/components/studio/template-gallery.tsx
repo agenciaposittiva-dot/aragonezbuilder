@@ -118,9 +118,10 @@ export function TemplateGallery({
 
   if (variant === "home") {
     return (
-      <div className="grid gap-6" data-testid="template-gallery">
+      <div className="grid min-w-0 gap-6" data-testid="template-gallery">
         {groups.map(([category, list]) => (
-          <section key={category} aria-label={category}>
+          // min-w-0: sem isso a faixa rolável alargaria a seção (e a página inteira no celular).
+          <section key={category} aria-label={category} className="min-w-0">
             <div className="mb-2 flex items-baseline justify-between gap-3">
               <h3 className="text-sm font-semibold text-fg">
                 {category} <span className="font-normal text-fg-muted">· {list.length}</span>
@@ -132,7 +133,7 @@ export function TemplateGallery({
                 Ver todos <ChevronRight className="size-3.5" aria-hidden="true" />
               </Link>
             </div>
-            <ul className="-mx-1 flex snap-x scrollbar-thin gap-3 overflow-x-auto px-1 pb-2">
+            <ul className="-mx-1 flex max-w-full snap-x scrollbar-thin gap-3 overflow-x-auto px-1 pb-2">
               {list.slice(0, HOME_PER_ROW).map((t) => (
                 <li key={t.id} className="w-44 shrink-0 snap-start sm:w-52">
                   <TemplateCard t={t} onPreview={() => setPreview(t)} {...common} />
@@ -159,9 +160,9 @@ export function TemplateGallery({
   const remaining = Math.max(0, filtered.length - shown);
 
   return (
-    <div className="grid gap-8" data-testid="template-gallery">
+    <div className="grid min-w-0 gap-8" data-testid="template-gallery">
       {visibleGroups.map(([category, list]) => (
-        <section key={category} aria-label={category}>
+        <section key={category} aria-label={category} className="min-w-0">
           <h3 className="mb-3 text-sm font-semibold text-fg">
             {category}{" "}
             <span className="font-normal text-fg-muted">· {groups.find(([c]) => c === category)?.[1].length}</span>
