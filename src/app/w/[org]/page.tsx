@@ -221,7 +221,7 @@ export default async function DashboardPage({ params, searchParams }: PageProps<
             <CardHeader>
               <div>
                 <CardTitle className="flex items-center gap-2">
-                  <Palette className="size-4 text-fg-subtle" aria-hidden="true" /> Estúdio de Carrosséis
+                  <Palette className="size-4 text-fg-subtle" aria-hidden="true" /> Estúdio Criador
                 </CardTitle>
                 <p className="mt-0.5 text-xs text-fg-muted">
                   {d.studio.carouselsInProgress} carrossel(is) em andamento

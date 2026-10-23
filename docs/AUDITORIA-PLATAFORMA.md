@@ -124,3 +124,41 @@ cada mudança fica em `docs/CHANGELOG.md`.
 - `npm run build`: concluído.
 - Playwright (desktop 1360×860 e celular 390×844): ver resultado abaixo.
 
+### 4.4 Estúdio Criador e chat flutuante (23/10/2026)
+
+| Pedido | Estado | Onde |
+| --- | --- | --- |
+| Renomear o módulo para Estúdio Criador (menu, títulos, dashboard, guia, histórico) | ✅ | #17 |
+| Página inicial: "Criar posts com IA", cartões Novo vertical (9:16) e Novo post (4:5 com carrossel) | ✅ | #17 — o destaque abre o gerador real; sem IA configurada a tela do gerador avisa |
+| Galeria de modelos por categoria, com miniatura real, formato, prévia, "Usar modelo", busca e filtros | ✅ | #17 — modelos da agência (`designs.is_template`) e biblioteca de modelos; carregamento progressivo |
+| Editor: canvas proporcional e visível, zoom, aparência escura, faixa de slides do carrossel | ✅ | #18 — canvas medido em 1440/1024/390 px |
+| Chat flutuante em qualquer módulo (inclusive editor), minimizar/restaurar/fechar, estado preservado | ✅ | #19 — iframe do mesmo site em `/chat-dock/[org]`, mesmas permissões |
+| Pop-ups de notificação (mensagens e eventos) no canto superior direito, com limite e agrupamento | ✅ | #19 — mensagens já existiam; eventos do sino passam a aparecer |
+| Tempo real | ✅ (já existia) | Consulta periódica adaptativa (4–8 s); sem WebSocket na hospedagem serverless |
+| Som configurável, sem repetir, respeitando bloqueio do navegador | ✅ (já existia) | `notification-sound.ts`, preferências em Conta → Avisos |
+| Categorias sugeridas (Aesthetic, Minimalista, Editorial, …) | ✅ | `template-categories.ts`; categorias antigas mapeadas, sem duplicar registros |
+| Barra lateral do editor como na referência | ✅ | Ordem Modelos, Adicionar (texto, elementos, ícones), Fotos, Marca, Componentes, Camadas. "Botões" da referência não existe como recurso e não foi inventado |
+| Alternar o formato do documento no cabeçalho do editor (Vertical 9:16 / Post 4:5) | ✅ | Troca rápida no cabeçalho (telas largas); demais formatos e medidas no painel da página |
+
+Problema encontrado e corrigido nesta etapa: as seções da galeria (itens de grade)
+sem `min-w-0` alargavam a página no celular (390 → 760 px) e deixavam botões de
+caixas de diálogo fora de alcance; `expectNoHorizontalScroll` passou a comparar
+com a largura real da janela para detectar isso.
+
+Validação desta etapa (23/10/2026):
+
+- `npm run typecheck` e `npm run lint`: sem erros.
+- `npm test`: 55 arquivos, 478 testes aprovados.
+- Playwright: suítes do Estúdio (editor, biblioteca de modelos, nuvem, IA de artes,
+  Radar de Marca, gerador de carrosséis): 55 aprovados na primeira rodada; as 8
+  falhas (nuvem no celular e um aviso na lixeira) vieram do alargamento da página
+  descrito acima e passaram todas após a correção. Leva seguinte (nuvem, início do
+  Estúdio, chat flutuante, avisos do chat, chat, pré-visualização, Radar de
+  Tendências, Radar de Marca): 66 aprovados; as falhas do chat flutuante eram do
+  roteiro de teste (corrigido; 9 aprovados + 1 pulado na repetição). Pré-visualização
+  e Radar de Tendências, pendentes da etapa anterior, passaram com as sementes
+  `e2e/seed-preview.ts` e `e2e/seed-trends.ts`.
+- Radar de Marca no celular: a suíte completa passou (5 aprovados + 1 pulado) depois
+  de duas correções: o teste de "Tarefa criada" conferia o botão em vez do aviso, e a
+  página do relatório alargava a tela em 390 px (corrigido no código, item #20).
+- `npm run build`: concluído, com a rota nova `/chat-dock/[org]`.

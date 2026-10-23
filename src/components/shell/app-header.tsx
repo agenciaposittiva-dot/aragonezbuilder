@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { ChatDockButton } from "@/components/chat/chat-dock";
 import { GuideButton } from "./guide-panel";
 import type { NavKey } from "./nav-registry";
 import { NotificationsBell } from "./notifications-bell";
@@ -61,6 +62,7 @@ export function AppHeader({
       </button>
       <div className="ml-auto flex items-center gap-1.5">
         <GuideButton base={base} />
+        <ChatDockButton />
         <NotificationsBell initialUnread={unread} />
         <UserMenu accountHref={accountHref} guide />
       </div>

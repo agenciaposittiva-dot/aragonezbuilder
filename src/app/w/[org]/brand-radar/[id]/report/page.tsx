@@ -69,7 +69,7 @@ export default async function BrandRadarReportPage({ params }: PageProps<"/w/[or
       </div>
       <article
         id="radar-report"
-        className="mx-auto grid max-w-3xl gap-6 rounded-xl border border-border bg-surface p-6 text-sm shadow-xs print:border-0 print:shadow-none"
+        className="mx-auto grid max-w-3xl min-w-0 gap-6 rounded-xl border border-border bg-surface p-6 text-sm shadow-xs print:border-0 print:shadow-none [&>*]:min-w-0"
       >
         <header className="grid gap-1 border-b border-border pb-4">
           <p className="text-xs text-fg-muted">Radar de Marca · relatório</p>
@@ -97,17 +97,19 @@ export default async function BrandRadarReportPage({ params }: PageProps<"/w/[or
                 Média ponderada só das dimensões avaliadas ({latest.evaluatedWeight ?? 0} pontos de peso). Itens não
                 avaliados ficam fora da conta.
               </p>
-              <table className="w-full text-xs">
-                <tbody>
-                  {r.dimensions.map((d) => (
-                    <tr key={d.key} className="border-t border-border align-top">
-                      <td className="py-1 pr-3 font-medium">{BRAND_DIMENSIONS[d.key].label}</td>
-                      <td className="tabular py-1 pr-3">{d.score ?? "não avaliada"}</td>
-                      <td className="py-1 text-fg-muted">{d.rationale}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <tbody>
+                    {r.dimensions.map((d) => (
+                      <tr key={d.key} className="border-t border-border align-top">
+                        <td className="py-1 pr-3 font-medium">{BRAND_DIMENSIONS[d.key].label}</td>
+                        <td className="tabular py-1 pr-3">{d.score ?? "não avaliada"}</td>
+                        <td className="py-1 text-fg-muted">{d.rationale}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </section>
 
             <section className="grid gap-1.5">
@@ -258,32 +260,34 @@ export default async function BrandRadarReportPage({ params }: PageProps<"/w/[or
         {recs.length ? (
           <section className="grid gap-1.5">
             <h2 className="text-base font-semibold">Recomendações</h2>
-            <table className="w-full text-xs">
-              <thead className="text-left text-fg-subtle">
-                <tr>
-                  <th className="py-1 pr-2 font-medium">Categoria</th>
-                  <th className="py-1 pr-2 font-medium">Recomendação</th>
-                  <th className="py-1 pr-2 font-medium">Impacto / esforço</th>
-                  <th className="py-1 pr-2 font-medium">Prazo</th>
-                  <th className="py-1 font-medium">Situação</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recs.map((x) => (
-                  <tr key={x.id} className="border-t border-border align-top">
-                    <td className="py-1 pr-2">{RECOMMENDATION_CATEGORIES[x.category]}</td>
-                    <td className="py-1 pr-2">
-                      <strong>{x.title}</strong> — {x.nextAction || x.problem}
-                    </td>
-                    <td className="py-1 pr-2 whitespace-nowrap">
-                      {lv(x.impact)} / {lv(x.effort)}
-                    </td>
-                    <td className="py-1 pr-2 whitespace-nowrap">{x.dueDate ? formatDate(x.dueDate) : "—"}</td>
-                    <td className="py-1">{RECOMMENDATION_STATUS[x.status]}</td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="text-left text-fg-subtle">
+                  <tr>
+                    <th className="py-1 pr-2 font-medium">Categoria</th>
+                    <th className="py-1 pr-2 font-medium">Recomendação</th>
+                    <th className="py-1 pr-2 font-medium">Impacto / esforço</th>
+                    <th className="py-1 pr-2 font-medium">Prazo</th>
+                    <th className="py-1 font-medium">Situação</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {recs.map((x) => (
+                    <tr key={x.id} className="border-t border-border align-top">
+                      <td className="py-1 pr-2">{RECOMMENDATION_CATEGORIES[x.category]}</td>
+                      <td className="py-1 pr-2">
+                        <strong>{x.title}</strong> — {x.nextAction || x.problem}
+                      </td>
+                      <td className="py-1 pr-2 whitespace-nowrap">
+                        {lv(x.impact)} / {lv(x.effort)}
+                      </td>
+                      <td className="py-1 pr-2 whitespace-nowrap">{x.dueDate ? formatDate(x.dueDate) : "—"}</td>
+                      <td className="py-1">{RECOMMENDATION_STATUS[x.status]}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </section>
         ) : null}
 

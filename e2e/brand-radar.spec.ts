@@ -184,7 +184,7 @@ test.describe("Radar de Marca", () => {
     await expectNoHorizontalScroll(page);
     await plans.nth(1).getByRole("button", { name: "Criar tarefa" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Criar tarefa" }).click();
-    await expect(page.getByText("Tarefa criada")).toBeVisible();
+    await expect(page.locator("[data-sonner-toast]").filter({ hasText: "Tarefa criada" })).toBeVisible();
     await plans.first().getByRole("button", { name: "Criar Stories no editor" }).click();
     await page.waitForURL(/\/studio\/[0-9a-f-]{36}/);
     await expect(page.locator("canvas").first()).toBeVisible({ timeout: 30_000 });
@@ -196,7 +196,7 @@ test.describe("Radar de Marca", () => {
     await expectNoHorizontalScroll(page);
     await rec.getByRole("button", { name: "Criar tarefa" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Criar tarefa" }).click();
-    await expect(page.getByText("Tarefa criada")).toBeVisible();
+    await expect(page.locator("[data-sonner-toast]").filter({ hasText: "Tarefa criada" })).toBeVisible();
     await expect(rec.getByRole("link", { name: "Tarefa" })).toBeVisible();
     await rec.getByLabel("Situação").selectOption("done");
     await expect(page.getByText("Recomendação atualizada")).toBeVisible();
@@ -260,7 +260,7 @@ test.describe("Radar de Marca", () => {
       [`${ORG}/trends`, "Radar de Tendências"],
       [`${ORG}/content`, "Redes sociais"],
       [`${ORG}/clients`, "Clientes"],
-      [`${ORG}/studio`, "Estúdio de Carrosséis"],
+      [`${ORG}/studio`, "Estúdio Criador"],
     ] as const) {
       await open(page, url);
       await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();

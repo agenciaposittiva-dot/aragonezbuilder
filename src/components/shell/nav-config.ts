@@ -81,7 +81,7 @@ export const WORKSPACE_NAV: NavGroup[] = [
       { key: "home", label: "Dashboard", path: "", icon: LayoutDashboard },
       { key: "clients", label: "Clientes", path: "/clients", icon: Users2, permission: "clients.read", tree: "clients" },
       { key: "files", label: "Biblioteca", path: "/files", icon: Library, permission: "files.read" },
-      { key: "studio", label: "Estúdio de Carrosséis", path: "/studio", icon: Palette, permission: "designs.read" },
+      { key: "studio", label: "Estúdio Criador", path: "/studio", icon: Palette, permission: "designs.read" },
       { key: "ai", label: "Criação com IA", path: "/ai", icon: Sparkles, permission: "ai.use" },
       {
         key: "calendar",

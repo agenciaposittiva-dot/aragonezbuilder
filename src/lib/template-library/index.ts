@@ -35,7 +35,7 @@ export const TEMPLATE_LIBRARY: LibraryTemplate[] = [
     version: 1,
     name: "Capa de impacto",
     description: "Foto de fundo, selo do perfil e título grande condensado com a última linha em destaque.",
-    category: "Capas",
+    category: "Autoridade e posicionamento",
     pages: 1,
     ...PORTRAIT,
     placeholders: {
@@ -49,7 +49,7 @@ export const TEMPLATE_LIBRARY: LibraryTemplate[] = [
     version: 1,
     name: "Minimal escuro",
     description: "Fundo preto, título com peso fino e negrito, caixa de apoio e chamada para a legenda.",
-    category: "Frases",
+    category: "Minimalista",
     pages: 1,
     ...PORTRAIT,
     placeholders: { avatar: { kind: "avatar", width: 240, height: 240 } },
@@ -60,7 +60,7 @@ export const TEMPLATE_LIBRARY: LibraryTemplate[] = [
     version: 1,
     name: "Foto escura com neon",
     description: "Perfil e serviços no topo, título em minúsculas com marcação neon e botão de contato.",
-    category: "Serviços",
+    category: "Comercial",
     pages: 1,
     ...PORTRAIT,
     placeholders: {
@@ -75,7 +75,7 @@ export const TEMPLATE_LIBRARY: LibraryTemplate[] = [
     name: "Carrossel editorial claro",
     description:
       "5 páginas: capa com foto, ideia com imagem, desenvolvimento, exemplo e final com chamada para salvar.",
-    category: "Carrosséis",
+    category: "Carrosséis estratégicos",
     pages: 5,
     ...PORTRAIT,
     placeholders: {
