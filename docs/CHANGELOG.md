@@ -6,6 +6,19 @@ Publicação em produção depende da implantação de cada ambiente.
 
 `tests/changelog.test.ts` confere que os dois registros estão iguais e que os testes citados existem.
 
+## #19 — Chat flutuante em qualquer módulo e avisos de eventos
+
+- **Data:** 2026-10-23
+- **Módulo:** Chat da Equipe
+- **Status:** Implementado em parte
+- **Descrição:** Botão do chat no cabeçalho (e no editor do Estúdio Criador) abre o Chat da Equipe numa janela flutuante sobre a página atual, com minimizar, restaurar, fechar e abrir em tela cheia; a conversa e o rascunho continuam ao navegar entre módulos. Clicar num aviso de mensagem abre a conversa na janela, sem sair da página. Avisos de eventos da plataforma (comentários, tarefas, aprovações, solicitações) aparecem como janelas no canto superior direito, com título, prévia, hora, abrir e dispensar. No celular, a janela do chat ocupa a tela.
+- **Problema resolvido:** Para responder uma mensagem era preciso sair da tela em que se estava trabalhando; os avisos do sino só apareciam ao abrir o sino.
+- **Testes executados:**
+  - e2e/chat-dock.spec.ts — abrir/minimizar/restaurar/fechar, mensagem real, navegação, aviso abre a conversa, editor com canvas à vista, login sem chat, aviso de evento abre a demanda (desktop e celular)
+  - e2e/chat-notifications.spec.ts — janela flutuante, som, agrupamento e reconexão
+  - e2e/chat.spec.ts — conversa em tempo real e clientes sem acesso
+- **Observações:** Verificado no navegador (desktop, celular e editor); a suíte e2e completa deste item está em execução e o status passa a “testado” quando ela terminar. O chat continua usando a consulta periódica ao servidor (4 a 8 s com a aba visível) — não há WebSocket na hospedagem serverless. As mensagens ficam só no banco; a janela guarda apenas se estava aberta e qual conversa. Avisos de eventos não tocam som.
+
 ## #18 — Editor: aparência escura, zoom no cabeçalho e faixa de slides
 
 - **Data:** 2026-10-23

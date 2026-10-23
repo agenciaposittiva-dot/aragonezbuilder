@@ -68,6 +68,7 @@ import {
   saveDesignAction,
   updateDesignMetaAction,
 } from "@/server/actions/designs";
+import { ChatDockButton } from "@/components/chat/chat-dock";
 import { DesignAiChat, type DesignAiHost } from "../design-ai-chat";
 import { DesignConflictDialog, DesignHistory } from "../design-history";
 import { createActions, type EditorBrand } from "./actions";
@@ -617,6 +618,7 @@ export function DesignEditor({
             </Button>
           </Tooltip>
         ) : null}
+        <ChatDockButton className="hidden sm:inline-flex" />
         <Tooltip content="Histórico de versões">
           <Button variant="ghost" size="icon-sm" onClick={() => setHistoryOpen(true)} aria-label="Histórico de versões">
             <History />

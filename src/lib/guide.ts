@@ -16,6 +16,7 @@ const SCREENS: ScreenTips[] = [
       "Os atalhos do topo levam direto para criar projeto, carrossel, imagem com IA e conteúdo.",
       "Clique em um indicador de demandas para abrir a lista já filtrada.",
       "A agenda mostra as suas entregas e os prazos de projetos dos próximos 7 dias.",
+      "O ícone de chat no cabeçalho abre o Chat da Equipe numa janela flutuante, sem sair da tela.",
     ],
   },
   {

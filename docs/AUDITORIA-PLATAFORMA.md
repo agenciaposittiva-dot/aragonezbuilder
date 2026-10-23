@@ -124,3 +124,23 @@ cada mudança fica em `docs/CHANGELOG.md`.
 - `npm run build`: concluído.
 - Playwright (desktop 1360×860 e celular 390×844): ver resultado abaixo.
 
+### 4.4 Estúdio Criador e chat flutuante (23/10/2026)
+
+| Pedido | Estado | Onde |
+| --- | --- | --- |
+| Renomear o módulo para Estúdio Criador (menu, títulos, dashboard, guia, histórico) | ✅ | #17 |
+| Página inicial: "Criar posts com IA", cartões Novo vertical (9:16) e Novo post (4:5 com carrossel) | ✅ | #17 — o destaque abre o gerador real; sem IA configurada a tela do gerador avisa |
+| Galeria de modelos por categoria, com miniatura real, formato, prévia, "Usar modelo", busca e filtros | ✅ | #17 — modelos da agência (`designs.is_template`) e biblioteca de modelos; carregamento progressivo |
+| Editor: canvas proporcional e visível, zoom, aparência escura, faixa de slides do carrossel | ✅ | #18 — canvas medido em 1440/1024/390 px |
+| Chat flutuante em qualquer módulo (inclusive editor), minimizar/restaurar/fechar, estado preservado | ✅ | #19 — iframe do mesmo site em `/chat-dock/[org]`, mesmas permissões |
+| Pop-ups de notificação (mensagens e eventos) no canto superior direito, com limite e agrupamento | ✅ | #19 — mensagens já existiam; eventos do sino passam a aparecer |
+| Tempo real | ✅ (já existia) | Consulta periódica adaptativa (4–8 s); sem WebSocket na hospedagem serverless |
+| Som configurável, sem repetir, respeitando bloqueio do navegador | ✅ (já existia) | `notification-sound.ts`, preferências em Conta → Avisos |
+| Categorias sugeridas (Aesthetic, Minimalista, Editorial, …) | ✅ | `template-categories.ts`; categorias antigas mapeadas, sem duplicar registros |
+| Barra lateral do editor com "Texto / Elementos / Botões / Fotos" como na referência | 🟡 | Mantida a organização atual (Adicionar, Camadas, Marca, Imagens, Componentes, Modelos), que cobre os mesmos recursos |
+| Alternar o formato do documento no cabeçalho do editor (Vertical 9:16 / Post 4:5) | ⏳ | O formato muda no painel de propriedades da página; não foi adicionado atalho no cabeçalho |
+
+Problema encontrado e corrigido nesta etapa: as seções da galeria (itens de grade)
+sem `min-w-0` alargavam a página no celular (390 → 760 px) e deixavam botões de
+caixas de diálogo fora de alcance; `expectNoHorizontalScroll` passou a comparar
+com a largura real da janela para detectar isso.
