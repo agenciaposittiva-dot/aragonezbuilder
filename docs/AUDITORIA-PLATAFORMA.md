@@ -144,3 +144,17 @@ Problema encontrado e corrigido nesta etapa: as seções da galeria (itens de gr
 sem `min-w-0` alargavam a página no celular (390 → 760 px) e deixavam botões de
 caixas de diálogo fora de alcance; `expectNoHorizontalScroll` passou a comparar
 com a largura real da janela para detectar isso.
+
+Validação desta etapa (23/10/2026):
+
+- `npm run typecheck` e `npm run lint`: sem erros.
+- `npm test`: 55 arquivos, 478 testes aprovados.
+- Playwright: suítes do Estúdio (editor, biblioteca de modelos, nuvem, IA de artes,
+  Radar de Marca, gerador de carrosséis): 55 aprovados na primeira rodada; as 8
+  falhas (nuvem no celular e um aviso na lixeira) vieram do alargamento da página
+  descrito acima e passaram todas após a correção. Leva seguinte (nuvem, início do
+  Estúdio, chat flutuante, avisos do chat, chat, pré-visualização, Radar de
+  Tendências, Radar de Marca): 66 aprovados; as falhas do chat flutuante eram do
+  roteiro de teste (corrigido; 9 aprovados + 1 pulado na repetição). Pré-visualização
+  e Radar de Tendências, pendentes da etapa anterior, passaram com as sementes
+  `e2e/seed-preview.ts` e `e2e/seed-trends.ts`.
