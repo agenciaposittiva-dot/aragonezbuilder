@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { portalSettingsSchema } from "@/lib/portal-settings";
+import { BANNER_MAX_SLIDES, portalSettingsSchema } from "@/lib/portal-settings";
 import { brandProfileInput, clientInput } from "./clients";
 import { optionalText, priorityEnum, requiredText } from "./common";
 import { FILE_CATEGORIES } from "./files";
@@ -70,6 +70,8 @@ export const packagePortalSchema = z.object({
       favicon: fileRef,
       loginBackground: fileRef,
       banner: fileRef,
+      /** Imagens dos banners extras, na ordem de `settings.banner.slides` (cria os que faltarem). */
+      bannerSlides: z.array(entryPath).max(BANNER_MAX_SLIDES).default([]),
     })
     .prefault({}),
   access: z
@@ -115,13 +117,15 @@ export const clientPackageSchema = z
       ctx.addIssue({ code: "custom", path: ["files"], message: "Só um arquivo pode ser o logotipo do cliente." });
     }
     if (pkg.portal) {
-      for (const [key, path] of Object.entries(pkg.portal.files)) {
-        if (path && !paths.has(path)) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["portal", "files", key],
-            message: `A imagem ${path} do portal precisa estar na lista "files" do pacote.`,
-          });
+      for (const [key, value] of Object.entries(pkg.portal.files)) {
+        for (const path of Array.isArray(value) ? value : [value]) {
+          if (path && !paths.has(path)) {
+            ctx.addIssue({
+              code: "custom",
+              path: ["portal", "files", key],
+              message: `A imagem ${path} do portal precisa estar na lista "files" do pacote.`,
+            });
+          }
         }
       }
     }

@@ -89,7 +89,7 @@ pelo caminho relativo. Pastas `__MACOSX`, `.DS_Store` e `Thumbs.db` são ignorad
 | `files[]` | não | `path` (dentro do zip), `category` (`brand_logo`, `brand_asset`, `brand_guideline`, `template`, `reference`, `document`, `deliverable`, `general`), `tags[]`, `note` e `logo: true` em **um** arquivo de imagem para virar o logotipo do cliente. Até 100 arquivos; cada um passa pela validação normal de envio (tipo real pelos bytes, tamanho, cota). |
 | `projects[]` | não | `name`, `description`, `objective`, `priority` (`low`, `medium`, `high`, `urgent`) e `tasks[]` com `title`, `description`, `priority`. Até 20 projetos e 200 demandas por projeto. |
 | `portal.settings` | não | Exatamente o que a tela **Portal** grava (nome, cores, textos, login, banner, links, botões, contato, seções), **sem** os ids de arquivo. |
-| `portal.files` | não | Caminhos (listados em `files`) para `logo`, `logoAlt`, `favicon`, `loginBackground` e `banner`. |
+| `portal.files` | não | Caminhos (listados em `files`) para `logo`, `logoAlt`, `favicon`, `loginBackground` e `banner`; `bannerSlides` é uma lista de caminhos para os banners extras, na ordem de `settings.banner.slides` (com 2 ou mais banners o início do portal vira um carrossel). |
 | `portal.access` | não | `slug` (padrão: gerado do nome), `loginEnabled` (padrão `true`), `allowGuestInvites` (padrão `false`). |
 | `portal.publish` | não | `true` (padrão) publica a personalização; `false` deixa só o rascunho. |
 

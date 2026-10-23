@@ -6,6 +6,17 @@ Publicação em produção depende da implantação de cada ambiente.
 
 `tests/changelog.test.ts` confere que os dois registros estão iguais e que os testes citados existem.
 
+## #23 — Vários banners na capa, com setas e rolagem automática
+
+- **Data:** 2026-10-23
+- **Módulo:** Portal do cliente
+- **Status:** Implementado e testado
+- **Descrição:** Em Portal → Banner de capa, "Mais banners" adiciona até 9 banners extras, cada um com imagem, título, subtítulo, botão e ponto de foco próprios. Com 2 ou mais, o início do portal vira um carrossel: setas, pontos, toque para deslizar e rolagem automática com intervalo de 3 a 30 segundos, que pausa com o mouse sobre o banner e respeita a preferência de menos movimento. A prévia mostra o carrossel e o pacote de cliente aceita banners extras.
+- **Problema resolvido:** A capa do portal só aceitava um banner; clientes com mais de uma campanha ou aviso não tinham como alternar.
+- **Testes executados:**
+  - tests/portal-banner.test.ts — chaves bannerN, esquema (padrões, limites, links), lista de arquivos referenciados, publicação e entrega de cada imagem, imagem de outro cliente recusada
+  - e2e/portal-banner.spec.ts — dois banners na personalização viram carrossel na prévia (setas, pontos, rolagem automática, celular) e voltam a banner simples ao remover
+
 ## #22 — Fundo do logotipo e categoria automática na importação
 
 - **Data:** 2026-10-23

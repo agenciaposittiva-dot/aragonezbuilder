@@ -5,7 +5,7 @@ import {
   contrastIssues,
   DEFAULT_PORTAL_SETTINGS,
   parsePortalSettings,
-  PORTAL_ASSET_KEYS,
+  portalAssetFileIds,
   portalSettingsSchema,
   PUBLIC_ASSET_KEYS,
   type PortalAssetKey,
@@ -46,7 +46,7 @@ async function ensureRow(s: Scope, clientId: string) {
 
 /** Toda imagem referenciada precisa ser um arquivo de imagem deste cliente. */
 async function assertAssets(s: Scope, clientId: string, settings: PortalSettings) {
-  const ids = [...new Set(PORTAL_ASSET_KEYS.map((k) => assetFileId(settings, k)).filter((v): v is string => !!v))];
+  const ids = portalAssetFileIds(settings);
   if (!ids.length) return;
   const rows = await s.db
     .select({ id: files.id, clientId: files.clientId, mime: fileVersions.mimeType })

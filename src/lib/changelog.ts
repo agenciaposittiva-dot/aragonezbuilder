@@ -319,6 +319,20 @@ export const CHANGELOG: ChangelogEntry[] = [
       "e2e/client-import.spec.ts — fundo do pacote aparece no cabeçalho; trocar para Branco em Marca atualiza o cabeçalho",
     ],
   },
+  {
+    n: 23,
+    date: "2026-10-23",
+    module: "Portal do cliente",
+    title: "Vários banners na capa, com setas e rolagem automática",
+    description:
+      "Em Portal → Banner de capa, \"Mais banners\" adiciona até 9 banners extras, cada um com imagem, título, subtítulo, botão e ponto de foco próprios. Com 2 ou mais, o início do portal vira um carrossel: setas, pontos, toque para deslizar e rolagem automática com intervalo de 3 a 30 segundos, que pausa com o mouse sobre o banner e respeita a preferência de menos movimento. A prévia mostra o carrossel e o pacote de cliente aceita banners extras.",
+    fixed: "A capa do portal só aceitava um banner; clientes com mais de uma campanha ou aviso não tinham como alternar.",
+    status: "tested",
+    tests: [
+      "tests/portal-banner.test.ts — chaves bannerN, esquema (padrões, limites, links), lista de arquivos referenciados, publicação e entrega de cada imagem, imagem de outro cliente recusada",
+      "e2e/portal-banner.spec.ts — dois banners na personalização viram carrossel na prévia (setas, pontos, rolagem automática, celular) e voltam a banner simples ao remover",
+    ],
+  },
 ];
 
 export const CHANGELOG_MODULES = [...new Set(CHANGELOG.map((e) => e.module))].sort((a, b) =>
