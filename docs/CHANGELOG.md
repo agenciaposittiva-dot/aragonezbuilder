@@ -6,6 +6,17 @@ Publicação em produção depende da implantação de cada ambiente.
 
 `tests/changelog.test.ts` confere que os dois registros estão iguais e que os testes citados existem.
 
+## #21 — Importar pacote de cliente
+
+- **Data:** 2026-10-23
+- **Módulo:** Clientes
+- **Status:** Implementado e testado
+- **Descrição:** Clientes → Importar pacote recebe um .zip com manifest.json e cria de uma vez o cliente, o perfil da marca, a biblioteca (logotipos, materiais, manual), os projetos com demandas e a personalização do portal já publicada. Tudo numa transação: se algo falhar, nada fica pela metade. Formato em docs/PACOTE-DE-CLIENTE.md.
+- **Problema resolvido:** Levar um cliente preparado em outro ambiente (marca extraída do Figma, demandas redigidas, artes do portal) para a plataforma exigia recadastrar tudo a mão.
+- **Testes executados:**
+  - tests/client-package.test.ts — importação completa, pacote zipado como pasta, rejeições (sem manifesto, inválido, arquivo ausente) sem cliente pela metade, permissão
+  - e2e/client-import.spec.ts — diálogo Importar pacote cria o cliente e abre a ficha com projeto e logotipo
+
 ## #20 — Relatório cabe na tela do celular
 
 - **Data:** 2026-10-23

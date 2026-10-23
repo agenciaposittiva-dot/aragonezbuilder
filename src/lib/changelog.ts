@@ -289,6 +289,21 @@ export const CHANGELOG: ChangelogEntry[] = [
     status: "tested",
     tests: ["e2e/brand-radar.spec.ts — critério 7 no celular (5 aprovados + 1 pulado na suíte)"],
   },
+  {
+    n: 21,
+    date: "2026-10-23",
+    module: "Clientes",
+    title: "Importar pacote de cliente",
+    description:
+      "Clientes → Importar pacote recebe um .zip com manifest.json e cria de uma vez o cliente, o perfil da marca, a biblioteca (logotipos, materiais, manual), os projetos com demandas e a personalização do portal já publicada. Tudo numa transação: se algo falhar, nada fica pela metade. Formato em docs/PACOTE-DE-CLIENTE.md.",
+    fixed:
+      "Levar um cliente preparado em outro ambiente (marca extraída do Figma, demandas redigidas, artes do portal) para a plataforma exigia recadastrar tudo a mão.",
+    status: "tested",
+    tests: [
+      "tests/client-package.test.ts — importação completa, pacote zipado como pasta, rejeições (sem manifesto, inválido, arquivo ausente) sem cliente pela metade, permissão",
+      "e2e/client-import.spec.ts — diálogo Importar pacote cria o cliente e abre a ficha com projeto e logotipo",
+    ],
+  },
 ];
 
 export const CHANGELOG_MODULES = [...new Set(CHANGELOG.map((e) => e.module))].sort((a, b) =>
