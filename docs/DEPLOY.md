@@ -39,6 +39,21 @@ Endereço de produção atual: **https://aragonezbuilderofc.vercel.app** (projet
    está configurado e o que falta, sem expor valores. Depois, entre com a conta
    administradora e crie a primeira agência.
 
+### Como refazer o deploy (redeploy)
+
+Útil depois de alterar variáveis de ambiente ou quando um build falhou por
+motivo externo (rede, limite de tempo, banco indisponível).
+
+- **Pelo painel da Vercel** (caminho mais rápido): **Deployments → ⋯ no último
+  deploy → Redeploy**. Marque "Use existing Build Cache" só se nenhuma variável
+  mudou; para aplicar variáveis novas, desmarque.
+- **Por um commit**: qualquer commit na branch de produção dispara um build
+  completo (`npm run vercel-build`, com migrações). É o que acontece a cada
+  merge na branch padrão.
+- **Conferência**: o deploy está no ar quando aparece como **Ready** no painel e
+  `/setup` mostra, em "Deploy", o commit publicado (os 7 primeiros caracteres
+  do SHA e a branch).
+
 ### Acesso somente por convite
 
 A plataforma é privada: não existe cadastro aberto.
