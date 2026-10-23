@@ -1,9 +1,10 @@
-import { Plus, Users2 } from "lucide-react";
+import { PackageOpen, Plus, Users2 } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ClientCategorySelect } from "@/components/clients/client-category-select";
 import { ClientFormDialog } from "@/components/clients/client-form-dialog";
 import { ClientStatusBadge } from "@/components/clients/client-status";
+import { ImportPackageDialog } from "@/components/clients/import-package-dialog";
 import { ClearFilters, FilterBar, SearchFilter, SelectFilter } from "@/components/app/filters";
 import { Pagination } from "@/components/app/pagination";
 import { STATUS_COLORS } from "@/components/ui/badge";
@@ -19,6 +20,7 @@ import { requireActor } from "@/server/auth/session";
 import { cn } from "@/lib/utils";
 import { listClientCategories } from "@/server/services/client-categories";
 import { listClients } from "@/server/services/clients";
+import { maxUploadBytes } from "@/server/services/files";
 import { listInternalMembers } from "@/server/services/members";
 
 export const metadata: Metadata = { title: "Clientes" };
@@ -30,11 +32,12 @@ export default async function ClientsPage({ params, searchParams }: PageProps<"/
   const pick = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : undefined);
   const status = pick("status");
   const category = pick("category");
-  const { list, members, cats } = await inOrg(actor, async (s) => {
+  const { list, members, cats, maxBytes } = await inOrg(actor, async (s) => {
     const cats = await listClientCategories(s);
     const valid = category === "none" || cats.categories.some((c) => c.id === category);
     return {
       cats,
+      maxBytes: maxUploadBytes(s),
       list: await listClients(s, {
         q: pick("q"),
         status: CLIENT_STATUS.includes(status as never) ? (status as (typeof CLIENT_STATUS)[number]) : undefined,
@@ -85,17 +88,28 @@ export default async function ClientsPage({ params, searchParams }: PageProps<"/
         description="Cadastro, equipe responsável, serviços contratados e identidade de cada marca."
         actions={
           canWrite ? (
-            <ClientFormDialog
-              members={members}
-              categories={categoryOpts}
-              defaultCategoryId={autoCategory}
-              defaultOpen={autoOpen}
-              trigger={
-                <Button variant="primary">
-                  <Plus /> Novo cliente
-                </Button>
-              }
-            />
+            <div className="flex flex-wrap gap-2">
+              <ImportPackageDialog
+                categories={categoryOpts}
+                maxBytes={maxBytes}
+                trigger={
+                  <Button>
+                    <PackageOpen /> Importar pacote
+                  </Button>
+                }
+              />
+              <ClientFormDialog
+                members={members}
+                categories={categoryOpts}
+                defaultCategoryId={autoCategory}
+                defaultOpen={autoOpen}
+                trigger={
+                  <Button variant="primary">
+                    <Plus /> Novo cliente
+                  </Button>
+                }
+              />
+            </div>
           ) : null
         }
       >
