@@ -158,3 +158,7 @@ Validação desta etapa (23/10/2026):
   roteiro de teste (corrigido; 9 aprovados + 1 pulado na repetição). Pré-visualização
   e Radar de Tendências, pendentes da etapa anterior, passaram com as sementes
   `e2e/seed-preview.ts` e `e2e/seed-trends.ts`.
+- Radar de Marca no celular: a suíte completa passou (5 aprovados + 1 pulado) depois
+  de duas correções: o teste de "Tarefa criada" conferia o botão em vez do aviso, e a
+  página do relatório alargava a tela em 390 px (corrigido no código, item #20).
+- `npm run build`: concluído, com a rota nova `/chat-dock/[org]`.

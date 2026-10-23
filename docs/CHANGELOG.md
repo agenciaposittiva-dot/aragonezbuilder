@@ -6,6 +6,16 @@ Publicação em produção depende da implantação de cada ambiente.
 
 `tests/changelog.test.ts` confere que os dois registros estão iguais e que os testes citados existem.
 
+## #20 — Relatório cabe na tela do celular
+
+- **Data:** 2026-10-23
+- **Módulo:** Radar de Marca
+- **Status:** Implementado e testado
+- **Descrição:** As tabelas do relatório deixam de alargar a página em telas pequenas: as seções têm largura mínima zero e as tabelas rolam na horizontal quando precisam.
+- **Problema resolvido:** Em 390 px a página do relatório ficava com 401 px e o navegador ampliava a área de layout (detectado pelo teste de largura, que agora compara com a largura real da janela).
+- **Testes executados:**
+  - e2e/brand-radar.spec.ts — critério 7 no celular (5 aprovados + 1 pulado na suíte)
+
 ## #19 — Chat flutuante em qualquer módulo e avisos de eventos
 
 - **Data:** 2026-10-23

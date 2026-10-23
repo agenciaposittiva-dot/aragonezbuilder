@@ -277,6 +277,18 @@ export const CHANGELOG: ChangelogEntry[] = [
     notes:
       "O chat continua usando a consulta periódica ao servidor (4 a 8 s com a aba visível) — não há WebSocket na hospedagem serverless. As mensagens ficam só no banco; a janela guarda apenas se estava aberta e qual conversa. Avisos de eventos não tocam som.",
   },
+  {
+    n: 20,
+    date: "2026-10-23",
+    module: "Radar de Marca",
+    title: "Relatório cabe na tela do celular",
+    description:
+      "As tabelas do relatório deixam de alargar a página em telas pequenas: as seções têm largura mínima zero e as tabelas rolam na horizontal quando precisam.",
+    fixed:
+      "Em 390 px a página do relatório ficava com 401 px e o navegador ampliava a área de layout (detectado pelo teste de largura, que agora compara com a largura real da janela).",
+    status: "tested",
+    tests: ["e2e/brand-radar.spec.ts — critério 7 no celular (5 aprovados + 1 pulado na suíte)"],
+  },
 ];
 
 export const CHANGELOG_MODULES = [...new Set(CHANGELOG.map((e) => e.module))].sort((a, b) =>
