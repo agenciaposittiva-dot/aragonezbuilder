@@ -81,13 +81,14 @@ import { useEditor, type EditorStore } from "./store";
 
 export type LeftTab = "add" | "layers" | "brand" | "media" | "components" | "templates";
 
+// Ordem da referência (modelos primeiro, camadas por último); "Adicionar" reúne texto, elementos e ícones.
 export const LEFT_TABS: { key: LeftTab; label: string; icon: typeof Plus }[] = [
-  { key: "add", label: "Adicionar", icon: Plus },
-  { key: "layers", label: "Camadas", icon: Layers },
-  { key: "brand", label: "Marca", icon: Palette },
-  { key: "media", label: "Imagens", icon: Images },
-  { key: "components", label: "Componentes", icon: Component },
   { key: "templates", label: "Modelos", icon: LayoutTemplate },
+  { key: "add", label: "Adicionar", icon: Plus },
+  { key: "media", label: "Fotos", icon: Images },
+  { key: "brand", label: "Marca", icon: Palette },
+  { key: "components", label: "Componentes", icon: Component },
+  { key: "layers", label: "Camadas", icon: Layers },
 ];
 
 export type PanelProps = {
@@ -260,7 +261,7 @@ function AddPanel({ actions, onPickImage, onDone, onNavigate }: PanelProps) {
         <div className="grid grid-cols-3 gap-1.5">
           {(
             [
-              ["media", "Imagens", Images],
+              ["media", "Fotos", Images],
               ["components", "Componentes", Component],
               ["templates", "Modelos", LayoutTemplate],
             ] as const

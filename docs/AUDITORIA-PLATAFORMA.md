@@ -137,8 +137,8 @@ cada mudança fica em `docs/CHANGELOG.md`.
 | Tempo real | ✅ (já existia) | Consulta periódica adaptativa (4–8 s); sem WebSocket na hospedagem serverless |
 | Som configurável, sem repetir, respeitando bloqueio do navegador | ✅ (já existia) | `notification-sound.ts`, preferências em Conta → Avisos |
 | Categorias sugeridas (Aesthetic, Minimalista, Editorial, …) | ✅ | `template-categories.ts`; categorias antigas mapeadas, sem duplicar registros |
-| Barra lateral do editor com "Texto / Elementos / Botões / Fotos" como na referência | 🟡 | Mantida a organização atual (Adicionar, Camadas, Marca, Imagens, Componentes, Modelos), que cobre os mesmos recursos |
-| Alternar o formato do documento no cabeçalho do editor (Vertical 9:16 / Post 4:5) | ⏳ | O formato muda no painel de propriedades da página; não foi adicionado atalho no cabeçalho |
+| Barra lateral do editor como na referência | ✅ | Ordem Modelos, Adicionar (texto, elementos, ícones), Fotos, Marca, Componentes, Camadas. "Botões" da referência não existe como recurso e não foi inventado |
+| Alternar o formato do documento no cabeçalho do editor (Vertical 9:16 / Post 4:5) | ✅ | Troca rápida no cabeçalho (telas largas); demais formatos e medidas no painel da página |
 
 Problema encontrado e corrigido nesta etapa: as seções da galeria (itens de grade)
 sem `min-w-0` alargavam a página no celular (390 → 760 px) e deixavam botões de

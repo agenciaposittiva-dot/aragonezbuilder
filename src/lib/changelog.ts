@@ -253,7 +253,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     module: "Estúdio Criador",
     title: "Editor: aparência escura, zoom no cabeçalho e faixa de slides",
     description:
-      "O editor abre com aparência escura (troca em “Mais ações” → Aparência do editor) e devolve o tema do aplicativo ao sair. Botões − / + de zoom ao lado da porcentagem. No carrossel, cada prancheta mostra “Slide N”, o slide ativo tem “Duplicar” e uma prancheta tracejada “+” depois do último slide adiciona um novo.",
+      "O editor abre com aparência escura (troca em “Mais ações” → Aparência do editor) e devolve o tema do aplicativo ao sair. Botões − / + de zoom ao lado da porcentagem e troca rápida de formato no cabeçalho (Vertical 9:16, Post 4:5, Quadrado 1:1, Paisagem 16:9; os demais no painel da página). Barra lateral na ordem da referência: Modelos, Adicionar, Fotos, Marca, Componentes, Camadas. No carrossel, cada prancheta mostra “Slide N”, o slide ativo tem “Duplicar” e uma prancheta tracejada “+” depois do último slide adiciona um novo.",
     fixed: "Zoom só pelo menu ou atalho; para adicionar ou duplicar slides era preciso ir ao painel de páginas.",
     status: "tested",
     tests: ["e2e/studio-home.spec.ts — zoom, tema e faixa de slides", "e2e/editor.spec.ts — editor completo"],

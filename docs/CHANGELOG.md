@@ -34,7 +34,7 @@ Publicação em produção depende da implantação de cada ambiente.
 - **Data:** 2026-10-23
 - **Módulo:** Estúdio Criador
 - **Status:** Implementado e testado
-- **Descrição:** O editor abre com aparência escura (troca em “Mais ações” → Aparência do editor) e devolve o tema do aplicativo ao sair. Botões − / + de zoom ao lado da porcentagem. No carrossel, cada prancheta mostra “Slide N”, o slide ativo tem “Duplicar” e uma prancheta tracejada “+” depois do último slide adiciona um novo.
+- **Descrição:** O editor abre com aparência escura (troca em “Mais ações” → Aparência do editor) e devolve o tema do aplicativo ao sair. Botões − / + de zoom ao lado da porcentagem e troca rápida de formato no cabeçalho (Vertical 9:16, Post 4:5, Quadrado 1:1, Paisagem 16:9; os demais no painel da página). Barra lateral na ordem da referência: Modelos, Adicionar, Fotos, Marca, Componentes, Camadas. No carrossel, cada prancheta mostra “Slide N”, o slide ativo tem “Duplicar” e uma prancheta tracejada “+” depois do último slide adiciona um novo.
 - **Problema resolvido:** Zoom só pelo menu ou atalho; para adicionar ou duplicar slides era preciso ir ao painel de páginas.
 - **Testes executados:**
   - e2e/studio-home.spec.ts — zoom, tema e faixa de slides

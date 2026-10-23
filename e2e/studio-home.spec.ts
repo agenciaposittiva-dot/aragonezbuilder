@@ -83,6 +83,14 @@ test("Novo vertical e Novo post abrem o editor no formato certo; carrossel com f
     const before = await zoom.innerText();
     await page.getByRole("button", { name: "Aumentar zoom" }).click();
     await expect(zoom).not.toHaveText(before);
+    // Troca rápida de formato no cabeçalho (só em telas largas).
+    if ((page.viewportSize()?.width ?? 0) >= 1280) {
+      await expect(page.getByTestId("format-switch")).toContainText("Vertical 9:16");
+      await page.getByTestId("format-switch").click();
+      await page.getByRole("menuitemradio", { name: /Post 4:5/ }).click();
+      await expect.poll(async () => (await editorDoc(page)).pages[0]!.height).toBe(1350);
+      await expect(page.getByTestId("format-switch")).toContainText("Post 4:5");
+    }
   }
   await page.getByRole("link", { name: "Voltar ao Estúdio Criador" }).click();
   await page.waitForURL(/\/studio$/);

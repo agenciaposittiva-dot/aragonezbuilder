@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   Download,
   Eye,
+  Frame,
   History,
   ImagePlus,
   Keyboard,
@@ -60,6 +61,8 @@ import {
   readDesignDocument,
   type DesignDocument,
 } from "@/lib/design-doc";
+import { findPreset, FORMAT_PRESETS } from "@/lib/design-doc/presets";
+import { formatLabel } from "@/lib/design-doc/template-categories";
 import { cn } from "@/lib/utils";
 import {
   createNamedVersionAction,
@@ -157,6 +160,7 @@ export function DesignEditor({
 
   const canUndo = useEditor(store, (s) => s.canUndo);
   const canRedo = useEditor(store, (s) => s.canRedo);
+  const pageSize = useEditor(store, (s) => ({ width: s.activePage.width, height: s.activePage.height }));
   const selection = useEditor(store, (s) => s.selection);
   const view = useEditor(store, (s) => s.view);
   const generated = useEditor(store, (s) => !!s.doc.meta?.generator);
@@ -624,6 +628,51 @@ export function DesignEditor({
             <History />
           </Button>
         </Tooltip>
+        {canWrite ? (
+          // Troca rápida de formato (como a referência): mesma ação do painel da página.
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="hidden xl:inline-flex"
+                aria-label="Formato da página"
+                data-testid="format-switch"
+                disabled={!ready}
+              >
+                <Frame />{" "}
+                {FORMAT_SHORT[findPreset(presetKeyOf(pageSize))?.key ?? ""] ??
+                  formatLabel(pageSize.width, pageSize.height)}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuLabel>Formato da página</DropdownMenuLabel>
+              <DropdownMenuRadioGroup
+                value={presetKeyOf(pageSize)}
+                onValueChange={(k) => {
+                  const p = findPreset(k);
+                  if (p) actions.setPageSize(p.width, p.height);
+                }}
+              >
+                {QUICK_FORMATS.map((k) => {
+                  const p = findPreset(k)!;
+                  return (
+                    <DropdownMenuRadioItem key={k} value={k}>
+                      {FORMAT_SHORT[k]}{" "}
+                      <span className="ml-auto text-[11px] text-fg-subtle">
+                        {p.width}×{p.height}
+                      </span>
+                    </DropdownMenuRadioItem>
+                  );
+                })}
+              </DropdownMenuRadioGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => (narrow ? setMobileSheet("props") : setPropsHidden(false))}>
+                Outros formatos e medidas…
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
         <div className="hidden items-center md:flex" data-testid="zoom-controls">
           <Tooltip content="Diminuir zoom (Ctrl −)">
             <Button
@@ -955,7 +1004,7 @@ export function DesignEditor({
                 brand: "Marca",
                 layers: "Camadas",
                 props: "Editar",
-                media: "Imagens",
+                media: "Fotos",
                 components: "Componentes",
                 templates: "Modelos",
                 ai: "Chat de edição com IA",
@@ -1093,6 +1142,17 @@ function usePanelPref(key: string): [boolean, (v: boolean) => void] {
   );
   return [value, set];
 }
+
+/** Formatos de troca rápida no cabeçalho (os demais ficam no painel da página). */
+const QUICK_FORMATS = ["story", "ig-portrait", "ig-square", "banner"] as const;
+const FORMAT_SHORT: Record<string, string> = {
+  story: "Vertical 9:16",
+  "ig-portrait": "Post 4:5",
+  "ig-square": "Quadrado 1:1",
+  banner: "Paisagem 16:9",
+};
+const presetKeyOf = (size: { width: number; height: number }) =>
+  FORMAT_PRESETS.find((p) => !p.carousel && p.width === size.width && p.height === size.height)?.key ?? "";
 
 type EditorTheme = "dark" | "app";
 
