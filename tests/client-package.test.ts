@@ -61,7 +61,12 @@ const manifest = (over: Record<string, unknown> = {}) => ({
       login: { layout: "card", title: "Portal GW" },
       banner: { title: "Olá", showLogo: false, focalX: 75 },
     },
-    files: { logo: "arquivos/logo.png", loginBackground: "arquivos/login.png", banner: "arquivos/capa.png" },
+    files: {
+      logo: "arquivos/logo.png",
+      loginBackground: "arquivos/login.png",
+      banner: "arquivos/capa.png",
+      bannerSlides: ["arquivos/login.png"],
+    },
     access: { loginEnabled: true },
     publish: true,
   },
@@ -140,6 +145,9 @@ describe("importClientPackage", () => {
     expect(portal.published?.banner.title).toBe("Olá");
     expect(portal.published?.banner.showLogo).toBe(false);
     expect(portal.published?.colors.primary).toBe("#c3f23a");
+    // Banner extra criado a partir de portal.files.bannerSlides.
+    expect(portal.published?.banner.slides).toHaveLength(1);
+    expect(portal.published?.banner.slides[0]?.imageFileId).toBe(files.rows.find((f) => f.name === "login.png")!.id);
   });
 
   it("aceita o pacote zipado como pasta e ignora lixo de sistema", async () => {

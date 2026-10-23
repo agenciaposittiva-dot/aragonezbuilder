@@ -97,6 +97,7 @@ export function PortalPreview({
             logoUrl={logoUrl}
             logoAltUrl={logoAltUrl}
             bannerUrl={imageUrl(settings.banner.imageFileId)}
+            slideUrls={settings.banner.slides.map((s) => imageUrl(s.imageFileId))}
             mobile={device === "mobile"}
           />
         )}
@@ -151,6 +152,7 @@ function SampleHome({
   logoUrl,
   logoAltUrl,
   bannerUrl,
+  slideUrls,
   mobile,
 }: {
   settings: PortalSettings;
@@ -159,6 +161,7 @@ function SampleHome({
   logoUrl: string | null;
   logoAltUrl: string | null;
   bannerUrl: string | null;
+  slideUrls: (string | null)[];
   mobile: boolean;
 }) {
   const sec = settings.sections;
@@ -216,6 +219,7 @@ function SampleHome({
             name={name}
             base=""
             imageUrl={bannerUrl}
+            slideUrls={slideUrls}
             logoUrl={logoAltUrl ?? logoUrl}
             fallbackTitle="Olá, Paula"
             fallbackText={`Acompanhe aqui o que a ${orgName} está produzindo para ${name}.`}

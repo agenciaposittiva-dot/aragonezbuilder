@@ -1,7 +1,7 @@
 import { posix } from "node:path";
 import { unzipSync } from "fflate";
 import { formatBytes } from "@/lib/format";
-import { type PortalAssetKey } from "@/lib/portal-settings";
+import type { PORTAL_ASSET_KEYS } from "@/lib/portal-settings";
 import { clientPackageSchema, PACKAGE_LIMITS, type ClientPackage } from "@/lib/validators/client-package";
 import { assertCan, assertInternal, type Scope } from "@/server/authz";
 import { ValidationError } from "@/server/errors";
@@ -172,18 +172,34 @@ export async function importClientPackage(
 
   let portal: ImportResult["portal"] = "none";
   if (pkg.portal) {
-    const ref = (key: PortalAssetKey) => {
+    const ref = (key: (typeof PORTAL_ASSET_KEYS)[number]) => {
       const path = pkg.portal!.files[key];
       return path ? (fileIds.get(path) ?? null) : null;
     };
     const st = pkg.portal.settings;
+    // Banners extras: cada caminho vira a imagem do slide de mesma posição (criado se não existir).
+    const slidePaths = pkg.portal.files.bannerSlides;
+    const slides = slidePaths.length
+      ? slidePaths.map((path, i) => ({
+          ...(st.banner.slides[i] ?? {
+            imageFileId: null,
+            title: null,
+            subtitle: null,
+            buttonLabel: null,
+            buttonUrl: null,
+            focalX: 50,
+            focalY: 50,
+          }),
+          imageFileId: fileIds.get(path) ?? null,
+        }))
+      : st.banner.slides;
     await savePortalDraft(s, clientId, {
       ...st,
       logoFileId: ref("logo"),
       logoAltFileId: ref("logoAlt"),
       faviconFileId: ref("favicon"),
       login: { ...st.login, backgroundFileId: ref("loginBackground") },
-      banner: { ...st.banner, imageFileId: ref("banner") },
+      banner: { ...st.banner, imageFileId: ref("banner"), slides },
     });
     portal = "draft";
     if (pkg.portal.publish) {
