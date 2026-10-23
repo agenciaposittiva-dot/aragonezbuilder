@@ -30,7 +30,12 @@ pelo caminho relativo. Pastas `__MACOSX`, `.DS_Store` e `Thumbs.db` são ignorad
 {
   "format": "aragonez-client-package",
   "version": 1,
-  "client": { "name": "GW Ads", "industry": "Tráfego pago e marketing digital" },
+  "client": {
+    "name": "GW Ads",
+    "industry": "Tráfego pago e marketing digital",
+    "category": "Clientes ativos",
+    "logoBackground": "#0b0b0b"
+  },
   "brand": {
     "toneOfVoice": "Direto, didático e seguro…",
     "audience": "…",
@@ -79,7 +84,7 @@ pelo caminho relativo. Pastas `__MACOSX`, `.DS_Store` e `Thumbs.db` são ignorad
 | Campo | Obrigatório | Conteúdo |
 |---|---|---|
 | `format`, `version` | sim | `"aragonez-client-package"` e `1`. |
-| `client` | sim | Os mesmos campos do formulário **Novo cliente** (`name` obrigatório; `legalName`, `document`, `email`, `phone`, `website`, `industry`, `address`, `status`, `notesInternal`). A categoria é escolhida na importação. |
+| `client` | sim | Os mesmos campos do formulário **Novo cliente** (`name` obrigatório; `legalName`, `document`, `email`, `phone`, `website`, `industry`, `address`, `status`, `notesInternal`), mais `category` (nome de uma categoria já existente na agência, ex.: `"Clientes ativos"`; a escolhida no diálogo de importação tem prioridade e um nome desconhecido deixa o cliente sem categoria) e `logoBackground` (cor hex atrás do logotipo nas miniaturas, ex.: `"#0b0b0b"` para uma logo branca). |
 | `brand` | não | Os campos da aba **Marca**: `toneOfVoice`, `audience`, `objectives`, `positioning`, `avoid`, `keywords[]`, `guidelines`, `colors[{name, hex, usage}]`, `fonts[{name, usage, source}]`. |
 | `files[]` | não | `path` (dentro do zip), `category` (`brand_logo`, `brand_asset`, `brand_guideline`, `template`, `reference`, `document`, `deliverable`, `general`), `tags[]`, `note` e `logo: true` em **um** arquivo de imagem para virar o logotipo do cliente. Até 100 arquivos; cada um passa pela validação normal de envio (tipo real pelos bytes, tamanho, cota). |
 | `projects[]` | não | `name`, `description`, `objective`, `priority` (`low`, `medium`, `high`, `urgent`) e `tasks[]` com `title`, `description`, `priority`. Até 20 projetos e 200 demandas por projeto. |

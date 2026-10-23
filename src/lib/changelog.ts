@@ -304,6 +304,21 @@ export const CHANGELOG: ChangelogEntry[] = [
       "e2e/client-import.spec.ts — diálogo Importar pacote cria o cliente e abre a ficha com projeto e logotipo",
     ],
   },
+  {
+    n: 22,
+    date: "2026-10-23",
+    module: "Clientes",
+    title: "Fundo do logotipo e categoria automática na importação",
+    description:
+      "Em Marca → Logotipos, \"Fundo do logotipo\" define a cor atrás da logo nas miniaturas (cabeçalho do cliente e portal): Padrão, Branco, Preto ou outra cor. A importação de pacote passa a sugerir a categoria de clientes ativos e aceita, no manifesto, a categoria pelo nome e o fundo do logotipo.",
+    fixed:
+      "Uma logo preta sumia no cartão do tema escuro (e uma branca, no claro); e o cliente importado caía em \"Sem categoria\" mesmo quando a agência tinha a categoria \"Clientes ativos\".",
+    status: "tested",
+    tests: [
+      "tests/client-package.test.ts — categoria pelo nome (sem diferenciar maiúsculas), categoria escolhida vence o manifesto, nome desconhecido fica sem categoria; fundo do logotipo aceita hex, limpa e rejeita inválido",
+      "e2e/client-import.spec.ts — fundo do pacote aparece no cabeçalho; trocar para Branco em Marca atualiza o cabeçalho",
+    ],
+  },
 ];
 
 export const CHANGELOG_MODULES = [...new Set(CHANGELOG.map((e) => e.module))].sort((a, b) =>

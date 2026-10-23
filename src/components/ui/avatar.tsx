@@ -21,12 +21,15 @@ export function Avatar({
   size = "md",
   className,
   square,
+  style,
 }: {
   name: string | null | undefined;
   src?: string | null;
   size?: "xs" | "sm" | "md" | "lg" | "xl";
   className?: string;
   square?: boolean;
+  /** Ex.: cor de fundo escolhida para um logotipo. */
+  style?: React.CSSProperties;
 }) {
   const dims = {
     xs: "size-5 text-[9px]",
@@ -46,6 +49,7 @@ export function Avatar({
         className,
       )}
       title={name ?? undefined}
+      style={style}
     >
       {src ? (
         // eslint-disable-next-line @next/next/no-img-element

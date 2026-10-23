@@ -941,6 +941,39 @@ export async function setClientLogo(s: Scope, clientId: string, fileId: string |
 }
 
 /** Versões atuais dos logotipos dos clientes (para avatares). */
+/**
+ * Cor de fundo do logotipo nas miniaturas (cabeçalho do cliente, portal).
+ * Útil quando a logo é escura ou clara demais para o tema; vazio = fundo neutro.
+ */
+export async function setClientLogoBackground(s: Scope, clientId: string, color: string | null) {
+  assertInternal(s.actor);
+  assertCan(s.actor, "clients.write");
+  await assertClientAccess(s, clientId);
+  if (color !== null && !/^#[0-9a-f]{6}$/i.test(color)) throw new ValidationError("Use uma cor no formato #RRGGBB.");
+  const value = color ? color.toLowerCase() : null;
+  await s.db.update(clients).set({ logoBackground: value }).where(eq(clients.id, clientId));
+  await recordActivity(s, {
+    action: "logo_updated",
+    entityType: "client",
+    entityId: clientId,
+    summary: value ? `Fundo do logotipo definido (${value})` : "Fundo do logotipo removido",
+    event: false,
+  });
+}
+
+/** Versão atual e cor de fundo do logotipo de cada cliente (só os que têm logotipo válido). */
+export async function clientLogoInfo(s: Scope, clientIds: string[]) {
+  const empty = new Map<string, { versionId: string; background: string | null }>();
+  if (!clientIds.length) return empty;
+  const rows = await s.db
+    .select({ clientId: clients.id, versionId: files.currentVersionId, background: clients.logoBackground })
+    .from(clients)
+    .innerJoin(files, eq(files.id, clients.logoFileId))
+    .where(and(inArray(clients.id, clientIds), isNull(files.deletedAt)));
+  for (const r of rows) if (r.versionId) empty.set(r.clientId, { versionId: r.versionId, background: r.background });
+  return empty;
+}
+
 export async function clientLogoVersions(s: Scope, clientIds: string[]) {
   if (!clientIds.length) return new Map<string, string>();
   const rows = await s.db

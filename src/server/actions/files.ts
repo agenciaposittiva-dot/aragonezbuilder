@@ -43,6 +43,14 @@ export const setClientLogoAction = orgAction(
   (s, { clientId, fileId }) => files.setClientLogo(s, clientId, fileId),
 );
 
+export const setClientLogoBackgroundAction = orgAction(
+  z.object({
+    clientId: z.uuid(),
+    color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Use uma cor no formato #RRGGBB").nullable(),
+  }),
+  (s, { clientId, color }) => files.setClientLogoBackground(s, clientId, color),
+);
+
 export const listAttachmentsAction = orgAction(
   z.object({ taskId: z.uuid().optional(), projectId: z.uuid().optional(), requestId: z.uuid().optional() }),
   (s, target) => files.listFiles(s, { ...target, pageSize: 200 }),

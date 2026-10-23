@@ -6,10 +6,11 @@ import type { Actor } from "@/server/authz/actor";
 import { withSystem } from "@/server/db";
 import { clients, projects, tasks } from "@/server/db/schema";
 import { ForbiddenError, ValidationError } from "@/server/errors";
+import { listClientCategories, saveClientCategory } from "@/server/services/client-categories";
 import { importClientPackage, readPackageZip } from "@/server/services/client-package";
 import { getPortalAdmin } from "@/server/services/client-portal";
 import { getBrandProfile, getClient } from "@/server/services/clients";
-import { listFiles } from "@/server/services/files";
+import { listFiles, setClientLogoBackground } from "@/server/services/files";
 import { addMember, as, createOrgWithOwner, resetDb } from "./helpers";
 
 /*
@@ -26,7 +27,8 @@ async function png(color = "#0b0b0b") {
 const manifest = (over: Record<string, unknown> = {}) => ({
   format: "aragonez-client-package",
   version: 1,
-  client: { name: "GW Teste", industry: "Tráfego pago" },
+  // Categoria pelo nome (sem diferenciar maiúsculas e espaços) e fundo do logotipo.
+  client: { name: "GW Teste", industry: "Tráfego pago", category: " clientes ATIVOS ", logoBackground: "#0B0B0B" },
   brand: {
     toneOfVoice: "Direto e didático.",
     keywords: ["tráfego pago", "performance"],
@@ -80,6 +82,14 @@ async function pack(m: Record<string, unknown>, extra: Record<string, Uint8Array
 let owner: Actor;
 let orgId: string;
 let orgSlug: string;
+let activeCategoryId: string;
+
+/** Id da categoria pelo nome (a organização nasce com categorias padrão); cria se não existir. */
+async function categoryIdByName(name: string) {
+  const { categories } = await as(owner, (s) => listClientCategories(s));
+  const found = categories.find((c) => c.name.toLowerCase() === name.toLowerCase());
+  return found ? found.id : (await as(owner, (s) => saveClientCategory(s, { name }))).id;
+}
 
 beforeAll(async () => {
   await resetDb();
@@ -87,6 +97,7 @@ beforeAll(async () => {
   owner = created.actor;
   orgId = created.org.id;
   orgSlug = created.org.slug;
+  activeCategoryId = await categoryIdByName("Clientes ativos");
 });
 
 describe("importClientPackage", () => {
@@ -98,6 +109,8 @@ describe("importClientPackage", () => {
     const { client } = await as(owner, (s) => getClient(s, result.clientId));
     expect(client.name).toBe("GW Teste");
     expect(client.industry).toBe("Tráfego pago");
+    expect(client.categoryId).toBe(activeCategoryId);
+    expect(client.logoBackground).toBe("#0b0b0b");
 
     const brand = await as(owner, (s) => getBrandProfile(s, result.clientId));
     expect(brand?.toneOfVoice).toBe("Direto e didático.");
@@ -140,6 +153,35 @@ describe("importClientPackage", () => {
     expect([...entries.keys()].some((k) => k.includes("__MACOSX") || k.endsWith(".DS_Store"))).toBe(false);
     const result = await as(owner, (s) => importClientPackage(s, zip));
     expect(result).toMatchObject({ name: "GW Pasta", files: 3, portal: "none" });
+    // Sem categoria no manifesto e sem escolha na importação, fica sem categoria.
+    const { client } = await as(owner, (s) => getClient(s, result.clientId));
+    expect(client.categoryId).toBeNull();
+    expect(client.logoBackground).toBeNull();
+  });
+
+  it("a categoria escolhida na importação vence a do manifesto; nome desconhecido fica sem categoria", async () => {
+    const other = await categoryIdByName("Projetos avulsos");
+    const chosenZip = await pack(manifest({ client: { name: "GW Escolhida" }, portal: undefined }));
+    const chosen = await as(owner, (s) => importClientPackage(s, chosenZip, { categoryId: other }));
+    expect((await as(owner, (s) => getClient(s, chosen.clientId))).client.categoryId).toBe(other);
+
+    const unknownZip = await pack(
+      manifest({ client: { name: "GW Sem Categoria", category: "Inexistente" }, portal: undefined }),
+    );
+    const unknown = await as(owner, (s) => importClientPackage(s, unknownZip));
+    expect((await as(owner, (s) => getClient(s, unknown.clientId))).client.categoryId).toBeNull();
+  });
+
+  it("fundo do logotipo: aceita hex, limpa com null e rejeita valor inválido", async () => {
+    const zip = await pack(manifest({ client: { name: "GW Fundo" }, portal: undefined }));
+    const result = await as(owner, (s) => importClientPackage(s, zip));
+    await as(owner, (s) => setClientLogoBackground(s, result.clientId, "#FFFFFF"));
+    expect((await as(owner, (s) => getClient(s, result.clientId))).client.logoBackground).toBe("#ffffff");
+    await as(owner, (s) => setClientLogoBackground(s, result.clientId, null));
+    expect((await as(owner, (s) => getClient(s, result.clientId))).client.logoBackground).toBeNull();
+    await expect(as(owner, (s) => setClientLogoBackground(s, result.clientId, "preto"))).rejects.toThrow(
+      ValidationError,
+    );
   });
 
   it("rejeita pacote sem manifesto, manifesto inválido e arquivo ausente, sem deixar cliente pela metade", async () => {

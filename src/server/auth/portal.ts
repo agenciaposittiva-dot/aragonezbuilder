@@ -18,6 +18,8 @@ export type PortalContext = {
   multiClient: boolean;
   /** Logotipo cadastrado em Marca (usado quando o portal não define um próprio). */
   clientLogoFileId: string | null;
+  /** Cor de fundo escolhida para o logotipo em Marca (vazio = fundo neutro). */
+  clientLogoBackground: string | null;
 };
 
 /**
@@ -41,7 +43,13 @@ const loadPortal = cache(async (orgSlug: string, clientSlug: string): Promise<Po
   if (!actor.permissions.has("portal.access") || !actor.clientIds.length) redirect(`${entrar}?negado=1`);
   const [client] = await inOrg(actor, (s) =>
     s.db
-      .select({ id: clients.id, slug: clients.slug, name: clients.name, logoFileId: clients.logoFileId })
+      .select({
+        id: clients.id,
+        slug: clients.slug,
+        name: clients.name,
+        logoFileId: clients.logoFileId,
+        logoBackground: clients.logoBackground,
+      })
       .from(clients)
       .where(
         and(
@@ -60,6 +68,7 @@ const loadPortal = cache(async (orgSlug: string, clientSlug: string): Promise<Po
     base: `/portal/${actor.orgSlug}/${client.slug}`,
     multiClient: actor.clientIds.length > 1,
     clientLogoFileId: client.logoFileId,
+    clientLogoBackground: client.logoBackground,
   };
 });
 

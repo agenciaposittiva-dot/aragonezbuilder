@@ -91,7 +91,15 @@ export const clientPackageSchema = z
   .object({
     format: z.literal(PACKAGE_FORMAT, { error: `Informe "format": "${PACKAGE_FORMAT}"` }),
     version: z.literal(PACKAGE_VERSION, { error: `Versão do pacote não suportada (use ${PACKAGE_VERSION})` }),
-    client: clientInput.omit({ categoryId: true, leadMembershipId: true }),
+    client: clientInput.omit({ categoryId: true, leadMembershipId: true }).extend({
+      /** Nome de uma categoria já existente na agência (ex.: "Clientes ativos"); sem igual, fica sem categoria. */
+      category: optionalText(80),
+      /** Cor de fundo do logotipo nas miniaturas (hex). */
+      logoBackground: z
+        .union([z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, "Use uma cor no formato #RRGGBB"), z.literal(""), z.null()])
+        .optional()
+        .transform((v) => (v ? v.toLowerCase() : null)),
+    }),
     brand: brandProfileInput.omit({ clientId: true }).optional(),
     files: z.array(packageFileSchema).max(PACKAGE_LIMITS.files).default([]),
     projects: z.array(packageProjectSchema).max(PACKAGE_LIMITS.projects).default([]),
