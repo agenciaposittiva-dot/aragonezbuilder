@@ -5,9 +5,10 @@ import { type PortalAssetKey } from "@/lib/portal-settings";
 import { clientPackageSchema, PACKAGE_LIMITS, type ClientPackage } from "@/lib/validators/client-package";
 import { assertCan, assertInternal, type Scope } from "@/server/authz";
 import { ValidationError } from "@/server/errors";
+import { listClientCategories } from "./client-categories";
 import { publishPortal, savePortalDraft, updatePortalAccess } from "./client-portal";
 import { createClient, getClient, updateBrandProfile } from "./clients";
-import { maxUploadBytes, setClientLogo, storeUpload } from "./files";
+import { maxUploadBytes, setClientLogo, setClientLogoBackground, storeUpload } from "./files";
 import { createProject } from "./projects";
 import { createTask } from "./tasks";
 
@@ -129,7 +130,15 @@ export async function importClientPackage(
   if (pkg.projects.length) assertCan(s.actor, "projects.write");
   if (pkg.projects.some((p) => p.tasks.length)) assertCan(s.actor, "tasks.write");
 
-  const { id: clientId } = await createClient(s, { ...pkg.client, categoryId: opts.categoryId ?? undefined });
+  const { category, logoBackground, ...client } = pkg.client;
+  // Categoria: a escolhida na importação; senão, a do manifesto pelo nome (só se já existir na agência).
+  let categoryId = opts.categoryId ?? undefined;
+  if (!categoryId && category) {
+    const wanted = category.trim().toLowerCase();
+    categoryId = (await listClientCategories(s)).categories.find((c) => c.name.trim().toLowerCase() === wanted)?.id;
+  }
+  const { id: clientId } = await createClient(s, { ...client, categoryId });
+  if (logoBackground) await setClientLogoBackground(s, clientId, logoBackground);
   if (pkg.brand) await updateBrandProfile(s, { clientId, ...pkg.brand });
 
   const fileIds = new Map<string, string>();

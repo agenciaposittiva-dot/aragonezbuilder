@@ -50,7 +50,10 @@ export function ImportPackageDialog({
   const input = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [categoryId, setCategoryId] = useState("");
+  // Sugestão inicial: a categoria de clientes ativos, quando a agência tem uma (o manifesto também pode indicar).
+  const [categoryId, setCategoryId] = useState(
+    () => categories?.find((c) => /ativo/i.test(c.name) && !/inativ|^ex[- ]/i.test(c.name))?.id ?? "",
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -143,7 +146,7 @@ export function ImportPackageDialog({
             </div>
           </Field>
           {categories?.length ? (
-            <Field label="Categoria do cliente" htmlFor="imp-cat" hint="Opcional">
+            <Field label="Categoria do cliente" htmlFor="imp-cat" hint="Opcional; sem escolha, vale a indicada no pacote">
               <NativeSelect id="imp-cat" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
                 <option value="">Sem categoria</option>
                 {categories.map((c) => (

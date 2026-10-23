@@ -68,6 +68,8 @@ export const clients = pgTable(
     categoryId: uuid(),
     /** Arquivo da biblioteca de marca usado como logotipo (referência validada no serviço). */
     logoFileId: uuid(),
+    /** Cor de fundo (hex) atrás do logotipo nas miniaturas (cabeçalho, portal); vazio = fundo neutro do tema. */
+    logoBackground: text(),
     notesInternal: text(),
     createdByUserId: text().references(() => user.id, { onDelete: "set null" }),
     archivedAt: tstz(),

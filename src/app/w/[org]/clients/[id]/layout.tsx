@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { NotFoundError } from "@/server/errors";
 import { listClientCategories } from "@/server/services/client-categories";
 import { getClient } from "@/server/services/clients";
-import { clientLogoVersions } from "@/server/services/files";
+import { clientLogoInfo } from "@/server/services/files";
 import { listInternalMembers } from "@/server/services/members";
 
 export default async function ClientLayout({ children, params }: LayoutProps<"/w/[org]/clients/[id]">) {
@@ -23,11 +23,12 @@ export default async function ClientLayout({ children, params }: LayoutProps<"/w
   const data = await inOrg(actor, async (s) => {
     try {
       const detail = await getClient(s, id);
-      const logos = detail.client.logoFileId ? await clientLogoVersions(s, [id]) : new Map<string, string>();
+      const logo = detail.client.logoFileId ? (await clientLogoInfo(s, [id])).get(id) : undefined;
       return {
         detail,
         members: await listInternalMembers(s),
-        logoVersionId: logos.get(id) ?? null,
+        logoVersionId: logo?.versionId ?? null,
+        logoBackground: logo?.background ?? null,
         categories: (await listClientCategories(s)).categories,
       };
     } catch (e) {
@@ -52,7 +53,12 @@ export default async function ClientLayout({ children, params }: LayoutProps<"/w
               src={data.logoVersionId ? `/api/files/${data.logoVersionId}` : null}
               square
               size="xl"
-              className={data.logoVersionId ? "bg-surface ring-1 ring-border [&_img]:object-contain" : undefined}
+              className={
+                data.logoVersionId
+                  ? cn("ring-1 ring-border [&_img]:object-contain", !data.logoBackground && "bg-surface")
+                  : undefined
+              }
+              style={data.logoBackground ? { background: data.logoBackground } : undefined}
             />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">

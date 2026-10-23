@@ -134,6 +134,13 @@
       "when": 1792702623882,
       "tag": "0018_rotina_e_referencias",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792775084856,
+      "tag": "0019_logo_background",
+      "breakpoints": true
     }
   ]
 }

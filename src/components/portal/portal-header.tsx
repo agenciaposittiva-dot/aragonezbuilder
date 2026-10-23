@@ -23,7 +23,14 @@ export function PortalHeader({
   unread: number;
   badges: Record<string, number>;
   /** `orgLogoUrl` só é informado quando a agência ativou a exibição da logo dela no portal. */
-  brand: { name: string; logoUrl: string | null; orgName: string; orgLogoUrl?: string | null };
+  brand: {
+    name: string;
+    logoUrl: string | null;
+    /** Cor de fundo escolhida para o logotipo em Marca (vazio = fundo neutro). */
+    logoBackground?: string | null;
+    orgName: string;
+    orgLogoUrl?: string | null;
+  };
   switchHref: string | null;
   /** Itens desligados para este cliente (ex.: Equipe sem convites habilitados). */
   hideNav?: string[];
@@ -43,7 +50,12 @@ export function PortalHeader({
             src={brand.logoUrl}
             square
             size="md"
-            className={brand.logoUrl ? "bg-surface ring-1 ring-border [&_img]:object-contain" : undefined}
+            className={
+              brand.logoUrl
+                ? `${brand.logoBackground ? "" : "bg-surface "}ring-1 ring-border [&_img]:object-contain`
+                : undefined
+            }
+            style={brand.logoUrl && brand.logoBackground ? { background: brand.logoBackground } : undefined}
           />
           <span className="min-w-0">
             <span className="block truncate text-sm leading-tight font-semibold">{brand.name}</span>

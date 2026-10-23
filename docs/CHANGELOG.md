@@ -6,6 +6,17 @@ Publicação em produção depende da implantação de cada ambiente.
 
 `tests/changelog.test.ts` confere que os dois registros estão iguais e que os testes citados existem.
 
+## #22 — Fundo do logotipo e categoria automática na importação
+
+- **Data:** 2026-10-23
+- **Módulo:** Clientes
+- **Status:** Implementado e testado
+- **Descrição:** Em Marca → Logotipos, "Fundo do logotipo" define a cor atrás da logo nas miniaturas (cabeçalho do cliente e portal): Padrão, Branco, Preto ou outra cor. A importação de pacote passa a sugerir a categoria de clientes ativos e aceita, no manifesto, a categoria pelo nome e o fundo do logotipo.
+- **Problema resolvido:** Uma logo preta sumia no cartão do tema escuro (e uma branca, no claro); e o cliente importado caía em "Sem categoria" mesmo quando a agência tinha a categoria "Clientes ativos".
+- **Testes executados:**
+  - tests/client-package.test.ts — categoria pelo nome (sem diferenciar maiúsculas), categoria escolhida vence o manifesto, nome desconhecido fica sem categoria; fundo do logotipo aceita hex, limpa e rejeita inválido
+  - e2e/client-import.spec.ts — fundo do pacote aparece no cabeçalho; trocar para Branco em Marca atualiza o cabeçalho
+
 ## #21 — Importar pacote de cliente
 
 - **Data:** 2026-10-23
