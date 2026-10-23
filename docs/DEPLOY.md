@@ -3,6 +3,10 @@
 Guia para colocar a plataforma no ar. O caminho mais curto é a Vercel com um
 banco Postgres da Neon conectado pelo próprio painel.
 
+Endereço de produção atual: **https://aragonezbuilderofc.vercel.app** (projeto
+`aragonezbuilder` na Vercel). O código não fixa domínio nenhum: a aplicação usa
+`APP_URL` e, sem ela, o endereço que a Vercel informa ao build.
+
 ## Vercel, passo a passo
 
 1. **Projeto**: importe o repositório na Vercel. O `vercel.json` já define o
