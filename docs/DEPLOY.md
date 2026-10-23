@@ -54,6 +54,24 @@ motivo externo (rede, limite de tempo, banco indisponível).
   `/setup` mostra, em "Deploy", o commit publicado (os 7 primeiros caracteres
   do SHA e a branch).
 
+### Avisos no log de build
+
+- **`"engines": { "node": ">=20.9" }` … will automatically upgrade** — o
+  `package.json` fixa `22.x`, a versão que a Vercel usa hoje. Sem o intervalo
+  aberto, uma nova versão maior do Node não entra sozinha no build.
+- **install scripts not yet covered by allowScripts** — o npm 11 bloqueia os
+  scripts de instalação de dependências não aprovadas. O campo `allowScripts`
+  do `package.json` aprova `esbuild` e `unrs-resolver` (só validam o binário já
+  baixado) e nega `canvas`, dependência opcional do Fabric usada apenas no
+  navegador: o servidor nunca a carrega, então compilar o módulo nativo seria
+  tempo de build perdido.
+- **SECURITY WARNING: The SSL modes 'prefer', 'require'…** — vem do driver `pg`
+  quando a URL do banco traz `sslmode=require` (padrão da Neon). A aplicação
+  reescreve para `sslmode=verify-full`, exatamente o que o driver já aplicava;
+  a conexão não muda e o aviso some (`src/server/db-url.ts`).
+- **Unknown env config "cache-dir"** — variável do ambiente de build da Vercel,
+  ignorada pelo npm. Não vem do projeto.
+
 ### Acesso somente por convite
 
 A plataforma é privada: não existe cadastro aberto.
