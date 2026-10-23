@@ -29,6 +29,9 @@ export function NewDesignDialog({
   templates,
   canManageTemplates,
   defaultTemplateId,
+  defaultPreset,
+  title = "Nova arte",
+  description = "Comece do zero em um formato ou a partir de um modelo da agência.",
   link,
 }: {
   trigger: React.ReactNode;
@@ -37,6 +40,10 @@ export function NewDesignDialog({
   templates: { id: string; name: string; width: number; height: number; thumbnail: string | null }[];
   canManageTemplates: boolean;
   defaultTemplateId?: string;
+  /** Formato já escolhido (cartões "Novo vertical" / "Novo post"). */
+  defaultPreset?: string;
+  title?: string;
+  description?: string;
   /**
    * Arte criada a partir de uma demanda (ou projeto): cliente, projeto e tarefa
    * já definidos e fixos — a arte nasce vinculada, sem cópia de dados.
@@ -46,7 +53,9 @@ export function NewDesignDialog({
   const router = useRouter();
   const { orgSlug } = useWorkspace();
   const [open, setOpen] = useState(false);
-  const [preset, setPreset] = useState<string>(FORMAT_PRESETS[0]!.key);
+  const [preset, setPreset] = useState<string>(
+    defaultPreset && FORMAT_PRESETS.some((p) => p.key === defaultPreset) ? defaultPreset : FORMAT_PRESETS[0]!.key,
+  );
   const [custom, setCustom] = useState({ width: 1080, height: 1080 });
   const [pages, setPages] = useState(3);
   const [templateId, setTemplateId] = useState(defaultTemplateId ?? "");
@@ -63,6 +72,16 @@ export function NewDesignDialog({
   const chosen = FORMAT_PRESETS.find((p) => p.key === preset);
   const size = preset === "custom" ? custom : (chosen ?? FORMAT_PRESETS[0]!);
   const carousel = !!chosen?.carousel;
+  // Mesmo tamanho em versão de uma página e em carrossel: alterna com uma caixa, sem procurar na lista.
+  const twin = chosen
+    ? FORMAT_PRESETS.find(
+        (p) =>
+          p.key !== chosen.key &&
+          p.width === chosen.width &&
+          p.height === chosen.height &&
+          !!p.carousel !== !!chosen.carousel,
+      )
+    : undefined;
   const visibleProjects = clientId ? projects.filter((p) => p.clientId === clientId) : projects;
 
   return (
@@ -95,8 +114,8 @@ export function NewDesignDialog({
           }}
         >
           <DialogHeader>
-            <DialogTitle>Nova arte</DialogTitle>
-            <DialogDescription>Comece do zero em um formato ou a partir de um template da agência.</DialogDescription>
+            <DialogTitle>{title}</DialogTitle>
+            <DialogDescription>{description}</DialogDescription>
           </DialogHeader>
           <DialogBody className="grid gap-4">
             <Field label="Nome" htmlFor="d-name">
@@ -109,7 +128,7 @@ export function NewDesignDialog({
               />
             </Field>
             {templates.length ? (
-              <Field label="Template">
+              <Field label="Modelo">
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                   <button
                     type="button"
@@ -166,11 +185,24 @@ export function NewDesignDialog({
                     <option value="custom">Personalizado</option>
                   </NativeSelect>
                 </Field>
+                {twin ? (
+                  <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                    <Checkbox
+                      checked={carousel}
+                      onCheckedChange={() => {
+                        setPreset(twin.key);
+                        if (twin.carousel) setPages(twin.pages ?? 3);
+                      }}
+                      aria-label="Carrossel com várias páginas"
+                    />
+                    Carrossel com várias páginas
+                  </label>
+                ) : null}
                 {carousel ? (
                   <Field
-                    label="Páginas do carrossel"
+                    label="Quantidade de slides"
                     htmlFor="d-pages"
-                    hint="Páginas conectadas, do mesmo tamanho. Dá para incluir, duplicar e reordenar depois."
+                    hint="Slides conectados, do mesmo tamanho. Dá para incluir, duplicar e reordenar depois."
                     className="sm:col-span-2"
                   >
                     <Input
@@ -250,7 +282,7 @@ export function NewDesignDialog({
             {canManageTemplates && !link?.taskId ? (
               <label className="flex items-center gap-2 text-sm">
                 <Checkbox checked={isTemplate} onCheckedChange={(v) => setIsTemplate(v === true)} />
-                Salvar como template reutilizável
+                Salvar como modelo reutilizável
               </label>
             ) : null}
           </DialogBody>

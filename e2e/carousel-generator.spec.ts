@@ -118,7 +118,7 @@ test.describe("gerador automático de carrosséis", () => {
     test.setTimeout(420_000);
     await enter(page);
     await page.goto(`${ORG}/studio`);
-    await expect(page.getByRole("link", { name: "Gerar carrossel com IA" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Criar posts com IA/ })).toBeVisible();
     const themes: [string, Parameters<typeof generate>[2]?][] = [
       ["Clareamento dental: mitos e cuidados"],
       [

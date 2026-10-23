@@ -9,6 +9,7 @@ import {
   Keyboard,
   Layers,
   Maximize,
+  Moon,
   MoreHorizontal,
   Palette,
   PanelRight,
@@ -40,6 +41,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -148,6 +151,8 @@ export function DesignEditor({
   const [propsHidden, setPropsHidden] = usePanelPref("editor:props-hidden");
   const narrow = useNarrow();
   const leftClosed = leftCollapsed || (aiOpen && narrow);
+  // Aparência do editor: escuro por padrão (área de trabalho neutra para avaliar as cores da arte).
+  const [editorTheme, setEditorTheme] = useEditorTheme();
 
   const canUndo = useEditor(store, (s) => s.canUndo);
   const canRedo = useEditor(store, (s) => s.canRedo);
@@ -557,11 +562,13 @@ export function DesignEditor({
         }}
       />
       <header className="flex h-12 shrink-0 items-center gap-1.5 border-b border-border bg-surface px-2 sm:px-3">
-        <Button variant="ghost" size="icon-sm" asChild aria-label="Voltar ao Estúdio">
-          <Link href={`/w/${ws.orgSlug}/studio`}>
-            <ArrowLeft />
-          </Link>
-        </Button>
+        <Tooltip content="Voltar ao Estúdio Criador">
+          <Button variant="ghost" size="icon-sm" asChild aria-label="Voltar ao Estúdio Criador">
+            <Link href={`/w/${ws.orgSlug}/studio`}>
+              <ArrowLeft />
+            </Link>
+          </Button>
+        </Tooltip>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -615,50 +622,75 @@ export function DesignEditor({
             <History />
           </Button>
         </Tooltip>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+        <div className="hidden items-center md:flex" data-testid="zoom-controls">
+          <Tooltip content="Diminuir zoom (Ctrl −)">
             <Button
               variant="ghost"
-              size="sm"
-              className="hidden w-16 tabular-nums md:inline-flex"
-              aria-label="Zoom e visualização"
+              size="icon-sm"
+              onClick={() => scene?.zoomTo(scene.zoom / 1.25)}
+              disabled={!ready}
+              aria-label="Diminuir zoom"
             >
-              {zoomPct}%
+              <ZoomOut />
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-60">
-            <DropdownMenuItem onSelect={() => scene?.zoomTo(scene.zoom * 1.25)}>
-              <ZoomIn /> Aumentar zoom <span className="ml-auto text-[11px] text-fg-subtle">Ctrl +</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => scene?.zoomTo(scene.zoom / 1.25)}>
-              <ZoomOut /> Diminuir zoom <span className="ml-auto text-[11px] text-fg-subtle">Ctrl −</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => scene?.fit("page")}>
-              <Maximize /> Ajustar a página <span className="ml-auto text-[11px] text-fg-subtle">Shift 1</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => scene?.fit("all")}>Ver todas as páginas</DropdownMenuItem>
-            <DropdownMenuItem disabled={!selection.length} onSelect={() => scene?.fit("selection")}>
-              Ajustar à seleção <span className="ml-auto text-[11px] text-fg-subtle">Shift 2</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => scene?.zoomTo(1)}>
-              100% <span className="ml-auto text-[11px] text-fg-subtle">Shift 0</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>Precisão</DropdownMenuLabel>
-            <DropdownMenuCheckboxItem
-              checked={view.rulers}
-              onCheckedChange={(v) => store.setView({ rulers: v === true })}
+          </Tooltip>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="w-16 tabular-nums" aria-label="Zoom e visualização">
+                {zoomPct}%
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-60">
+              <DropdownMenuItem onSelect={() => scene?.zoomTo(scene.zoom * 1.25)}>
+                <ZoomIn /> Aumentar zoom <span className="ml-auto text-[11px] text-fg-subtle">Ctrl +</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => scene?.zoomTo(scene.zoom / 1.25)}>
+                <ZoomOut /> Diminuir zoom <span className="ml-auto text-[11px] text-fg-subtle">Ctrl −</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => scene?.fit("page")}>
+                <Maximize /> Ajustar a página <span className="ml-auto text-[11px] text-fg-subtle">Shift 1</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => scene?.fit("all")}>Ver todas as páginas</DropdownMenuItem>
+              <DropdownMenuItem disabled={!selection.length} onSelect={() => scene?.fit("selection")}>
+                Ajustar à seleção <span className="ml-auto text-[11px] text-fg-subtle">Shift 2</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => scene?.zoomTo(1)}>
+                100% <span className="ml-auto text-[11px] text-fg-subtle">Shift 0</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Precisão</DropdownMenuLabel>
+              <DropdownMenuCheckboxItem
+                checked={view.rulers}
+                onCheckedChange={(v) => store.setView({ rulers: v === true })}
+              >
+                Réguas
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={view.grid}
+                onCheckedChange={(v) => store.setView({ grid: v === true })}
+              >
+                Grade
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={view.snap}
+                onCheckedChange={(v) => store.setView({ snap: v === true })}
+              >
+                Alinhamento magnético
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Tooltip content="Aumentar zoom (Ctrl +)">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => scene?.zoomTo(scene.zoom * 1.25)}
+              disabled={!ready}
+              aria-label="Aumentar zoom"
             >
-              Réguas
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem checked={view.grid} onCheckedChange={(v) => store.setView({ grid: v === true })}>
-              Grade
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem checked={view.snap} onCheckedChange={(v) => store.setView({ snap: v === true })}>
-              Alinhamento magnético
-            </DropdownMenuCheckboxItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <ZoomIn />
+            </Button>
+          </Tooltip>
+        </div>
         {canWrite ? (
           // Entre 1024 e 1280 px o painel de propriedades vira gaveta, para o canvas não ficar apertado.
           <Tooltip content="Propriedades">
@@ -744,6 +776,17 @@ export function DesignEditor({
                 </Link>
               </DropdownMenuItem>
             ) : null}
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="flex items-center gap-1.5">
+              <Moon className="size-3.5" /> Aparência do editor
+            </DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={editorTheme}
+              onValueChange={(v) => setEditorTheme(v === "app" ? "app" : "dark")}
+            >
+              <DropdownMenuRadioItem value="dark">Escura</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="app">Igual ao aplicativo</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => setShortcutsOpen(true)}>
               <Keyboard /> Atalhos de teclado
@@ -1046,6 +1089,54 @@ function usePanelPref(key: string): [boolean, (v: boolean) => void] {
     },
     [key],
   );
+  return [value, set];
+}
+
+type EditorTheme = "dark" | "app";
+
+/**
+ * Aparência do editor (preferência deste navegador). "dark" aplica o tema escuro
+ * da plataforma só enquanto o editor está aberto — inclusive em menus e caixas
+ * de diálogo — e devolve o tema anterior ao sair.
+ */
+function useEditorTheme(): [EditorTheme, (v: EditorTheme) => void] {
+  const KEY = "editor:theme";
+  const value = useSyncExternalStore(
+    (fn) => {
+      window.addEventListener("storage", fn);
+      window.addEventListener(`pref:${KEY}`, fn);
+      return () => {
+        window.removeEventListener("storage", fn);
+        window.removeEventListener(`pref:${KEY}`, fn);
+      };
+    },
+    (): EditorTheme => {
+      try {
+        return window.localStorage.getItem(KEY) === "app" ? "app" : "dark";
+      } catch {
+        return "dark";
+      }
+    },
+    (): EditorTheme => "dark",
+  );
+  useEffect(() => {
+    if (value !== "dark") return;
+    const root = document.documentElement;
+    const previous = root.dataset.theme;
+    root.dataset.theme = "dark";
+    return () => {
+      if (previous) root.dataset.theme = previous;
+      else delete root.dataset.theme;
+    };
+  }, [value]);
+  const set = useCallback((v: EditorTheme) => {
+    try {
+      window.localStorage.setItem(KEY, v);
+    } catch {
+      // Sem armazenamento (navegação privada): vale só até recarregar.
+    }
+    window.dispatchEvent(new Event(`pref:${KEY}`));
+  }, []);
   return [value, set];
 }
 

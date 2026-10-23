@@ -30,7 +30,7 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     n: 1,
     date: "2026-10-22",
-    module: "Estúdio de Carrosséis",
+    module: "Estúdio Criador",
     title: "Canvas sempre visível no editor",
     description:
       "Painel lateral e painel de propriedades podem ser recolhidos (a preferência fica no aparelho). Com o assistente de IA aberto em telas menores, o painel lateral recolhe sozinho. Ao redimensionar, a visualização continua centralizada.",
@@ -42,7 +42,7 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     n: 2,
     date: "2026-10-22",
-    module: "Estúdio de Carrosséis",
+    module: "Estúdio Criador",
     title: "Miniaturas reais das páginas",
     description:
       "A lista de páginas do carrossel mostra a miniatura de cada página, nome em duas linhas e ações sobre a miniatura (sempre visíveis em telas de toque).",
@@ -54,7 +54,7 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     n: 3,
     date: "2026-10-22",
-    module: "Estúdio de Carrosséis",
+    module: "Estúdio Criador",
     title: "Importação de modelo por imagem com erros claros",
     description:
       "Importar modelo aceita JPG, PNG e WebP. Imagens grandes são reduzidas e recomprimidas no navegador antes do envio, com aviso do que foi feito. Formato inválido, arquivo vazio, imagem corrompida ou grande demais geram mensagem específica.",
@@ -69,7 +69,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     module: "Navegação",
     title: "Menu lateral profissional",
     description:
-      "Cabeçalho com logo e nome da plataforma, troca de organização, botão de recolher com dicas quando recolhido, contadores reais e nova ordem: Minhas demandas, Dashboard, Clientes, Biblioteca, Estúdio de Carrosséis, Criação com IA, Calendário, Redes sociais, Financeiro, Relatórios e Lixeira.",
+      "Cabeçalho com logo e nome da plataforma, troca de organização, botão de recolher com dicas quando recolhido, contadores reais e nova ordem: Minhas demandas, Dashboard, Clientes, Biblioteca, Estúdio Criador, Criação com IA, Calendário, Redes sociais, Financeiro, Relatórios e Lixeira.",
     fixed: "O menu não tinha identidade nem atalhos para o trabalho do dia; itens importantes ficavam escondidos.",
     status: "tested",
     tests: ["e2e/demands.spec.ts", "e2e/brand-radar.spec.ts e e2e/design-ai.spec.ts (títulos atualizados)"],
@@ -229,6 +229,35 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
     notes:
       "A preferência de esconder o botão e a posição do tour ficam no aparelho de quem vê; os passos vêm sempre do servidor.",
+  },
+  {
+    n: 17,
+    date: "2026-10-23",
+    module: "Estúdio Criador",
+    title: "Estúdio Criador: nova entrada com IA, formatos e galeria de modelos",
+    description:
+      "O Estúdio de Carrosséis passa a se chamar Estúdio Criador (menu, títulos, dashboard, guia). A página inicial ganha o destaque “Criar posts com IA” (abre o gerador real), os cartões “Novo vertical” (9:16) e “Novo post” (4:5, com opção de carrossel e quantidade de slides) e a seção “Comece com um modelo”, com os modelos da agência por categoria. A aba Modelos lista tudo com busca, filtros de categoria e formato, prévia com dados do modelo, “Usar modelo”, troca de categoria e carregamento progressivo.",
+    fixed:
+      "A entrada do Estúdio era uma lista plana de artes; os modelos ficavam escondidos na aba Templates, sem categorias, prévia nem formato visível.",
+    status: "tested",
+    tests: [
+      "tests/template-categories.test.ts — 4 testes (categorias, legado, formatos)",
+      "e2e/studio-home.spec.ts — início, prévia, filtros e criação rápida (desktop e celular)",
+      "e2e/template-library.spec.ts, e2e/editor.spec.ts e e2e/carousel-generator.spec.ts — fluxos existentes",
+    ],
+    notes: "Rotas (/studio) e registros (designs/templates) não mudaram; projetos salvos abrem como antes.",
+  },
+  {
+    n: 18,
+    date: "2026-10-23",
+    module: "Estúdio Criador",
+    title: "Editor: aparência escura, zoom no cabeçalho e faixa de slides",
+    description:
+      "O editor abre com aparência escura (troca em “Mais ações” → Aparência do editor) e devolve o tema do aplicativo ao sair. Botões − / + de zoom ao lado da porcentagem. No carrossel, cada prancheta mostra “Slide N”, o slide ativo tem “Duplicar” e uma prancheta tracejada “+” depois do último slide adiciona um novo.",
+    fixed: "Zoom só pelo menu ou atalho; para adicionar ou duplicar slides era preciso ir ao painel de páginas.",
+    status: "tested",
+    tests: ["e2e/studio-home.spec.ts — zoom, tema e faixa de slides", "e2e/editor.spec.ts — editor completo"],
+    notes: "Os menus e caixas de diálogo abertos no editor seguem a mesma aparência.",
   },
 ];
 

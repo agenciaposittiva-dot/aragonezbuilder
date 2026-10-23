@@ -1,7 +1,9 @@
-# Biblioteca de modelos prontos (Estúdio)
+# Biblioteca de modelos prontos (Estúdio Criador)
 
 Modelos editáveis que a agência adiciona aos próprios templates com um clique
-(Estúdio → Templates → **Biblioteca de modelos** → **Adicionar à agência**).
+(Estúdio Criador → Modelos → **Biblioteca de modelos** → **Adicionar à agência**).
+Depois de adicionados, os modelos aparecem na galeria por categoria (início do
+Estúdio Criador e aba Modelos), com prévia, formato e "Usar modelo".
 
 ## Quem vê
 
@@ -49,7 +51,9 @@ são copiados: textos, @, assinatura e imagens são de exemplo, para trocar.
 - Prefira fontes do Google Fonts. O editor carrega os pesos usados (inclusive
   fino, 100–300) antes de desenhar.
 - Declare as imagens de exemplo em `placeholders` (tipo e tamanho) e registre o
-  modelo em `index.ts`. Ao mudar um modelo publicado, suba `version`.
+  modelo em `index.ts`. Ao mudar um modelo publicado, suba `version`. A
+  `category` deve ser uma das categorias da galeria
+  (`src/lib/design-doc/template-categories.ts`); o teste confere.
 - Gere a miniatura (1ª página desenhada pelo editor, 320 × 400, JPEG) em
   `thumbnails.ts`.
 - Testes: `tests/template-library.test.ts` confere que todo modelo é válido,

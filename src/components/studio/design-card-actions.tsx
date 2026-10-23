@@ -73,7 +73,7 @@ export function DesignCardActions({
               </DropdownMenuItem>
               {canManageTemplates && !isTemplate ? (
                 <DropdownMenuItem onSelect={() => duplicate.run({ id, asTemplate: true })}>
-                  <LayoutTemplate /> Criar template a partir desta arte
+                  <LayoutTemplate /> Criar modelo a partir desta arte
                 </DropdownMenuItem>
               ) : null}
               {canManage ? (

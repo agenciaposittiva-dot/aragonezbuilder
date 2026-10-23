@@ -39,7 +39,7 @@ export default async function GenerateCarouselPage({ params, searchParams }: Pag
         actions={
           <Button asChild variant="ghost">
             <Link href={`/w/${actor.orgSlug}/studio`}>
-              <ArrowLeft /> Estúdio
+              <ArrowLeft /> Estúdio Criador
             </Link>
           </Button>
         }

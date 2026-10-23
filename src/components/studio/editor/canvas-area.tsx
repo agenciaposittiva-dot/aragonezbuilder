@@ -9,6 +9,7 @@ import {
   Minus,
   MousePointer2,
   PenLine,
+  Plus,
   Square,
   Type,
 } from "lucide-react";
@@ -169,7 +170,7 @@ export function CanvasArea({
       {rulers ? <Rulers scene={scene} store={store} /> : null}
       <div className="absolute" style={{ left: rulers ? RULER : 0, top: rulers ? RULER : 0, right: 0, bottom: 0 }}>
         <canvas ref={canvasRef} />
-        <PageLabels scene={scene} store={store} />
+        <PageLabels scene={scene} store={store} actions={actions} canWrite={canWrite} />
       </div>
       {!ready ? (
         <p className="absolute inset-0 flex items-center justify-center text-sm text-fg-muted">Carregando editor…</p>
@@ -378,42 +379,93 @@ function Rulers({ scene, store }: { scene: Scene | null; store: EditorStore }) {
 /* Nomes das páginas sobre o canvas                                    */
 /* ------------------------------------------------------------------ */
 
-function PageLabels({ scene, store }: { scene: Scene | null; store: EditorStore }) {
+function PageLabels({
+  scene,
+  store,
+  actions,
+  canWrite,
+}: {
+  scene: Scene | null;
+  store: EditorStore;
+  actions: EditorActions;
+  canWrite: boolean;
+}) {
   useViewport(scene);
   const doc = useEditor(store, (s) => s.doc);
   const active = useEditor(store, (s) => s.activePageId);
-  if (!scene || doc.pages.length < 2) return null;
+  if (!scene || !scene.pages.length) return null;
   const v = scene.viewport();
   const carousel = !!doc.meta?.carousel;
+  const last = scene.pages[scene.pages.length - 1]!;
+  // Prancheta tracejada depois do último slide: adiciona um slide no fim (como a referência de carrosséis).
+  const addLeft = (last.x + last.width) * v.zoom + v.x + 24;
+  const addTop = last.y * v.zoom + v.y;
+  const addWidth = Math.min(180, Math.max(64, last.width * v.zoom * 0.45));
+  const addHeight = Math.max(80, last.height * v.zoom);
+  const showAdd = carousel && canWrite && addLeft < v.width && addTop + addHeight > 0 && addTop < v.height;
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
-      {scene.pages.map((r) => {
-        const page = doc.pages[r.index];
-        if (!page) return null;
-        const left = r.x * v.zoom + v.x;
-        const top = r.y * v.zoom + v.y - 22;
-        const width = r.width * v.zoom;
-        if (left + width < 0 || left > v.width) return null;
-        return (
-          <button
-            key={r.id}
-            type="button"
-            onClick={() => {
-              store.setSelection([]);
-              store.setActivePage(r.id);
-            }}
-            className={cn(
-              "pointer-events-auto absolute truncate rounded px-1 text-left text-[11px] font-medium",
-              r.id === active ? "text-accent-text" : "text-fg-muted hover:text-fg",
-            )}
-            style={{ left, top: Math.max(2, top), maxWidth: Math.max(40, width) }}
-            title={page.name}
-          >
-            {carousel ? `${r.index + 1} · ` : ""}
-            {page.name}
-          </button>
-        );
-      })}
+      {doc.pages.length >= 2
+        ? scene.pages.map((r) => {
+            const page = doc.pages[r.index];
+            if (!page) return null;
+            const left = r.x * v.zoom + v.x;
+            const top = r.y * v.zoom + v.y - 22;
+            const width = r.width * v.zoom;
+            if (left + width < 0 || left > v.width) return null;
+            const isActive = r.id === active;
+            return (
+              <div
+                key={r.id}
+                className="pointer-events-auto absolute flex items-center gap-1"
+                style={{ left, top: Math.max(2, top), maxWidth: Math.max(40, width) }}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    store.setSelection([]);
+                    store.setActivePage(r.id);
+                  }}
+                  className={cn(
+                    "flex min-w-0 items-center gap-1.5 truncate rounded px-1 text-left text-[11px] font-medium",
+                    isActive ? "text-accent-text" : "text-fg-muted hover:text-fg",
+                  )}
+                  title={page.name}
+                  data-testid="page-label"
+                  data-active={isActive ? "true" : "false"}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={cn("size-1.5 shrink-0 rounded-full", isActive ? "bg-accent" : "bg-border-strong")}
+                  />
+                  {carousel ? `Slide ${r.index + 1}` : page.name}
+                </button>
+                {carousel && canWrite && isActive && width > 120 ? (
+                  <button
+                    type="button"
+                    onClick={() => actions.duplicatePage(r.id)}
+                    className="shrink-0 rounded bg-surface-2 px-1.5 py-px text-[10px] font-medium text-fg-muted hover:bg-surface hover:text-fg"
+                    aria-label={`Duplicar slide ${r.index + 1}`}
+                  >
+                    Duplicar
+                  </button>
+                ) : null}
+              </div>
+            );
+          })
+        : null}
+      {showAdd ? (
+        <button
+          type="button"
+          onClick={() => actions.addPage(last.id)}
+          aria-label="Adicionar slide"
+          data-testid="add-slide"
+          className="pointer-events-auto absolute flex items-center justify-center rounded-md border-2 border-dashed border-border-strong/70 text-fg-subtle transition-colors hover:border-accent hover:text-fg focus-visible:border-accent focus-visible:outline-none"
+          style={{ left: addLeft, top: addTop, width: addWidth, height: addHeight }}
+        >
+          <Plus className="size-5" aria-hidden="true" />
+        </button>
+      ) : null}
     </div>
   );
 }

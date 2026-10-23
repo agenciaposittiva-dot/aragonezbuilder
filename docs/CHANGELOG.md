@@ -6,6 +6,31 @@ Publicação em produção depende da implantação de cada ambiente.
 
 `tests/changelog.test.ts` confere que os dois registros estão iguais e que os testes citados existem.
 
+## #18 — Editor: aparência escura, zoom no cabeçalho e faixa de slides
+
+- **Data:** 2026-10-23
+- **Módulo:** Estúdio Criador
+- **Status:** Implementado e testado
+- **Descrição:** O editor abre com aparência escura (troca em “Mais ações” → Aparência do editor) e devolve o tema do aplicativo ao sair. Botões − / + de zoom ao lado da porcentagem. No carrossel, cada prancheta mostra “Slide N”, o slide ativo tem “Duplicar” e uma prancheta tracejada “+” depois do último slide adiciona um novo.
+- **Problema resolvido:** Zoom só pelo menu ou atalho; para adicionar ou duplicar slides era preciso ir ao painel de páginas.
+- **Testes executados:**
+  - e2e/studio-home.spec.ts — zoom, tema e faixa de slides
+  - e2e/editor.spec.ts — editor completo
+- **Observações:** Os menus e caixas de diálogo abertos no editor seguem a mesma aparência.
+
+## #17 — Estúdio Criador: nova entrada com IA, formatos e galeria de modelos
+
+- **Data:** 2026-10-23
+- **Módulo:** Estúdio Criador
+- **Status:** Implementado e testado
+- **Descrição:** O Estúdio de Carrosséis passa a se chamar Estúdio Criador (menu, títulos, dashboard, guia). A página inicial ganha o destaque “Criar posts com IA” (abre o gerador real), os cartões “Novo vertical” (9:16) e “Novo post” (4:5, com opção de carrossel e quantidade de slides) e a seção “Comece com um modelo”, com os modelos da agência por categoria. A aba Modelos lista tudo com busca, filtros de categoria e formato, prévia com dados do modelo, “Usar modelo”, troca de categoria e carregamento progressivo.
+- **Problema resolvido:** A entrada do Estúdio era uma lista plana de artes; os modelos ficavam escondidos na aba Templates, sem categorias, prévia nem formato visível.
+- **Testes executados:**
+  - tests/template-categories.test.ts — 4 testes (categorias, legado, formatos)
+  - e2e/studio-home.spec.ts — início, prévia, filtros e criação rápida (desktop e celular)
+  - e2e/template-library.spec.ts, e2e/editor.spec.ts e e2e/carousel-generator.spec.ts — fluxos existentes
+- **Observações:** Rotas (/studio) e registros (designs/templates) não mudaram; projetos salvos abrem como antes.
+
 ## #16 — Me guie: primeiros passos, dicas da tela e tour
 
 - **Data:** 2026-10-22
@@ -147,7 +172,7 @@ Publicação em produção depende da implantação de cada ambiente.
 - **Data:** 2026-10-22
 - **Módulo:** Navegação
 - **Status:** Implementado e testado
-- **Descrição:** Cabeçalho com logo e nome da plataforma, troca de organização, botão de recolher com dicas quando recolhido, contadores reais e nova ordem: Minhas demandas, Dashboard, Clientes, Biblioteca, Estúdio de Carrosséis, Criação com IA, Calendário, Redes sociais, Financeiro, Relatórios e Lixeira.
+- **Descrição:** Cabeçalho com logo e nome da plataforma, troca de organização, botão de recolher com dicas quando recolhido, contadores reais e nova ordem: Minhas demandas, Dashboard, Clientes, Biblioteca, Estúdio Criador, Criação com IA, Calendário, Redes sociais, Financeiro, Relatórios e Lixeira.
 - **Problema resolvido:** O menu não tinha identidade nem atalhos para o trabalho do dia; itens importantes ficavam escondidos.
 - **Testes executados:**
   - e2e/demands.spec.ts
@@ -157,7 +182,7 @@ Publicação em produção depende da implantação de cada ambiente.
 ## #3 — Importação de modelo por imagem com erros claros
 
 - **Data:** 2026-10-22
-- **Módulo:** Estúdio de Carrosséis
+- **Módulo:** Estúdio Criador
 - **Status:** Implementado e testado
 - **Descrição:** Importar modelo aceita JPG, PNG e WebP. Imagens grandes são reduzidas e recomprimidas no navegador antes do envio, com aviso do que foi feito. Formato inválido, arquivo vazio, imagem corrompida ou grande demais geram mensagem específica.
 - **Problema resolvido:** Falhas na importação de JPG apareciam como erro genérico (ou resposta não-JSON do servidor) sem dizer o motivo. Nenhuma mensagem pede para excluir projetos.
@@ -167,7 +192,7 @@ Publicação em produção depende da implantação de cada ambiente.
 ## #2 — Miniaturas reais das páginas
 
 - **Data:** 2026-10-22
-- **Módulo:** Estúdio de Carrosséis
+- **Módulo:** Estúdio Criador
 - **Status:** Implementado e testado
 - **Descrição:** A lista de páginas do carrossel mostra a miniatura de cada página, nome em duas linhas e ações sobre a miniatura (sempre visíveis em telas de toque).
 - **Problema resolvido:** Os nomes das páginas eram espremidos pelos botões e não havia prévia do conteúdo.
@@ -178,7 +203,7 @@ Publicação em produção depende da implantação de cada ambiente.
 ## #1 — Canvas sempre visível no editor
 
 - **Data:** 2026-10-22
-- **Módulo:** Estúdio de Carrosséis
+- **Módulo:** Estúdio Criador
 - **Status:** Implementado e testado
 - **Descrição:** Painel lateral e painel de propriedades podem ser recolhidos (a preferência fica no aparelho). Com o assistente de IA aberto em telas menores, o painel lateral recolhe sozinho. Ao redimensionar, a visualização continua centralizada.
 - **Problema resolvido:** Em 1024 px com o assistente de IA aberto, o canvas ficava com cerca de 380 px de largura. Agora fica com 636 px; em 1280 px, com os dois painéis recolhidos, 1232 px.

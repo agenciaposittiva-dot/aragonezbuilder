@@ -61,10 +61,11 @@ const SCREENS: ScreenTips[] = [
   },
   {
     match: (p) => p === "/studio",
-    title: "Estúdio de Carrosséis",
+    title: "Estúdio Criador",
     tips: [
-      "“Gerar carrossel com IA” cria as páginas a partir de um tema.",
-      "“Importar JPG/PNG” transforma uma imagem em modelo editável.",
+      "“Criar posts com IA” gera um carrossel editável a partir do tema, do objetivo e do estilo.",
+      "“Novo vertical” (9:16) e “Novo post” (4:5) abrem o editor já no formato certo.",
+      "Em “Comece com um modelo”, use a prévia ou “Usar modelo”; a aba Modelos filtra por categoria e formato.",
     ],
   },
   {
@@ -74,6 +75,7 @@ const SCREENS: ScreenTips[] = [
       "Recolha o painel lateral ou o de propriedades para ampliar o canvas.",
       "A lista de páginas mostra a miniatura de cada uma; passe o mouse para duplicar ou excluir.",
       "As alterações são salvas automaticamente; o indicador no topo mostra o estado.",
+      "No carrossel, “Duplicar” e o quadro tracejado “+” criam slides; a aparência escura pode ser trocada em “Mais ações”.",
     ],
   },
   {
@@ -133,7 +135,7 @@ export const TOUR: TourStop[] = [
     permission: "clients.read",
   },
   {
-    title: "Estúdio de Carrosséis",
+    title: "Estúdio Criador",
     text: "Crie artes e carrosséis do zero, de modelos prontos, de uma imagem ou com IA.",
     path: "/studio",
     permission: "designs.read",
