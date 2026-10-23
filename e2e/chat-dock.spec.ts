@@ -83,8 +83,12 @@ test.describe("chat flutuante", () => {
     }
 
     const frame = frameOf(page);
-    await frame.getByRole("button", { name: "Nova conversa" }).click({ timeout: 60_000 });
     const dialog = frame.getByRole("dialog");
+    // O botão existe antes de o chat da janela hidratar: insiste até a caixa abrir.
+    await expect(async () => {
+      await frame.getByRole("button", { name: "Nova conversa" }).click({ timeout: 10_000 });
+      await expect(dialog).toBeVisible({ timeout: 2000 });
+    }).toPass({ timeout: 60_000 });
     await dialog.getByRole("tab", { name: "Pessoa" }).click();
     await dialog.getByRole("option", { name: /Rafael Nunes/ }).click();
     await dialog.getByRole("button", { name: "Conversar" }).click();
@@ -171,7 +175,8 @@ test.describe("chat flutuante", () => {
     const href = await page.locator(`ul a[href^="${ORG}/studio/"]`).first().getAttribute("href");
     await page.goto(href!);
     await expect(page.locator("[data-editor-ready=true]")).toBeVisible({ timeout: 60_000 });
-    await page.getByTestId("chat-dock-button").click();
+    // O cabeçalho da área da equipe fica atrás do editor: o botão certo é o do editor.
+    await page.getByTestId("design-editor").getByTestId("chat-dock-button").click();
     const dock = page.getByTestId("chat-dock");
     await expect(dock).toBeVisible();
     await expect(frameOf(page).getByRole("button", { name: "Nova conversa" })).toBeVisible({ timeout: 60_000 });
