@@ -35,7 +35,7 @@ export default async function PortalProjectPage({ params }: PageProps<"/portal/[
   const showProgress = actor.settings.portal.showProjectProgress;
   const pct = tasks.total ? Math.round((tasks.done / tasks.total) * 100) : 0;
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <div>
         <Breadcrumbs items={[{ label: "Projetos", href: `${portal.base}/projects` }, { label: project.name }]} />
         <div className="flex flex-wrap items-center gap-3">
@@ -45,8 +45,8 @@ export default async function PortalProjectPage({ params }: PageProps<"/portal/[
         </div>
         {project.objective ? <p className="mt-1 text-sm text-fg-muted">{project.objective}</p> : null}
       </div>
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
-        <div className="grid content-start gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
+        <div className="grid grid-cols-1 content-start gap-6">
           {showProgress ? (
             <Card>
               <CardHeader>

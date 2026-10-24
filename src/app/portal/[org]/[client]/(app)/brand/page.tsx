@@ -29,7 +29,7 @@ export default async function PortalBrandPage({ params }: PageProps<"/portal/[or
           <EmptyState icon={Palette} title="Nenhuma marca disponível" />
         </div>
       ) : (
-        <div className="grid gap-6">
+        <div className="grid grid-cols-1 gap-6">
           {brands.map(({ name, brand }) => (
             <section key={name} className="grid gap-4">
               {brands.length > 1 ? <h2 className="text-base font-semibold">{name}</h2> : null}
@@ -54,7 +54,7 @@ export default async function PortalBrandPage({ params }: PageProps<"/portal/[or
                     ))}
                   </CardContent>
                 </Card>
-                <div className="grid content-start gap-6">
+                <div className="grid grid-cols-1 content-start gap-6">
                   <Card>
                     <CardHeader>
                       <CardTitle>Cores</CardTitle>

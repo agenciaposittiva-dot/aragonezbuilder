@@ -51,7 +51,7 @@ export default async function PortalFileDetailPage({ params }: PageProps<"/porta
   const base = portal.base;
 
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <div>
         <Breadcrumbs items={[{ label: "Materiais", href: `${base}/files` }, { label: file.name }]} />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -95,7 +95,7 @@ export default async function PortalFileDetailPage({ params }: PageProps<"/porta
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,340px)]">
-        <div className="grid min-w-0 content-start gap-6">
+        <div className="grid min-w-0 grid-cols-1 content-start gap-6">
           {current ? <FilePreview versionId={current.id} mimeType={current.mimeType} name={file.name} /> : null}
           <ApprovalsPanel
             fileId={file.id}
@@ -116,7 +116,7 @@ export default async function PortalFileDetailPage({ params }: PageProps<"/porta
             </CardContent>
           </Card>
         </div>
-        <div className="grid content-start gap-6">
+        <div className="grid grid-cols-1 content-start gap-6">
           {file.description ? (
             <Card>
               <CardHeader>

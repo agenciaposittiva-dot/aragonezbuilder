@@ -140,7 +140,7 @@ export default async function PortalHomePage({ params }: PageProps<"/portal/[org
   const hasContact = !!(contact.name || contact.email || contact.phone || contact.whatsapp || contact.hours);
 
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       {sec.banner && settings.banner.enabled ? (
         <PortalBanner
           settings={settings}
@@ -206,8 +206,8 @@ export default async function PortalHomePage({ params }: PageProps<"/portal/[org
         </StatGrid>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
-        <div className="grid min-w-0 content-start gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
+        <div className="grid min-w-0 grid-cols-1 content-start gap-6">
           {canApprove && sec.approvals ? (
             <Card>
               <CardHeader>
@@ -257,7 +257,7 @@ export default async function PortalHomePage({ params }: PageProps<"/portal/[org
           ) : null}
         </div>
 
-        <div className="grid content-start gap-6">
+        <div className="grid grid-cols-1 content-start gap-6">
           {data.requests && sec.requests ? (
             <Card>
               <CardHeader>

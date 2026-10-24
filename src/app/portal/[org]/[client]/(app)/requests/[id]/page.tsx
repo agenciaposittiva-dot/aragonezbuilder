@@ -53,7 +53,7 @@ export default async function PortalRequestDetailPage({ params }: PageProps<"/po
   ];
 
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <div>
         <Breadcrumbs items={[{ label: "Solicitações", href: `${base}/requests` }, { label: `#${r.number}` }]} />
         <div className="flex flex-wrap items-center gap-2">
@@ -71,7 +71,7 @@ export default async function PortalRequestDetailPage({ params }: PageProps<"/po
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)]">
-        <div className="grid min-w-0 content-start gap-6">
+        <div className="grid min-w-0 grid-cols-1 content-start gap-6">
           {r.status === "draft" ? (
             <div className="rounded-lg border border-warning/30 bg-warning-soft px-4 py-3 text-sm">
               Este rascunho ainda não foi enviado. A agência só recebe a solicitação depois que você clicar em{" "}
@@ -134,7 +134,7 @@ export default async function PortalRequestDetailPage({ params }: PageProps<"/po
             </CardContent>
           </Card>
         </div>
-        <div className="grid content-start gap-6">
+        <div className="grid grid-cols-1 content-start gap-6">
           {isAuthor && ["draft", "submitted"].includes(r.status) ? (
             <Card>
               <CardHeader>

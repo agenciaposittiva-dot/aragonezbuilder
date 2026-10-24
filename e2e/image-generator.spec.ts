@@ -76,7 +76,7 @@ async function closeSheet(page: Page) {
   if (!isMobile(page)) return;
   const dlg = page.getByRole("dialog");
   if (await dlg.isVisible().catch(() => false)) {
-    await dlg.getByRole("button", { name: "Fechar" }).click();
+    await dlg.getByRole("button", { name: "Fechar", exact: true }).click();
     await expect(dlg).toBeHidden();
   }
 }
