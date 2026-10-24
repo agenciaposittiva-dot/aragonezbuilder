@@ -85,7 +85,10 @@ async function closeSheet(page: Page) {
 async function openGenerator(page: Page): Promise<Locator> {
   if (isMobile(page)) {
     await closeSheet(page);
-    await page.getByRole("navigation", { name: "Ferramentas" }).getByRole("button", { name: "Imagem", exact: true }).click();
+    await page
+      .getByRole("navigation", { name: "Ferramentas" })
+      .getByRole("button", { name: "Imagem", exact: true })
+      .click();
     const dlg = page.getByRole("dialog");
     await dlg.getByTestId("open-image-generator").click();
     await expect(dlg.getByTestId("image-generator")).toBeVisible();
@@ -103,26 +106,32 @@ async function openGenerator(page: Page): Promise<Locator> {
 /** Fecha o painel: gaveta no celular; no computador, abre outro painel no lugar. */
 async function closeGenerator(page: Page) {
   if (isMobile(page)) return closeSheet(page);
-  await page.getByRole("navigation", { name: "Painéis do editor" }).getByRole("button", { name: "Fotos", exact: true }).click();
+  await page
+    .getByRole("navigation", { name: "Painéis do editor" })
+    .getByRole("button", { name: "Fotos", exact: true })
+    .click();
   await expect(page.getByTestId("editor-left-panel").getByTestId("image-generator")).toHaveCount(0);
 }
 
-/** Ativa uma página pelo painel de Camadas. */
+/** Ativa uma página pelo painel de Camadas (clique no nome, à esquerda das ações que aparecem no hover). */
 async function activatePage(page: Page, name: string) {
+  const row = (root: Locator) => root.getByTestId("pages-list").getByRole("button", { name: new RegExp(`^${name}`) });
   if (isMobile(page)) {
     await closeSheet(page);
-    await page.getByRole("navigation", { name: "Ferramentas" }).getByRole("button", { name: "Camadas", exact: true }).click();
+    await page
+      .getByRole("navigation", { name: "Ferramentas" })
+      .getByRole("button", { name: "Camadas", exact: true })
+      .click();
     const dlg = page.getByRole("dialog");
-    await dlg.getByTestId("pages-list").getByRole("button", { name: new RegExp(`^${name}`) }).click();
+    await row(dlg).click({ position: { x: 8, y: 8 } });
     await closeSheet(page);
     return;
   }
-  await page.getByRole("navigation", { name: "Painéis do editor" }).getByRole("button", { name: "Camadas", exact: true }).click();
   await page
-    .getByTestId("editor-left-panel")
-    .getByTestId("pages-list")
-    .getByRole("button", { name: new RegExp(`^${name}`) })
+    .getByRole("navigation", { name: "Painéis do editor" })
+    .getByRole("button", { name: "Camadas", exact: true })
     .click();
+  await row(page.getByTestId("editor-left-panel")).click({ position: { x: 8, y: 8 } });
 }
 
 const toast = (page: Page, text: string) => page.locator("[data-sonner-toast]").filter({ hasText: text });
@@ -328,7 +337,13 @@ test.describe("gerar imagem no editor", () => {
     await page.reload();
     await editorReady(page);
     expect((await images(page, 0)).map((o) => [o.src, o.width, o.height])).toEqual([[srcA, 480, 320]]);
-    expect((await objects(page, 1))[0]).toMatchObject({ id: bg.id, type: "image", src: srcA, width: 1080, height: 1080 });
+    expect((await objects(page, 1))[0]).toMatchObject({
+      id: bg.id,
+      type: "image",
+      src: srcA,
+      width: 1080,
+      height: 1080,
+    });
     await expectNoHorizontalScroll(page);
   });
 });

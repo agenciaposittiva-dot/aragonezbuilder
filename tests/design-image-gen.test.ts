@@ -128,7 +128,11 @@ describe("gerar imagem no editor — regras puras", () => {
     expect(cropToRatio({ w: 1024, h: 1536 }, { w: 9, h: 16 })).toEqual({ width: 864, height: 1536, left: 80, top: 0 });
     expect(cropToRatio({ w: 1536, h: 1024 }, { w: 16, h: 9 })).toEqual({ width: 1536, height: 864, left: 0, top: 80 });
     expect(cropToRatio({ w: 1024, h: 1024 }, { w: 1, h: 1 })).toEqual({ width: 1024, height: 1024, left: 0, top: 0 });
-    expect(outputSizeFor({ w: 1080, h: 1350 }, sizes)).toEqual({ base: { w: 1024, h: 1536 }, width: 1024, height: 1280 });
+    expect(outputSizeFor({ w: 1080, h: 1350 }, sizes)).toEqual({
+      base: { w: 1024, h: 1536 },
+      width: 1024,
+      height: 1280,
+    });
     // A OpenAI não tem prompt negativo nem mais de 4 variações por vez nesta integração.
     expect(IMAGE_PROVIDER_OPTIONS.openai).toMatchObject({ negativePrompt: false, maxVariations: 4 });
     expect(Object.keys(IMAGE_PROVIDER_OPTIONS.openai!.qualities!)).toEqual(["auto", "low", "medium", "high"]);
@@ -140,7 +144,9 @@ describe("gerar imagem no editor — regras puras", () => {
     expect(full.startsWith(PROMPT)).toBe(true);
     expect(full).toContain("Estilo: Fotografia publicitária");
     expect(full.endsWith("Contexto: slide 1")).toBe(true);
-    expect(buildImagePrompt({ prompt: PROMPT, style: "none", negativePrompt: "texto" })).toBe(`${PROMPT}\n\nEvite: texto`);
+    expect(buildImagePrompt({ prompt: PROMPT, style: "none", negativePrompt: "texto" })).toBe(
+      `${PROMPT}\n\nEvite: texto`,
+    );
   });
 
   it("contexto do slide e do carrossel: textos, sequência, imagens anteriores e identidade", () => {
@@ -167,7 +173,9 @@ describe("gerar imagem no editor — regras puras", () => {
         avoid: "cores neon",
       },
     })!;
-    expect(all).toContain("Sequência dos slides: 1. \"Lançamento Noite Âmbar\" → 2. \"Fixação de 12 horas\" → 3. \"Garanta o seu\"");
+    expect(all).toContain(
+      'Sequência dos slides: 1. "Lançamento Noite Âmbar" → 2. "Fixação de 12 horas" → 3. "Garanta o seu"',
+    );
     expect(all).toContain("Imagens já geradas nesta arte");
     expect(all).toContain("Frasco âmbar em fundo escuro");
     expect(all).toContain("cores #111111, #C9A227");
@@ -177,7 +185,12 @@ describe("gerar imagem no editor — regras puras", () => {
   it("inserção: elemento centralizado em 80 % da página, fundo cobrindo a página e substituição mantendo a caixa", () => {
     const doc = carousel() as unknown as DesignDocument;
     const page = doc.pages[1]!;
-    const image = { src: fileSrc("22222222-2222-4222-8222-222222222222"), width: 1024, height: 1280, name: "IA: frasco" };
+    const image = {
+      src: fileSrc("22222222-2222-4222-8222-222222222222"),
+      width: 1024,
+      height: 1280,
+      name: "IA: frasco",
+    };
 
     const el = insertImageOps(page, image, "element");
     const withEl = applyOperations(doc, el.ops).doc;
@@ -202,7 +215,15 @@ describe("gerar imagem no editor — regras puras", () => {
     const rep = insertImageOps(page, image, "replace", "i1");
     const withRep = applyOperations(doc, rep.ops).doc;
     const r = locate(withRep, "i1")!.object as ImageObject;
-    expect(r).toMatchObject({ src: image.src, naturalWidth: 1024, naturalHeight: 1280, x: 90, y: 500, width: 400, height: 300 });
+    expect(r).toMatchObject({
+      src: image.src,
+      naturalWidth: 1024,
+      naturalHeight: 1280,
+      x: 90,
+      y: 500,
+      width: 400,
+      height: 300,
+    });
     expect(r.crop).not.toBeNull();
     expect(() => insertImageOps(page, image, "replace")).toThrow(/Selecione/);
     // A operação inversa remove o que foi inserido (desfazer).
@@ -282,9 +303,9 @@ describe("gerar imagem no editor — serviço", () => {
 
   it("prepara com o modelo de imagem da conta; opções fora do provedor e contexto sem autorização são recusados", async () => {
     // Contexto de uma arte de cliente sem a política liberada: recusado antes de gastar.
-    const blocked = await as(real.actor, (s) =>
-      prepareDesignImageGeneration(s, { ...base(), context: "slide" }),
-    ).catch((e: unknown) => e);
+    const blocked = await as(real.actor, (s) => prepareDesignImageGeneration(s, { ...base(), context: "slide" })).catch(
+      (e: unknown) => e,
+    );
     expect(blocked).toBeInstanceOf(ValidationError);
     expect((blocked as Error).message).toBe(POLICY_MESSAGE);
 
@@ -313,7 +334,9 @@ describe("gerar imagem no editor — serviço", () => {
       as(real.actor, (s) => prepareDesignImageGeneration(s, { ...base(), negativePrompt: "texto" })),
     ).rejects.toThrow(/instruções negativas/);
     await expect(
-      as(real.actor, (s) => prepareDesignImageGeneration(s, { ...base(), format: "custom", customRatio: { w: 4, h: 1 } })),
+      as(real.actor, (s) =>
+        prepareDesignImageGeneration(s, { ...base(), format: "custom", customRatio: { w: 4, h: 1 } }),
+      ),
     ).rejects.toThrow(/Proporção inválida/);
     await expect(
       as(real.actor, (s) => prepareDesignImageGeneration(s, { ...base(), variations: 7 })),
@@ -359,24 +382,40 @@ describe("gerar imagem no editor — serviço", () => {
     const started = Date.now();
     const output = await prepared.run();
     const call = mock.generationCalls().find((c) => c.url.endsWith("/v1/images/generations"))!;
-    expect(call.body).toMatchObject({ model: "gpt-image-1", size: "1024x1536", n: 2, quality: "high", output_format: "png" });
+    expect(call.body).toMatchObject({
+      model: "gpt-image-1",
+      size: "1024x1536",
+      n: 2,
+      quality: "high",
+      output_format: "png",
+    });
     expect(String(call.body!.prompt)).toContain("Estilo: Fotografia publicitária");
     expect(output.images).toHaveLength(2);
 
     const result = await as(real.actor, (s) => saveDesignImageGeneration(s, prepared, output, Date.now() - started));
     expect(result.images).toHaveLength(2);
-    expect(result).toMatchObject({ provider: "openai", model: "gpt-image-1", ratio: "4:5", contextUsed: true, pageId: "p2" });
+    expect(result).toMatchObject({
+      provider: "openai",
+      model: "gpt-image-1",
+      ratio: "4:5",
+      contextUsed: true,
+      pageId: "p2",
+    });
     for (const img of result.images) {
       expect(img.src).toBe(fileSrc(img.versionId));
       expect([img.width, img.height]).toEqual([1024, 1280]);
       const [file] = await withSystem((tx) => tx.select().from(files).where(eq(files.id, img.fileId)));
       expect(file).toMatchObject({ clientId, projectId, category: "general" });
       expect(file!.tags).toEqual(expect.arrayContaining(["ia", "estudio"]));
-      const [version] = await withSystem((tx) => tx.select().from(fileVersions).where(eq(fileVersions.id, img.versionId)));
+      const [version] = await withSystem((tx) =>
+        tx.select().from(fileVersions).where(eq(fileVersions.id, img.versionId)),
+      );
       expect(version).toMatchObject({ source: "ai", width: 1024, height: 1280, mimeType: "image/png" });
       expect(version!.note).toBe(imageNote("gpt-image-1", "Carrossel Noite Âmbar", PROMPT));
     }
-    const [gen] = await withSystem((tx) => tx.select().from(aiGenerations).where(eq(aiGenerations.id, result.generationId)));
+    const [gen] = await withSystem((tx) =>
+      tx.select().from(aiGenerations).where(eq(aiGenerations.id, result.generationId)),
+    );
     expect(gen).toMatchObject({ kind: "image_generate", provider: "openai", model: "gpt-image-1", clientId });
     expect(gen!.input).toMatchObject({ designId, pageId: "p2", prompt: PROMPT, variations: 2, format: "portrait" });
     const [usage] = await withSystem((tx) => tx.select().from(aiUsage).where(eq(aiUsage.id, gen!.usageId!)));
@@ -411,7 +450,7 @@ describe("gerar imagem no editor — serviço", () => {
     expect(locate(reopened, el.id)!.pageId).toBe("p2");
     const fundo = reopened.pages[2]!.objects[0] as ImageObject;
     expect(fundo).toMatchObject({ id: bg.id, src: second.src, x: 0, y: 0, width: 1080, height: 1350 });
-    expect((locate(reopened, "i1")!.object as ImageObject)).toMatchObject({ src: second.src, width: 400, height: 300 });
+    expect(locate(reopened, "i1")!.object as ImageObject).toMatchObject({ src: second.src, width: 400, height: 300 });
     // Os textos do slide continuam intactos.
     expect(locate(reopened, "t3")?.object).toEqual(locate(before, "t3")?.object);
 
@@ -506,19 +545,25 @@ describe("gerar imagem no editor — serviço", () => {
     expect(d.prompt).toContain("Exemplo da demonstração");
     expect(d.contextUsed).toBe(true);
 
-    mock.state.reply = JSON.stringify({ prompt: `${PROMPT}, luz lateral suave, lente 85 mm, fundo escuro com reflexos.` });
+    mock.state.reply = JSON.stringify({
+      prompt: `${PROMPT}, luz lateral suave, lente 85 mm, fundo escuro com reflexos.`,
+    });
     const r = await enhanceImagePrompt(real.actor, { designId, prompt: PROMPT, style: "photographic" });
     expect(r.demo).toBe(false);
     expect(r.prompt).toContain("lente 85 mm");
     expect(r.model).toBe("claude-sonnet-5-5");
     const call = mock.generationCalls().find((c) => c.url.includes("/v1/messages"))!;
     expect(JSON.stringify(call.body)).toContain("Formato da resposta: image_prompt");
-    const gens = await withSystem((tx) => tx.select().from(aiGenerations).where(eq(aiGenerations.kind, "image_prompt")));
+    const gens = await withSystem((tx) =>
+      tx.select().from(aiGenerations).where(eq(aiGenerations.kind, "image_prompt")),
+    );
     expect(gens.map((g) => g.provider).sort()).toEqual(["anthropic", "demo"]);
   });
 
   it("imagens de outra origem não entram na biblioteca de geradas", async () => {
-    const png = await sharp({ create: { width: 8, height: 8, channels: 3, background: "#fff" } }).png().toBuffer();
+    const png = await sharp({ create: { width: 8, height: 8, channels: 3, background: "#fff" } })
+      .png()
+      .toBuffer();
     await as(real.actor, (s) =>
       storeUpload(s, { buffer: png, originalName: "enviada.png" }, { clientId, category: "general", source: "upload" }),
     );

@@ -82,7 +82,8 @@ export const IMAGE_STYLES = {
   },
   cinematic: {
     label: "Cinematográfico",
-    prompt: "Estética cinematográfica, iluminação dramática com contraste controlado, paleta coesa e atmosfera de filme.",
+    prompt:
+      "Estética cinematográfica, iluminação dramática com contraste controlado, paleta coesa e atmosfera de filme.",
   },
   editorial: {
     label: "Editorial",
@@ -106,7 +107,8 @@ export const IMAGE_STYLES = {
   },
   advertising: {
     label: "Publicitário",
-    prompt: "Fotografia publicitária de campanha premium, produto em destaque, iluminação de estúdio e acabamento comercial impecável.",
+    prompt:
+      "Fotografia publicitária de campanha premium, produto em destaque, iluminação de estúdio e acabamento comercial impecável.",
   },
 } as const satisfies Record<string, { label: string; prompt: string }>;
 export type ImageStyleKey = keyof typeof IMAGE_STYLES;

@@ -276,7 +276,8 @@ export function ImageGeneratorPanel({
           style: gen.state.style,
           quality: options?.qualities && gen.state.quality ? gen.state.quality : undefined,
           variations: Math.min(gen.state.variations, options?.maxVariations ?? 1),
-          negativePrompt: options?.negativePrompt && gen.state.negativePrompt.trim() ? gen.state.negativePrompt : undefined,
+          negativePrompt:
+            options?.negativePrompt && gen.state.negativePrompt.trim() ? gen.state.negativePrompt : undefined,
           context: gen.state.context,
           document: store.doc,
           pageId: store.activePageId,
@@ -394,7 +395,12 @@ export function ImageGeneratorPanel({
         targetId,
       );
       const r = store.dispatch(ops, {
-        label: mode === "replace" ? "Trocar imagem" : mode === "background" ? "Fundo com imagem gerada" : "Inserir imagem gerada",
+        label:
+          mode === "replace"
+            ? "Trocar imagem"
+            : mode === "background"
+              ? "Fundo com imagem gerada"
+              : "Inserir imagem gerada",
         select: [id],
       });
       if (!r) return;
@@ -824,7 +830,11 @@ export function ImageGeneratorPanel({
           </div>
         ) : null}
         {st.error ? (
-          <div role="alert" className="grid gap-1.5 rounded-md bg-danger-soft p-2 text-xs text-danger" data-testid="image-generator-error">
+          <div
+            role="alert"
+            className="grid gap-1.5 rounded-md bg-danger-soft p-2 text-xs text-danger"
+            data-testid="image-generator-error"
+          >
             <span className="flex items-start gap-1.5">
               <AlertTriangle className="mt-0.5 size-3.5 shrink-0" /> {st.error.message}
             </span>
@@ -864,7 +874,8 @@ export function ImageGeneratorPanel({
             </Tooltip>
           </div>
           <p className="text-[11px] text-fg-subtle">
-            {st.result.images.length} imagem(ns) · {st.result.modelLabel} · {st.result.providerLabel} · {st.result.ratio}
+            {st.result.images.length} imagem(ns) · {st.result.modelLabel} · {st.result.providerLabel} ·{" "}
+            {st.result.ratio}
             {st.result.contextUsed ? " · com contexto" : ""}
           </p>
           {st.result.images.length > 1 ? (
@@ -939,7 +950,8 @@ export function ImageGeneratorPanel({
               <p className="text-xs text-fg-muted">Carregando…</p>
             ) : st.library.items.length === 0 ? (
               <p className="text-xs text-fg-muted">
-                Nenhuma imagem gerada por IA {design.clientId ? `para ${design.clientName ?? "este cliente"}` : "sem cliente"} ainda.
+                Nenhuma imagem gerada por IA{" "}
+                {design.clientId ? `para ${design.clientName ?? "este cliente"}` : "sem cliente"} ainda.
               </p>
             ) : (
               <ul className="grid grid-cols-3 gap-1.5">
@@ -1035,9 +1047,14 @@ function PickedPreview({
 }) {
   const aspect = picked.width > 0 && picked.height > 0 ? `${picked.width} / ${picked.height}` : "1 / 1";
   return (
-    <section className="grid gap-2 rounded-lg border border-border bg-surface-2/40 p-2" data-testid="image-generator-picked">
+    <section
+      className="grid gap-2 rounded-lg border border-border bg-surface-2/40 p-2"
+      data-testid="image-generator-picked"
+    >
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium">{picked.origin === "library" ? "Imagem da biblioteca" : "Imagem selecionada"}</span>
+        <span className="text-xs font-medium">
+          {picked.origin === "library" ? "Imagem da biblioteca" : "Imagem selecionada"}
+        </span>
         <button type="button" className="text-fg-subtle hover:text-fg" onClick={onClear} aria-label="Fechar prévia">
           <X className="size-3.5" />
         </button>
@@ -1080,7 +1097,9 @@ function PickedPreview({
         >
           Como fundo
         </Button>
-        <Tooltip content={canReplace ? "Troca a imagem selecionada mantendo a caixa" : "Selecione uma imagem no slide atual"}>
+        <Tooltip
+          content={canReplace ? "Troca a imagem selecionada mantendo a caixa" : "Selecione uma imagem no slide atual"}
+        >
           <Button
             size="xs"
             variant="secondary"

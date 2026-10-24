@@ -310,9 +310,9 @@ export const CHANGELOG: ChangelogEntry[] = [
     module: "Clientes",
     title: "Fundo do logotipo e categoria automática na importação",
     description:
-      "Em Marca → Logotipos, \"Fundo do logotipo\" define a cor atrás da logo nas miniaturas (cabeçalho do cliente e portal): Padrão, Branco, Preto ou outra cor. A importação de pacote passa a sugerir a categoria de clientes ativos e aceita, no manifesto, a categoria pelo nome e o fundo do logotipo.",
+      'Em Marca → Logotipos, "Fundo do logotipo" define a cor atrás da logo nas miniaturas (cabeçalho do cliente e portal): Padrão, Branco, Preto ou outra cor. A importação de pacote passa a sugerir a categoria de clientes ativos e aceita, no manifesto, a categoria pelo nome e o fundo do logotipo.',
     fixed:
-      "Uma logo preta sumia no cartão do tema escuro (e uma branca, no claro); e o cliente importado caía em \"Sem categoria\" mesmo quando a agência tinha a categoria \"Clientes ativos\".",
+      'Uma logo preta sumia no cartão do tema escuro (e uma branca, no claro); e o cliente importado caía em "Sem categoria" mesmo quando a agência tinha a categoria "Clientes ativos".',
     status: "tested",
     tests: [
       "tests/client-package.test.ts — categoria pelo nome (sem diferenciar maiúsculas), categoria escolhida vence o manifesto, nome desconhecido fica sem categoria; fundo do logotipo aceita hex, limpa e rejeita inválido",
@@ -325,8 +325,9 @@ export const CHANGELOG: ChangelogEntry[] = [
     module: "Portal do cliente",
     title: "Vários banners na capa, com setas e rolagem automática",
     description:
-      "Em Portal → Banner de capa, \"Mais banners\" adiciona até 9 banners extras, cada um com imagem, título, subtítulo, botão e ponto de foco próprios. Com 2 ou mais, o início do portal vira um carrossel: setas, pontos, toque para deslizar e rolagem automática com intervalo de 3 a 30 segundos, que pausa com o mouse sobre o banner e respeita a preferência de menos movimento. A prévia mostra o carrossel e o pacote de cliente aceita banners extras.",
-    fixed: "A capa do portal só aceitava um banner; clientes com mais de uma campanha ou aviso não tinham como alternar.",
+      'Em Portal → Banner de capa, "Mais banners" adiciona até 9 banners extras, cada um com imagem, título, subtítulo, botão e ponto de foco próprios. Com 2 ou mais, o início do portal vira um carrossel: setas, pontos, toque para deslizar e rolagem automática com intervalo de 3 a 30 segundos, que pausa com o mouse sobre o banner e respeita a preferência de menos movimento. A prévia mostra o carrossel e o pacote de cliente aceita banners extras.',
+    fixed:
+      "A capa do portal só aceitava um banner; clientes com mais de uma campanha ou aviso não tinham como alternar.",
     status: "tested",
     tests: [
       "tests/portal-banner.test.ts — chaves bannerN, esquema (padrões, limites, links), lista de arquivos referenciados, publicação e entrega de cada imagem, imagem de outro cliente recusada",
@@ -339,7 +340,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     module: "Estúdio Criador",
     title: "Gerar imagem com IA dentro do editor",
     description:
-      "Novo painel Gerar imagem no editor (ícone na barra lateral, botão na seção Imagens de Fotos e Adicionar, \"Gerar com IA\" nas propriedades de uma imagem; gaveta no celular). Descrição com \"Melhorar com IA\" e \"Voltar ao texto original\", contexto opcional do slide atual ou do carrossel inteiro (textos, sequência, imagens anteriores e identidade visual, respeitando a política de dados de clientes), seletor universal com só os modelos de imagem listados pela conta do provedor (padrão salvável), formatos 1:1, 4:5, 9:16, 16:9, formato do slide e personalizado, qualidade e variações conforme o provedor, oito estilos, resultados em grade com prévia ampliada e inserção no slide ativo como novo elemento, como fundo ou substituindo a imagem selecionada. Cada imagem gerada é recortada para a proporção pedida e salva em Arquivos (cliente e projeto da arte, origem IA, com descrição e modelo), e fica em \"Geradas anteriormente\" para reutilizar sem gerar de novo. Fechar o painel não perde a descrição nem os resultados.",
+      'Novo painel Gerar imagem no editor (ícone na barra lateral, botão na seção Imagens de Fotos e Adicionar, "Gerar com IA" nas propriedades de uma imagem; gaveta no celular). Descrição com "Melhorar com IA" e "Voltar ao texto original", contexto opcional do slide atual ou do carrossel inteiro (textos, sequência, imagens anteriores e identidade visual, respeitando a política de dados de clientes), seletor universal com só os modelos de imagem listados pela conta do provedor (padrão salvável), formatos 1:1, 4:5, 9:16, 16:9, formato do slide e personalizado, qualidade e variações conforme o provedor, oito estilos, resultados em grade com prévia ampliada e inserção no slide ativo como novo elemento, como fundo ou substituindo a imagem selecionada. Cada imagem gerada é recortada para a proporção pedida e salva em Arquivos (cliente e projeto da arte, origem IA, com descrição e modelo), e fica em "Geradas anteriormente" para reutilizar sem gerar de novo. Fechar o painel não perde a descrição nem os resultados.',
     fixed:
       "Para usar uma imagem gerada por IA numa arte era preciso sair do editor (Assistente IA ou ferramenta externa), baixar e enviar o arquivo; agora tudo acontece dentro do Estúdio Criador, com a imagem salva na nuvem e inserida no slide certo.",
     status: "tested",

@@ -2,13 +2,7 @@ import "server-only";
 import { and, desc, eq, isNull, like, sql } from "drizzle-orm";
 import sharp from "sharp";
 import { z } from "zod";
-import {
-  fileSrc,
-  readDesignDocument,
-  type DesignDocument,
-  type DesignObject,
-  type DesignPage,
-} from "@/lib/design-doc";
+import { fileSrc, readDesignDocument, type DesignDocument, type DesignObject, type DesignPage } from "@/lib/design-doc";
 import { PROVIDER_LABEL } from "@/lib/ai-select";
 import type { AiModelInfo } from "@/lib/ai-tasks";
 import {
@@ -436,7 +430,8 @@ export async function saveDesignImageGeneration(
   result: ImageResult,
   latencyMs: number,
 ): Promise<DesignImageGenResult> {
-  if (!result.images.length) throw new AiProviderError("O provedor não devolveu imagem. Tente novamente.", "unavailable");
+  if (!result.images.length)
+    throw new AiProviderError("O provedor não devolveu imagem. Tente novamente.", "unavailable");
   const { design: d } = prepared;
   const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
   const images: GeneratedImage[] = [];

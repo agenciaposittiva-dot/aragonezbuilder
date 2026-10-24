@@ -4,11 +4,7 @@ import { z } from "zod";
 import { getActor, getSession } from "@/server/auth/session";
 import type { Actor } from "@/server/authz";
 import { processEventsInBackground } from "@/server/events/inline";
-import {
-  enhanceImagePrompt,
-  enhanceImagePromptInput,
-  listGeneratedImages,
-} from "@/server/services/design-image-gen";
+import { enhanceImagePrompt, enhanceImagePromptInput, listGeneratedImages } from "@/server/services/design-image-gen";
 import { orgAction, toActionError, type ActionResult } from "./safe-action";
 
 /** Chamada à IA fora de uma transação única (o serviço abre transações curtas). */
