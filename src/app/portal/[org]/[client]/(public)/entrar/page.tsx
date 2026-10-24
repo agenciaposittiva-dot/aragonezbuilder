@@ -48,6 +48,7 @@ export default async function PortalLoginPage({ params, searchParams }: Props) {
 
   const { settings, client: c, org: o, version } = portal;
   const name = settings.displayName ?? c.name;
+  const card = settings.login.layout === "card";
   return (
     <PortalLoginView
       settings={settings}
@@ -58,16 +59,22 @@ export default async function PortalLoginPage({ params, searchParams }: Props) {
       backgroundUrl={settings.login.backgroundFileId ? portalAssetUrl(c.id, "loginBackground", { v: version }) : null}
     >
       {denied ? (
-        <p role="alert" className="rounded-md border border-warning/30 bg-warning-soft px-3 py-2 text-sm">
+        <p role="alert" className="mb-4 rounded-md border border-warning/30 bg-warning-soft px-3 py-2 text-sm text-fg">
           Esta conta não tem acesso a este portal. Entre com o e-mail que recebeu o convite.
         </p>
       ) : null}
       <LoginForm
         next={target}
         reset={sp.reset === "1"}
-        title="Entrar no portal"
-        description={`Use o e-mail do seu convite para acessar o espaço de ${name}.`}
+        title={card ? "Bem-vindo" : "Entrar no portal"}
+        description={
+          card
+            ? `Digite seu e-mail e senha para acessar o espaço de ${name}.`
+            : `Use o e-mail do seu convite para acessar o espaço de ${name}.`
+        }
         inviteNote="O acesso é feito por convite. Não recebeu o seu? Fale com a agência responsável."
+        tone={card ? "dark" : "default"}
+        privacyUrl={settings.login.privacyUrl}
       />
     </PortalLoginView>
   );

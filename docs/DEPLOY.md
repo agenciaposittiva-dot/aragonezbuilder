@@ -3,6 +3,10 @@
 Guia para colocar a plataforma no ar. O caminho mais curto é a Vercel com um
 banco Postgres da Neon conectado pelo próprio painel.
 
+Endereço de produção atual: **https://aragonezbuilderofc.vercel.app** (projeto
+`aragonezbuilder` na Vercel). O código não fixa domínio nenhum: a aplicação usa
+`APP_URL` e, sem ela, o endereço que a Vercel informa ao build.
+
 ## Vercel, passo a passo
 
 1. **Projeto**: importe o repositório na Vercel. O `vercel.json` já define o
@@ -34,6 +38,39 @@ banco Postgres da Neon conectado pelo próprio painel.
 5. **Conferência**: abra `/setup` no endereço publicado. A página mostra o que
    está configurado e o que falta, sem expor valores. Depois, entre com a conta
    administradora e crie a primeira agência.
+
+### Como refazer o deploy (redeploy)
+
+Útil depois de alterar variáveis de ambiente ou quando um build falhou por
+motivo externo (rede, limite de tempo, banco indisponível).
+
+- **Pelo painel da Vercel** (caminho mais rápido): **Deployments → ⋯ no último
+  deploy → Redeploy**. Marque "Use existing Build Cache" só se nenhuma variável
+  mudou; para aplicar variáveis novas, desmarque.
+- **Por um commit**: qualquer commit na branch de produção dispara um build
+  completo (`npm run vercel-build`, com migrações). É o que acontece a cada
+  merge na branch padrão.
+- **Conferência**: o deploy está no ar quando aparece como **Ready** no painel e
+  `/setup` mostra, em "Deploy", o commit publicado (os 7 primeiros caracteres
+  do SHA e a branch).
+
+### Avisos no log de build
+
+- **`"engines": { "node": ">=20.9" }` … will automatically upgrade** — o
+  `package.json` fixa `22.x`, a versão que a Vercel usa hoje. Sem o intervalo
+  aberto, uma nova versão maior do Node não entra sozinha no build.
+- **install scripts not yet covered by allowScripts** — o npm 11 bloqueia os
+  scripts de instalação de dependências não aprovadas. O campo `allowScripts`
+  do `package.json` aprova `esbuild` e `unrs-resolver` (só validam o binário já
+  baixado) e nega `canvas`, dependência opcional do Fabric usada apenas no
+  navegador: o servidor nunca a carrega, então compilar o módulo nativo seria
+  tempo de build perdido.
+- **SECURITY WARNING: The SSL modes 'prefer', 'require'…** — vem do driver `pg`
+  quando a URL do banco traz `sslmode=require` (padrão da Neon). A aplicação
+  reescreve para `sslmode=verify-full`, exatamente o que o driver já aplicava;
+  a conexão não muda e o aviso some (`src/server/db-url.ts`).
+- **Unknown env config "cache-dir"** — variável do ambiente de build da Vercel,
+  ignorada pelo npm. Não vem do projeto.
 
 ### Acesso somente por convite
 

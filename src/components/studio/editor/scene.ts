@@ -1168,7 +1168,15 @@ export class Scene {
   }
 
   setSize(width: number, height: number) {
-    this.canvas.setDimensions({ width: Math.max(1, Math.floor(width)), height: Math.max(1, Math.floor(height)) });
+    const before = { width: this.canvas.width ?? 0, height: this.canvas.height ?? 0 };
+    const next = { width: Math.max(1, Math.floor(width)), height: Math.max(1, Math.floor(height)) };
+    this.canvas.setDimensions(next);
+    // Recolher um painel ou redimensionar a janela não tira a arte do lugar: o centro da vista se mantém.
+    if (before.width > 1 && before.height > 1) {
+      const dx = (next.width - before.width) / 2;
+      const dy = (next.height - before.height) / 2;
+      if (dx || dy) this.canvas.relativePan(new this.fabric.Point(dx, dy));
+    }
     this.canvas.requestRenderAll();
     this.emitViewport();
   }

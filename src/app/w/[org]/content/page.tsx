@@ -24,7 +24,7 @@ import { requireActor } from "@/server/auth/session";
 import { clientOptions } from "@/server/services/clients";
 import { calendarMonth, listCampaigns, listContent, type ContentRow } from "@/server/services/content";
 
-export const metadata: Metadata = { title: "Conteúdos" };
+export const metadata: Metadata = { title: "Redes sociais" };
 
 const str = (v: string | string[] | undefined) => (typeof v === "string" && v ? v : undefined);
 const WEEKDAYS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
@@ -84,8 +84,8 @@ export default async function ContentPage({ params, searchParams }: PageProps<"/
   return (
     <>
       <PageHeader
-        title="Conteúdos"
-        description="Peças de conteúdo por cliente e campanha, com calendário editorial. Cada peça aponta para as artes, arquivos, tarefa e briefing — nada é duplicado."
+        title="Redes sociais"
+        description="Conteúdos para as redes sociais por cliente e campanha, com calendário editorial e prévia da publicação. Cada peça aponta para as artes, arquivos, tarefa e briefing — nada é duplicado."
         actions={
           <>
             {canWrite ? <NewCampaignDialog clients={data.clients} /> : null}

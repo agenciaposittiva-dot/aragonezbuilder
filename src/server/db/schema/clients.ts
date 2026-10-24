@@ -11,6 +11,7 @@ import {
   primaryKey,
   text,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { createdAt, id, timestamps, tstz } from "./_helpers";
@@ -18,6 +19,32 @@ import { user } from "./auth";
 import { memberships, organizations } from "./core";
 
 export const clientStatus = pgEnum("client_status", ["lead", "active", "paused", "inactive"]);
+
+/**
+ * Categorias de clientes da agência (ex.: "Clientes ativos", "Projetos avulsos",
+ * "Ex-clientes"), criadas, renomeadas e reordenadas pela equipe. Um cliente fica
+ * em no máximo uma categoria (`clients.category_id`); trocar de categoria só muda
+ * essa referência — projetos, arquivos e histórico continuam no mesmo cliente.
+ */
+export const clientCategories = pgTable(
+  "client_categories",
+  {
+    id: id(),
+    organizationId: uuid()
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    name: text().notNull(),
+    /** Nome de cor da paleta da interface (mesma das etiquetas de tarefa). */
+    color: text().notNull().default("slate"),
+    position: integer().notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [
+    unique().on(t.organizationId, t.id),
+    uniqueIndex("client_categories_org_name_unique").on(t.organizationId, sql`lower(${t.name})`),
+    index().on(t.organizationId, t.position),
+  ],
+);
 
 export const clients = pgTable(
   "clients",
@@ -37,8 +64,12 @@ export const clients = pgTable(
     industry: text(),
     address: text(),
     status: clientStatus().notNull().default("active"),
+    /** Categoria da agência (opcional). Excluir a categoria só limpa este campo (no serviço). */
+    categoryId: uuid(),
     /** Arquivo da biblioteca de marca usado como logotipo (referência validada no serviço). */
     logoFileId: uuid(),
+    /** Cor de fundo (hex) atrás do logotipo nas miniaturas (cabeçalho, portal); vazio = fundo neutro do tema. */
+    logoBackground: text(),
     notesInternal: text(),
     createdByUserId: text().references(() => user.id, { onDelete: "set null" }),
     archivedAt: tstz(),
@@ -50,7 +81,12 @@ export const clients = pgTable(
   (t) => [
     unique().on(t.organizationId, t.id),
     unique("clients_org_slug_unique").on(t.organizationId, t.slug),
+    foreignKey({
+      columns: [t.organizationId, t.categoryId],
+      foreignColumns: [clientCategories.organizationId, clientCategories.id],
+    }),
     index().on(t.organizationId, t.status),
+    index().on(t.organizationId, t.categoryId),
     index("clients_name_trgm").using("gin", sql`${t.name} gin_trgm_ops`),
     index("clients_trash_idx")
       .on(t.organizationId, t.deletedAt)

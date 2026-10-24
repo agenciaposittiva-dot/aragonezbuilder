@@ -43,10 +43,34 @@ const safeUrl = z
 
 const link = z.object({ label: z.string().trim().min(1, "Informe o texto").max(60), url: safeUrl });
 
+/** Login: cartão com arte ao lado (logo do cliente no topo) ou duas colunas em tela cheia. */
+export const LOGIN_LAYOUTS = ["card", "split"] as const;
+export const LOGIN_LAYOUT_LABEL: Record<(typeof LOGIN_LAYOUTS)[number], string> = {
+  card: "Cartão com arte (logo no topo)",
+  split: "Duas colunas em tela cheia",
+};
 export const BANNER_ALIGN = ["left", "center", "right"] as const;
 export const BANNER_VALIGN = ["top", "center", "bottom"] as const;
 export const BANNER_OVERLAY = ["none", "light", "dark", "gradient"] as const;
 export const BANNER_HEIGHT = { min: 180, max: 560, default: 320 } as const;
+/** Banners extras além do principal; com 2 ou mais, o início do portal vira um carrossel. */
+export const BANNER_MAX_SLIDES = 9;
+/** Rolagem automática do carrossel, em segundos. */
+export const BANNER_INTERVAL = { min: 3, max: 30, default: 7 } as const;
+
+const bannerSlideSchema = z.object({
+  imageFileId: fileRef,
+  title: text(120),
+  subtitle: text(300),
+  buttonLabel: text(40),
+  buttonUrl: z
+    .union([safeUrl, z.literal(""), z.null()])
+    .optional()
+    .transform((v) => (v ? v : null)),
+  focalX: z.coerce.number().min(0).max(100).default(50),
+  focalY: z.coerce.number().min(0).max(100).default(50),
+});
+export type BannerSlide = z.output<typeof bannerSlideSchema>;
 
 export const PORTAL_SECTIONS = {
   banner: "Banner de boas-vindas",
@@ -97,6 +121,12 @@ export const portalSettingsSchema = z.object({
       backgroundFileId: fileRef,
       title: text(120),
       message: text(400),
+      layout: z.enum(LOGIN_LAYOUTS).default("card"),
+      /** Link "Política de privacidade" abaixo do botão (opcional). */
+      privacyUrl: z
+        .union([safeUrl, z.literal(""), z.null()])
+        .optional()
+        .transform((v) => (v ? v : null)),
     })
     .prefault({}),
   banner: z
@@ -119,6 +149,16 @@ export const portalSettingsSchema = z.object({
       height: z.coerce.number().int().min(BANNER_HEIGHT.min).max(BANNER_HEIGHT.max).default(BANNER_HEIGHT.default),
       overlay: z.enum(BANNER_OVERLAY).default("gradient"),
       overlayOpacity: z.coerce.number().int().min(0).max(90).default(55),
+      /** Banners extras, cada um com imagem e textos próprios (alinhamento, sobreposição e altura são os mesmos). */
+      slides: z.array(bannerSlideSchema).max(BANNER_MAX_SLIDES).default([]),
+      /** Rolagem automática entre os banners e o intervalo em segundos. */
+      autoplay: z.boolean().default(true),
+      interval: z.coerce
+        .number()
+        .int()
+        .min(BANNER_INTERVAL.min)
+        .max(BANNER_INTERVAL.max)
+        .default(BANNER_INTERVAL.default),
     })
     .prefault({}),
   links: z.array(link).max(8, "No máximo 8 links").default([]),
@@ -155,9 +195,31 @@ export function parsePortalSettings(raw: unknown): PortalSettings {
 
 /** Arquivos referenciados pelas configurações (para validação e entrega). */
 export const PORTAL_ASSET_KEYS = ["logo", "logoAlt", "favicon", "loginBackground", "banner"] as const;
-export type PortalAssetKey = (typeof PORTAL_ASSET_KEYS)[number];
+/** Banners extras: "banner2" é o primeiro item de `banner.slides`, e assim por diante. */
+export type BannerSlideKey = `banner${number}`;
+export type PortalAssetKey = (typeof PORTAL_ASSET_KEYS)[number] | BannerSlideKey;
+
+export function bannerSlideKey(index: number): BannerSlideKey {
+  return `banner${index + 2}`;
+}
+
+/** Posição em `banner.slides` de uma chave "bannerN" (N de 2 a 10), ou null. */
+export function bannerSlideIndex(key: string): number | null {
+  const m = /^banner([1-9]\d?)$/.exec(key);
+  if (!m) return null;
+  const n = Number(m[1]);
+  return n >= 2 && n <= BANNER_MAX_SLIDES + 1 ? n - 2 : null;
+}
+
+/** Chave válida de imagem do portal: uma das fixas ou um banner extra. */
+export function parsePortalAssetKey(raw: string): PortalAssetKey | null {
+  if ((PORTAL_ASSET_KEYS as readonly string[]).includes(raw)) return raw as PortalAssetKey;
+  return bannerSlideIndex(raw) === null ? null : (raw as BannerSlideKey);
+}
 
 export function assetFileId(s: PortalSettings, key: PortalAssetKey): string | null {
+  const slide = bannerSlideIndex(key);
+  if (slide !== null) return s.banner.slides[slide]?.imageFileId ?? null;
   switch (key) {
     case "logo":
       return s.logoFileId;
@@ -169,7 +231,16 @@ export function assetFileId(s: PortalSettings, key: PortalAssetKey): string | nu
       return s.login.backgroundFileId;
     case "banner":
       return s.banner.imageFileId;
+    default:
+      return null;
   }
+}
+
+/** Todos os arquivos referenciados pela personalização (chaves fixas e banners extras), sem repetição. */
+export function portalAssetFileIds(s: PortalSettings): string[] {
+  const ids = PORTAL_ASSET_KEYS.map((k) => assetFileId(s, k));
+  for (const slide of s.banner.slides) ids.push(slide.imageFileId);
+  return [...new Set(ids.filter((v): v is string => !!v))];
 }
 
 /** Itens exibidos sem login (página de entrada do portal). */

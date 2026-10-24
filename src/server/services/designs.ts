@@ -79,7 +79,7 @@ export const designMetaInput = z.object({
  * Artes visíveis: fora da lixeira, sem cliente (internas) ou de clientes no
  * escopo do ator, e cujo projeto (se houver) também não está na lixeira.
  */
-function designScope(s: Scope) {
+export function designScope(s: Scope) {
   const visibleClients = s.db.select({ id: clients.id }).from(clients).where(clientScope(s.actor));
   return and(
     isNull(designs.deletedAt),
@@ -113,7 +113,16 @@ async function assertLinks(
 
 export async function listDesigns(
   s: Scope,
-  opts: { q?: string; templates?: boolean; clientId?: string; archived?: boolean } = {},
+  opts: {
+    q?: string;
+    templates?: boolean;
+    clientId?: string;
+    archived?: boolean;
+    /** Artes de um projeto ou de uma demanda (tarefa). */
+    projectId?: string;
+    taskId?: string;
+    limit?: number;
+  } = {},
 ) {
   assertInternal(s.actor);
   assertCan(s.actor, "designs.read");
@@ -129,7 +138,10 @@ export async function listDesigns(
       updatedAt: designs.updatedAt,
       clientId: designs.clientId,
       clientName: clients.name,
+      projectId: designs.projectId,
       projectName: projects.name,
+      taskId: designs.taskId,
+      outputFileId: designs.outputFileId,
       updatedByName: user.name,
       // Artes do formato novo podem ter várias páginas (carrossel).
       pageCount: sql<number>`case when jsonb_typeof(${designs.document}->'pages') = 'array' then jsonb_array_length(${designs.document}->'pages') else 1 end`,
@@ -144,11 +156,13 @@ export async function listDesigns(
         opts.archived ? isNotNull(designs.archivedAt) : isNull(designs.archivedAt),
         opts.archived ? undefined : eq(designs.isTemplate, !!opts.templates),
         opts.clientId ? eq(designs.clientId, opts.clientId) : undefined,
+        opts.projectId ? eq(designs.projectId, opts.projectId) : undefined,
+        opts.taskId ? eq(designs.taskId, opts.taskId) : undefined,
         opts.q ? ilike(designs.name, `%${opts.q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`) : undefined,
       ),
     )
     .orderBy(desc(designs.updatedAt))
-    .limit(200);
+    .limit(Math.min(200, Math.max(1, opts.limit ?? 200)));
 }
 
 export async function getDesign(s: Scope, id: string) {

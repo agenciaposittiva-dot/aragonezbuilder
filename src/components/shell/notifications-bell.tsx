@@ -2,9 +2,11 @@
 
 import { Bell, CheckCheck } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useEffectEvent, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useChatAlerts } from "@/components/chat/chat-alerts";
 import { ConversationIcon } from "@/components/chat/conversation-icon";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatDateTime } from "@/lib/format";
@@ -25,10 +27,14 @@ type Item = {
 
 export function NotificationsBell({ initialUnread }: { initialUnread: number }) {
   const { orgSlug } = useWorkspace();
+  const router = useRouter();
+  const alerts = useChatAlerts();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Item[] | null>(null);
   const [unread, setUnread] = useState(initialUnread);
   const [, start] = useTransition();
+  // Só avisos criados depois de abrir a página viram janela flutuante (os antigos ficam no sino).
+  const openedAt = useRef(Date.now());
 
   const load = useCallback(() => {
     start(async () => {
@@ -44,9 +50,33 @@ export function NotificationsBell({ initialUnread }: { initialUnread: number }) 
   useEffect(() => {
     const id = setInterval(() => {
       if (document.visibilityState === "visible") load();
-    }, 60_000);
+    }, 30_000);
     return () => clearInterval(id);
   }, [load]);
+
+  // Avisos novos (não lidos, posteriores à abertura da página) viram janela flutuante — uma vez cada.
+  // Mensagens do chat não entram: já têm o próprio aviso.
+  const pushFresh = useEffectEvent((list: Item[]) => {
+    if (!alerts) return;
+    const fresh = list.filter((n) => !n.readAt && !n.chat && new Date(n.createdAt).getTime() > openedAt.current);
+    if (!fresh.length) return;
+    alerts.pushEvents(
+      fresh.map((n) => ({
+        id: n.id,
+        title: n.title,
+        body: n.body,
+        at: new Date(n.createdAt).toISOString(),
+        image: null,
+        open: () => {
+          markOne(n.id);
+          if (n.link) router.push(n.link);
+        },
+      })),
+    );
+  });
+  useEffect(() => {
+    if (items) pushFresh(items);
+  }, [items]);
 
   function markAll() {
     setItems((list) => list?.map((i) => ({ ...i, readAt: i.readAt ?? new Date() })) ?? null);

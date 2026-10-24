@@ -81,7 +81,7 @@ async function waitServerSave(page: Page, after = "") {
   return (await indicator(page).getAttribute("data-saved-at")) ?? "";
 }
 
-type PanelName = "Adicionar" | "Camadas" | "Marca" | "Imagens" | "Componentes" | "Modelos" | "Editar";
+type PanelName = "Adicionar" | "Camadas" | "Marca" | "Fotos" | "Componentes" | "Modelos" | "Editar";
 
 /** Abre um painel: barra lateral no computador, gaveta no celular. */
 async function panel(page: Page, name: PanelName): Promise<Locator> {
@@ -93,7 +93,7 @@ async function panel(page: Page, name: PanelName): Promise<Locator> {
       Camadas: "Camadas",
       Marca: "Marca",
       Editar: "Editar",
-      Imagens: "Imagem",
+      Fotos: "Imagem",
     };
     if (direct[name]) await nav.getByRole("button", { name: direct[name]!, exact: true }).click();
     else {
@@ -206,7 +206,7 @@ test.describe("editor profissional", () => {
     expect(uploaded).toMatchObject({ naturalWidth: 480, naturalHeight: 320 });
     await page.keyboard.press("Escape");
     await expect.poll(() => selection(page)).toEqual([]);
-    const media = await panel(page, "Imagens");
+    const media = await panel(page, "Fotos");
     await media
       .getByRole("button", { name: /Inserir imagem foto-editor/ })
       .first()

@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, ExternalLink, Eye, History, PencilLine, RotateCcw, Save, Send, Undo2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Copy, ExternalLink, Eye, History, PencilLine, Plus, RotateCcw, Save, Send, Trash2, Undo2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
@@ -20,6 +20,8 @@ import { portalAssetUrl } from "@/lib/portal-assets";
 import {
   assetFileId,
   BANNER_HEIGHT,
+  BANNER_INTERVAL,
+  BANNER_MAX_SLIDES,
   contrastRatio,
   DEFAULT_LIGHT,
   DEFAULT_PORTAL_SETTINGS,
@@ -28,6 +30,8 @@ import {
   readableOn,
   type PortalSection,
   type PortalSettings,
+  LOGIN_LAYOUT_LABEL,
+  LOGIN_LAYOUTS,
 } from "@/lib/portal-settings";
 import { cn } from "@/lib/utils";
 import {
@@ -179,6 +183,32 @@ export function PortalCustomizer({
     edit((s) => ({ ...s, contact: { ...s.contact, ...p } }));
   const patchSections = (p: Partial<PortalSettings["sections"]>) =>
     edit((s) => ({ ...s, sections: { ...s.sections, ...p } }));
+  const patchSlide = (i: number, p: Partial<PortalSettings["banner"]["slides"][number]>) =>
+    edit((s) => ({
+      ...s,
+      banner: { ...s.banner, slides: s.banner.slides.map((x, j) => (j === i ? { ...x, ...p } : x)) },
+    }));
+  const addSlide = () =>
+    edit((s) => ({
+      ...s,
+      banner: {
+        ...s.banner,
+        slides: [
+          ...s.banner.slides,
+          { imageFileId: null, title: null, subtitle: null, buttonLabel: null, buttonUrl: null, focalX: 50, focalY: 50 },
+        ],
+      },
+    }));
+  const removeSlide = (i: number) =>
+    edit((s) => ({ ...s, banner: { ...s.banner, slides: s.banner.slides.filter((_, j) => j !== i) } }));
+  const moveSlide = (i: number, delta: number) =>
+    edit((s) => {
+      const slides = [...s.banner.slides];
+      const j = i + delta;
+      if (j < 0 || j >= slides.length) return s;
+      [slides[i], slides[j]] = [slides[j]!, slides[i]!];
+      return { ...s, banner: { ...s.banner, slides } };
+    });
 
   /** Imagem para a prévia: versão atual na biblioteca ou, se já salva no rascunho, a rota do portal. */
   const imageUrl = (fileId: string | null) => {
@@ -561,13 +591,30 @@ export function PortalCustomizer({
               </div>
             </CardHeader>
             <CardContent className="grid gap-5 sm:grid-cols-[minmax(0,240px)_1fr]">
+              <Field label="Layout" htmlFor="pc-login-layout" className="sm:col-span-2">
+                <NativeSelect
+                  id="pc-login-layout"
+                  value={settings.login.layout}
+                  onChange={(e) => patchLogin({ layout: e.target.value as PortalSettings["login"]["layout"] })}
+                >
+                  {LOGIN_LAYOUTS.map((l) => (
+                    <option key={l} value={l}>
+                      {LOGIN_LAYOUT_LABEL[l]}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </Field>
               <ImagePicker
                 {...pickerProps}
                 id="pc-login-bg"
-                label="Imagem de fundo"
-                recommendation="Retrato, 1600×2000 (JPEG ou WebP)"
+                label={settings.login.layout === "card" ? "Arte ao lado do login" : "Imagem de fundo"}
+                recommendation={
+                  settings.login.layout === "card"
+                    ? "Paisagem, 1920×1080 (JPEG ou WebP). Logo do cliente no topo: 400×160."
+                    : "Retrato, 1600×2000 (JPEG ou WebP)"
+                }
                 category="brand_asset"
-                aspect="aspect-[4/5]"
+                aspect={settings.login.layout === "card" ? "aspect-video" : "aspect-[4/5]"}
                 value={settings.login.backgroundFileId}
                 onChange={(v) => patchLogin({ backgroundFileId: v })}
                 error={errors["login.backgroundFileId"]}
@@ -598,6 +645,21 @@ export function PortalCustomizer({
                     maxLength={400}
                     value={settings.login.message ?? ""}
                     onChange={(e) => patchLogin({ message: orNull(e.target.value) })}
+                  />
+                </Field>
+                <Field
+                  label="Link da política de privacidade"
+                  htmlFor="pc-login-privacy"
+                  hint="Opcional. Aparece abaixo do botão Entrar."
+                  error={errors["login.privacyUrl"]}
+                >
+                  <Input
+                    id="pc-login-privacy"
+                    type="url"
+                    placeholder="https://"
+                    maxLength={500}
+                    value={settings.login.privacyUrl ?? ""}
+                    onChange={(e) => patchLogin({ privacyUrl: orNull(e.target.value) })}
                   />
                 </Field>
               </div>
@@ -764,6 +826,163 @@ export function PortalCustomizer({
                   unit="%"
                   onChange={(v) => patchBanner({ focalY: v })}
                 />
+              </div>
+              <div className="grid gap-4 border-t border-border pt-5" data-testid="banner-slides">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">Mais banners</p>
+                    <p className="text-xs text-fg-muted">
+                      Com mais de um banner, o início do portal vira um carrossel com setas, pontos e rolagem
+                      automática. Cada banner tem imagem e textos próprios; alinhamento, sobreposição e altura são os
+                      mesmos para todos.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!canWrite || settings.banner.slides.length >= BANNER_MAX_SLIDES}
+                    onClick={addSlide}
+                  >
+                    <Plus /> Adicionar banner
+                  </Button>
+                </div>
+                {settings.banner.slides.map((slide, i) => (
+                  <div
+                    key={i}
+                    className="grid gap-4 rounded-lg border border-border p-4 sm:grid-cols-[minmax(0,240px)_1fr]"
+                    data-testid="banner-slide"
+                  >
+                    <ImagePicker
+                      {...pickerProps}
+                      id={`pc-banner-${i + 2}`}
+                      label={`Banner ${i + 2}`}
+                      recommendation="Panorâmica, 2400×800 (3:1). Sem imagem, este banner não aparece"
+                      category="brand_asset"
+                      aspect="aspect-[3/1]"
+                      value={slide.imageFileId}
+                      onChange={(v) => patchSlide(i, { imageFileId: v })}
+                      error={errors[`banner.slides.${i}.imageFileId`]}
+                    />
+                    <div className="grid content-start gap-3">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Field label="Título" htmlFor={`pc-bs-title-${i}`} error={errors[`banner.slides.${i}.title`]}>
+                          <Input
+                            id={`pc-bs-title-${i}`}
+                            value={slide.title ?? ""}
+                            maxLength={120}
+                            onChange={(e) => patchSlide(i, { title: orNull(e.target.value) })}
+                          />
+                        </Field>
+                        <Field label="Subtítulo" htmlFor={`pc-bs-sub-${i}`} error={errors[`banner.slides.${i}.subtitle`]}>
+                          <Input
+                            id={`pc-bs-sub-${i}`}
+                            value={slide.subtitle ?? ""}
+                            maxLength={300}
+                            onChange={(e) => patchSlide(i, { subtitle: orNull(e.target.value) })}
+                          />
+                        </Field>
+                        <Field
+                          label="Texto do botão"
+                          htmlFor={`pc-bs-btn-${i}`}
+                          hint="Opcional"
+                          error={errors[`banner.slides.${i}.buttonLabel`]}
+                        >
+                          <Input
+                            id={`pc-bs-btn-${i}`}
+                            value={slide.buttonLabel ?? ""}
+                            maxLength={40}
+                            onChange={(e) => patchSlide(i, { buttonLabel: orNull(e.target.value) })}
+                          />
+                        </Field>
+                        <Field
+                          label="Link do botão"
+                          htmlFor={`pc-bs-url-${i}`}
+                          hint="https://… ou caminho do portal"
+                          error={
+                            errors[`banner.slides.${i}.buttonUrl`] ??
+                            (slide.buttonUrl ? (linkUrlError(slide.buttonUrl) ?? undefined) : undefined)
+                          }
+                        >
+                          <Input
+                            id={`pc-bs-url-${i}`}
+                            value={slide.buttonUrl ?? ""}
+                            maxLength={500}
+                            onChange={(e) => patchSlide(i, { buttonUrl: orNull(e.target.value) })}
+                          />
+                        </Field>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <RangeField
+                          id={`pc-bs-fx-${i}`}
+                          label="Foco horizontal"
+                          value={slide.focalX}
+                          min={0}
+                          max={100}
+                          step={1}
+                          unit="%"
+                          onChange={(v) => patchSlide(i, { focalX: v })}
+                        />
+                        <RangeField
+                          id={`pc-bs-fy-${i}`}
+                          label="Foco vertical"
+                          value={slide.focalY}
+                          min={0}
+                          max={100}
+                          step={1}
+                          unit="%"
+                          onChange={(v) => patchSlide(i, { focalY: v })}
+                        />
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          size="xs"
+                          variant="ghost"
+                          disabled={i === 0}
+                          aria-label={`Mover o banner ${i + 2} para cima`}
+                          onClick={() => moveSlide(i, -1)}
+                        >
+                          <ArrowUp /> Subir
+                        </Button>
+                        <Button
+                          type="button"
+                          size="xs"
+                          variant="ghost"
+                          disabled={i === settings.banner.slides.length - 1}
+                          aria-label={`Mover o banner ${i + 2} para baixo`}
+                          onClick={() => moveSlide(i, 1)}
+                        >
+                          <ArrowDown /> Descer
+                        </Button>
+                        <Button type="button" size="xs" variant="danger-ghost" onClick={() => removeSlide(i)}>
+                          <Trash2 /> Remover banner {i + 2}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {settings.banner.slides.length ? (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <ToggleRow
+                      id="pc-b-autoplay"
+                      label="Rolagem automática"
+                      description="Passa ao próximo banner sozinho; pausa com o mouse ou o foco sobre o banner."
+                      checked={settings.banner.autoplay}
+                      onChange={(v) => patchBanner({ autoplay: v })}
+                    />
+                    <RangeField
+                      id="pc-b-interval"
+                      label="Intervalo da rolagem"
+                      value={settings.banner.interval}
+                      min={BANNER_INTERVAL.min}
+                      max={BANNER_INTERVAL.max}
+                      step={1}
+                      unit=" s"
+                      disabled={!settings.banner.autoplay}
+                      onChange={(v) => patchBanner({ interval: v })}
+                    />
+                  </div>
+                ) : null}
               </div>
             </CardContent>
           </Card>

@@ -5,7 +5,7 @@ import { approvalListParams, decideApprovalInput, requestApprovalInput } from "@
 import { approvals, clients, files, fileVersions, projects, tasks, user, workflowStatuses } from "@/server/db/schema";
 import { assertCan, assertFileAccess, assertTaskAccess, can, fileScope, type Scope } from "@/server/authz";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/server/errors";
-import { recordActivity } from "./activity";
+import { recordActivity, type ActivityScope } from "./activity";
 
 const requester = alias(user, "requester");
 const decider = alias(user, "decider");
@@ -166,6 +166,25 @@ export async function decideApproval(s: Scope, raw: z.input<typeof decideApprova
       throw new NotFoundError("Aprovação não encontrada.");
   }
 
+  await applyApprovalDecision(s, approval, file, data, { name: null });
+}
+
+type ApprovalRecord = typeof approvals.$inferSelect;
+type FileRow = typeof files.$inferSelect;
+
+/**
+ * Núcleo da decisão, comum ao cliente logado e ao link de aprovação: confere a
+ * versão (nova versão invalida a rodada), grava a decisão, atualiza o status do
+ * arquivo, registra o histórico e o evento (avisos à equipe) e, em ajustes,
+ * leva a tarefa vinculada para "Ajustes". Quem chama já verificou o acesso.
+ */
+export async function applyApprovalDecision(
+  s: ActivityScope,
+  approval: ApprovalRecord,
+  file: FileRow,
+  data: { decision: "approved" | "changes_requested"; note?: string | null },
+  by: { name: string | null },
+) {
   if (approval.status === "superseded")
     throw new ValidationError("Uma nova versão foi enviada: esta aprovação não vale mais.");
   if (approval.status !== "pending") throw new ValidationError("Esta aprovação já foi decidida ou cancelada.");
@@ -176,7 +195,13 @@ export async function decideApproval(s: Scope, raw: z.input<typeof decideApprova
 
   await s.db
     .update(approvals)
-    .set({ status: data.decision, decidedByUserId: s.actor.userId, decidedAt: new Date(), decisionNote: data.note })
+    .set({
+      status: data.decision,
+      decidedByUserId: s.actor.userId,
+      decidedByName: by.name,
+      decidedAt: new Date(),
+      decisionNote: data.note ?? null,
+    })
     .where(eq(approvals.id, approval.id));
 
   const nextFileStatus =
@@ -192,12 +217,17 @@ export async function decideApproval(s: Scope, raw: z.input<typeof decideApprova
     .from(fileVersions)
     .where(eq(fileVersions.id, approval.fileVersionId));
 
+  const who =
+    approval.stage === "client" ? (by.name ? `Cliente (${by.name}, pelo link)` : "Cliente") : "Revisão interna";
   await recordActivity(s, {
     action: data.decision === "approved" ? "approved" : "changes_requested",
     entityType: "file",
     entityId: file.id,
-    summary: `${approval.stage === "client" ? "Cliente" : "Revisão interna"}: ${data.decision === "approved" ? "aprovado" : "ajustes solicitados"} (v${version?.versionNumber ?? "?"})`,
-    metadata: data.note ? { note: data.note } : undefined,
+    summary: `${who}: ${data.decision === "approved" ? "aprovado" : "ajustes solicitados"} (v${version?.versionNumber ?? "?"})`,
+    metadata:
+      data.note || by.name
+        ? { ...(data.note ? { note: data.note } : {}), ...(by.name ? { decidedByName: by.name, via: "link" } : {}) }
+        : undefined,
     clientVisible: approval.stage === "client",
     event: {
       type: "approval.decided",
@@ -214,6 +244,7 @@ export async function decideApproval(s: Scope, raw: z.input<typeof decideApprova
         versionNumber: version?.versionNumber ?? null,
         requestedByUserId: approval.requestedByUserId,
         note: data.note ? data.note.slice(0, 500) : null,
+        decidedByName: by.name,
       },
     },
   });
@@ -232,7 +263,7 @@ export async function decideApproval(s: Scope, raw: z.input<typeof decideApprova
  * prevalece sobre o fluxo configurado.
  */
 async function moveTaskToStatus(
-  s: Scope,
+  s: ActivityScope,
   taskId: string,
   key: string,
   fallback: "in_progress" | "review",

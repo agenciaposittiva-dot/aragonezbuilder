@@ -118,7 +118,7 @@ test.describe("gerador automático de carrosséis", () => {
     test.setTimeout(420_000);
     await enter(page);
     await page.goto(`${ORG}/studio`);
-    await expect(page.getByRole("link", { name: "Gerar carrossel com IA" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Criar posts com IA/ })).toBeVisible();
     const themes: [string, Parameters<typeof generate>[2]?][] = [
       ["Clareamento dental: mitos e cuidados"],
       [
@@ -321,7 +321,9 @@ test.describe("gerador automático de carrosséis", () => {
     await page.goto(`${ORG}/studio?tab=templates`);
     await page.getByRole("button", { name: "Importar JPG/PNG" }).click();
     const dlg = page.getByRole("dialog");
-    await dlg.getByLabel("Imagem (JPG ou PNG)").setInputFiles(IMAGE);
+    await dlg.getByLabel("Imagem (JPG, PNG ou WebP)").setInputFiles(IMAGE);
+    // A imagem é conferida no navegador antes de liberar o envio.
+    await expect(dlg.getByTestId("import-note")).toBeVisible();
     await dlg.getByLabel("Nome").fill(`Modelo importado ${Date.now().toString(36)}`);
     await dlg.getByRole("checkbox", { name: "Reconstruir camadas editáveis com IA" }).click();
     await dlg.getByRole("button", { name: "Importar", exact: true }).click();

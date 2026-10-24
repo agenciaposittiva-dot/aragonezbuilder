@@ -31,6 +31,7 @@ type ClientData = {
   address: string | null;
   status: "lead" | "active" | "paused" | "inactive";
   notesInternal: string | null;
+  categoryId?: string;
   archived: boolean;
 };
 
@@ -40,9 +41,11 @@ export function ClientHeaderActions({
   canWrite,
   canArchive,
   canDelete = false,
+  categories,
 }: {
   client: ClientData;
   members: { membershipId: string; name: string }[];
+  categories?: { id: string; name: string }[];
   canWrite: boolean;
   canArchive: boolean;
   canDelete?: boolean;
@@ -60,6 +63,7 @@ export function ClientHeaderActions({
         <ClientFormDialog
           client={{ ...client, leadMembershipId: "" }}
           members={members}
+          categories={categories}
           trigger={
             <Button variant="secondary">
               <Pencil /> Editar

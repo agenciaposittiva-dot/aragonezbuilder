@@ -27,7 +27,7 @@ import { listTemplates } from "@/server/services/task-templates";
 import { listTasks, taskIndicators, type TaskListRow } from "@/server/services/tasks";
 import { listStatuses, listTransitions } from "@/server/services/workflow";
 
-export const metadata: Metadata = { title: "Tarefas" };
+export const metadata: Metadata = { title: "Tarefas da equipe" };
 
 const GROUPS: { value: TaskGroupBy; label: string }[] = [
   { value: "status", label: "Agrupar por status" },
@@ -166,8 +166,12 @@ export default async function TasksPage({ params, searchParams }: PageProps<"/w/
   return (
     <>
       <PageHeader
-        title="Tarefas"
-        description="Produção da equipe: responsáveis, prazos, prioridades e bloqueios."
+        title={view === "calendar" ? "Calendário" : "Tarefas da equipe"}
+        description={
+          view === "calendar"
+            ? "Entregas por dia, semana ou mês. Arraste para mudar o prazo ou clique em + para criar uma demanda no dia — é a mesma tarefa da central."
+            : "Produção da equipe: responsáveis, prazos, prioridades e bloqueios."
+        }
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <TaskAiAssistant

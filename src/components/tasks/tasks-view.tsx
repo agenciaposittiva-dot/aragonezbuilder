@@ -105,7 +105,24 @@ export function TasksView({
   }
   if (view === "calendar") {
     const range = calendarRange(searchParams);
-    return <TaskCalendar {...range} rows={rows} unscheduled={unscheduled} base={base} canWrite={canWrite} />;
+    return (
+      <TaskCalendar
+        {...range}
+        rows={rows}
+        unscheduled={unscheduled}
+        base={base}
+        canWrite={canWrite}
+        createWith={
+          projects
+            ? {
+                projects,
+                members,
+                defaultProjectId: projectId,
+              }
+            : undefined
+        }
+      />
+    );
   }
 
   if (view === "timeline") {

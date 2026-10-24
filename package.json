@@ -36,6 +36,7 @@
     "date-fns": "^4.4.0",
     "drizzle-orm": "^0.45.4",
     "fabric": "^7.4.0",
+    "fflate": "^0.8.2",
     "geist": "^1.8.1",
     "lucide-react": "^1.59.0",
     "next": "16.4.2",
@@ -73,6 +74,11 @@
     "vitest": "^5.0.5"
   },
   "engines": {
-    "node": ">=20.9"
+    "node": "22.x"
+  },
+  "allowScripts": {
+    "esbuild": true,
+    "unrs-resolver": true,
+    "canvas": false
   }
 }

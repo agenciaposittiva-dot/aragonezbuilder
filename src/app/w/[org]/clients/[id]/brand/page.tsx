@@ -15,6 +15,7 @@ export default async function ClientBrandPage({ params }: PageProps<"/w/[org]/cl
     return {
       brand,
       logoFileId: (await getClient(s, id)).client.logoFileId,
+      logoBackground: (await getClient(s, id)).client.logoBackground,
       files: canFiles ? (await listFiles(s, { clientId: id, categories: BRAND_CATEGORIES, pageSize: 200 })).rows : [],
       approved: canFiles ? (await listFiles(s, { clientId: id, final: true, pageSize: 24 })).rows : [],
       maxBytes: maxUploadBytes(s),
@@ -52,6 +53,7 @@ export default async function ClientBrandPage({ params }: PageProps<"/w/[org]/cl
             files={data.files}
             approved={data.approved}
             logoFileId={data.logoFileId}
+            logoBackground={data.logoBackground}
             canWrite={can(actor, "files.write")}
             canSetLogo={can(actor, "clients.write")}
             maxBytes={data.maxBytes}

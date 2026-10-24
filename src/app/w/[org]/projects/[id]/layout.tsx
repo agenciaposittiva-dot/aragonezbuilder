@@ -104,6 +104,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps<"/
           items={[
             { label: "Visão geral", href: pBase, exact: true },
             ...(can(actor, "tasks.read") ? [{ label: "Tarefas", href: `${pBase}/tasks`, count: tasks.total }] : []),
+            ...(can(actor, "designs.read") ? [{ label: "Artes", href: `${pBase}/designs` }] : []),
             ...(can(actor, "files.read") ? [{ label: "Arquivos", href: `${pBase}/files` }] : []),
             ...(can(actor, "files.read") ? [{ label: "Aprovações", href: `${pBase}/approvals` }] : []),
             ...(can(actor, "costs.read") ? [{ label: "Rentabilidade", href: `${pBase}/finance` }] : []),

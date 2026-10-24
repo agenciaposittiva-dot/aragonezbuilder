@@ -14,8 +14,10 @@ restrito ao cliente do endereço) e no banco (RLS por organização).
   (login/início, computador/celular), publicação com versões, restaurar versão
   ou o padrão da agência; logotipos, favicon, 5 cores com contraste mínimo de
   4,5:1, boas-vindas, login com imagem de fundo, banner com imagem, foco,
-  altura, sobreposição e botão, links, botões de ação, contato e seções do
-  painel. Links só `https`, `mailto`, `tel` ou caminhos do portal; imagens só
+  altura, sobreposição e botão, banners extras (com 2 ou mais, o início vira
+  um carrossel com setas, pontos, toque para deslizar e rolagem automática
+  com intervalo configurável, que pausa com o mouse e respeita a preferência
+  de menos movimento), links, botões de ação, contato e seções do painel. Links só `https`, `mailto`, `tel` ou caminhos do portal; imagens só
   do próprio cliente.
 - **Login personalizado:** usa a autenticação existente; mensagens de erro
   genéricas; sem cadastro aberto (acesso por convite).

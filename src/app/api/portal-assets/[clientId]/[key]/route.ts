@@ -1,4 +1,4 @@
-import { PORTAL_ASSET_KEYS, type PortalAssetKey } from "@/lib/portal-settings";
+import { parsePortalAssetKey } from "@/lib/portal-settings";
 import { assertClientAccess, can, inOrg } from "@/server/authz";
 import { routeActorForOrgId } from "@/server/auth/route-actor";
 import { resolvePortalAsset } from "@/server/services/client-portal";
@@ -15,10 +15,11 @@ const notFound = () => new Response("Não encontrado.", { status: 404 });
  * apenas a equipe da agência. Só imagens PNG/JPEG/WebP do próprio cliente.
  */
 export async function GET(req: Request, ctx: RouteContext<"/api/portal-assets/[clientId]/[key]">) {
-  const { clientId, key } = await ctx.params;
-  if (!/^[0-9a-f-]{36}$/i.test(clientId) || !PORTAL_ASSET_KEYS.includes(key as PortalAssetKey)) return notFound();
+  const { clientId, key: rawKey } = await ctx.params;
+  const key = parsePortalAssetKey(rawKey);
+  if (!/^[0-9a-f-]{36}$/i.test(clientId) || !key) return notFound();
   const draft = new URL(req.url).searchParams.get("draft") === "1";
-  const asset = await resolvePortalAsset(clientId, key as PortalAssetKey, { draft });
+  const asset = await resolvePortalAsset(clientId, key, { draft });
   if (!asset) return notFound();
 
   if (!asset.public) {

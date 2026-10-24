@@ -29,6 +29,10 @@ export function NewDesignDialog({
   templates,
   canManageTemplates,
   defaultTemplateId,
+  defaultPreset,
+  title = "Nova arte",
+  description = "Comece do zero em um formato ou a partir de um modelo da agência.",
+  link,
 }: {
   trigger: React.ReactNode;
   clients: { id: string; name: string }[];
@@ -36,16 +40,27 @@ export function NewDesignDialog({
   templates: { id: string; name: string; width: number; height: number; thumbnail: string | null }[];
   canManageTemplates: boolean;
   defaultTemplateId?: string;
+  /** Formato já escolhido (cartões "Novo vertical" / "Novo post"). */
+  defaultPreset?: string;
+  title?: string;
+  description?: string;
+  /**
+   * Arte criada a partir de uma demanda (ou projeto): cliente, projeto e tarefa
+   * já definidos e fixos — a arte nasce vinculada, sem cópia de dados.
+   */
+  link?: { clientId: string | null; projectId: string | null; taskId?: string | null; label: string };
 }) {
   const router = useRouter();
   const { orgSlug } = useWorkspace();
   const [open, setOpen] = useState(false);
-  const [preset, setPreset] = useState<string>(FORMAT_PRESETS[0]!.key);
+  const [preset, setPreset] = useState<string>(
+    defaultPreset && FORMAT_PRESETS.some((p) => p.key === defaultPreset) ? defaultPreset : FORMAT_PRESETS[0]!.key,
+  );
   const [custom, setCustom] = useState({ width: 1080, height: 1080 });
   const [pages, setPages] = useState(3);
   const [templateId, setTemplateId] = useState(defaultTemplateId ?? "");
-  const [clientId, setClientId] = useState("");
-  const [projectId, setProjectId] = useState("");
+  const [clientId, setClientId] = useState(link?.clientId ?? "");
+  const [projectId, setProjectId] = useState(link?.projectId ?? "");
   const [name, setName] = useState("");
   const [isTemplate, setIsTemplate] = useState(false);
   const create = useOrgAction(createDesignAction, {
@@ -57,6 +72,16 @@ export function NewDesignDialog({
   const chosen = FORMAT_PRESETS.find((p) => p.key === preset);
   const size = preset === "custom" ? custom : (chosen ?? FORMAT_PRESETS[0]!);
   const carousel = !!chosen?.carousel;
+  // Mesmo tamanho em versão de uma página e em carrossel: alterna com uma caixa, sem procurar na lista.
+  const twin = chosen
+    ? FORMAT_PRESETS.find(
+        (p) =>
+          p.key !== chosen.key &&
+          p.width === chosen.width &&
+          p.height === chosen.height &&
+          !!p.carousel !== !!chosen.carousel,
+      )
+    : undefined;
   const visibleProjects = clientId ? projects.filter((p) => p.clientId === clientId) : projects;
 
   return (
@@ -79,6 +104,7 @@ export function NewDesignDialog({
               height: size.height,
               clientId,
               projectId,
+              taskId: link?.taskId ?? null,
               templateId,
               isTemplate,
               ...(templateId
@@ -88,8 +114,8 @@ export function NewDesignDialog({
           }}
         >
           <DialogHeader>
-            <DialogTitle>Nova arte</DialogTitle>
-            <DialogDescription>Comece do zero em um formato ou a partir de um template da agência.</DialogDescription>
+            <DialogTitle>{title}</DialogTitle>
+            <DialogDescription>{description}</DialogDescription>
           </DialogHeader>
           <DialogBody className="grid gap-4">
             <Field label="Nome" htmlFor="d-name">
@@ -102,13 +128,17 @@ export function NewDesignDialog({
               />
             </Field>
             {templates.length ? (
-              <Field label="Template">
-                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+              <Field
+                label="Modelo"
+                hint="Role para o lado para ver todos; a galeria do Estúdio mostra a prévia de cada um."
+              >
+                {/* Faixa rolável: a altura da caixa não cresce com a quantidade de modelos (celular inclusive). */}
+                <div className="-mx-1 flex snap-x scrollbar-thin gap-2 overflow-x-auto px-1 pb-1">
                   <button
                     type="button"
                     onClick={() => setTemplateId("")}
                     className={cn(
-                      "flex aspect-square items-center justify-center rounded-lg border text-xs text-fg-muted",
+                      "flex size-24 shrink-0 snap-start items-center justify-center rounded-lg border text-xs text-fg-muted",
                       !templateId ? "border-accent ring-2 ring-accent/40" : "border-border hover:border-border-strong",
                     )}
                   >
@@ -120,8 +150,9 @@ export function NewDesignDialog({
                       type="button"
                       onClick={() => setTemplateId(t.id)}
                       title={t.name}
+                      aria-pressed={templateId === t.id}
                       className={cn(
-                        "relative overflow-hidden rounded-lg border bg-surface-2",
+                        "relative size-24 shrink-0 snap-start overflow-hidden rounded-lg border bg-surface-2",
                         templateId === t.id
                           ? "border-accent ring-2 ring-accent/40"
                           : "border-border hover:border-border-strong",
@@ -129,9 +160,9 @@ export function NewDesignDialog({
                     >
                       {t.thumbnail ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={t.thumbnail} alt="" className="aspect-square w-full object-contain" />
+                        <img src={t.thumbnail} alt="" className="size-full object-contain" />
                       ) : (
-                        <span className="flex aspect-square items-center justify-center text-[11px] text-fg-muted">
+                        <span className="flex size-full items-center justify-center p-1 text-center text-[11px] leading-tight text-fg-muted">
                           {t.name}
                         </span>
                       )}
@@ -159,11 +190,24 @@ export function NewDesignDialog({
                     <option value="custom">Personalizado</option>
                   </NativeSelect>
                 </Field>
+                {twin ? (
+                  <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                    <Checkbox
+                      checked={carousel}
+                      onCheckedChange={() => {
+                        setPreset(twin.key);
+                        if (twin.carousel) setPages(twin.pages ?? 3);
+                      }}
+                      aria-label="Carrossel com várias páginas"
+                    />
+                    Carrossel com várias páginas
+                  </label>
+                ) : null}
                 {carousel ? (
                   <Field
-                    label="Páginas do carrossel"
+                    label="Quantidade de slides"
                     htmlFor="d-pages"
-                    hint="Páginas conectadas, do mesmo tamanho. Dá para incluir, duplicar e reordenar depois."
+                    hint="Slides conectados, do mesmo tamanho. Dá para incluir, duplicar e reordenar depois."
                     className="sm:col-span-2"
                   >
                     <Input
@@ -202,39 +246,48 @@ export function NewDesignDialog({
                 ) : null}
               </div>
             ) : null}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Cliente" htmlFor="d-client" hint="Libera as cores, fontes e logos da marca no editor.">
-                <NativeSelect
-                  id="d-client"
-                  value={clientId}
-                  onChange={(e) => {
-                    setClientId(e.target.value);
-                    setProjectId("");
-                  }}
-                >
-                  <option value="">Nenhum</option>
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </NativeSelect>
-              </Field>
-              <Field label="Projeto" htmlFor="d-project">
-                <NativeSelect id="d-project" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-                  <option value="">Nenhum</option>
-                  {visibleProjects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {clientId ? p.name : `${p.clientName} · ${p.name}`}
-                    </option>
-                  ))}
-                </NativeSelect>
-              </Field>
-            </div>
-            {canManageTemplates ? (
+            {link ? (
+              <p
+                className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-fg-muted"
+                data-testid="design-link"
+              >
+                Vinculada a: <span className="font-medium text-fg">{link.label}</span>
+              </p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Cliente" htmlFor="d-client" hint="Libera as cores, fontes e logos da marca no editor.">
+                  <NativeSelect
+                    id="d-client"
+                    value={clientId}
+                    onChange={(e) => {
+                      setClientId(e.target.value);
+                      setProjectId("");
+                    }}
+                  >
+                    <option value="">Nenhum</option>
+                    {clients.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </Field>
+                <Field label="Projeto" htmlFor="d-project">
+                  <NativeSelect id="d-project" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+                    <option value="">Nenhum</option>
+                    {visibleProjects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {clientId ? p.name : `${p.clientName} · ${p.name}`}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </Field>
+              </div>
+            )}
+            {canManageTemplates && !link?.taskId ? (
               <label className="flex items-center gap-2 text-sm">
                 <Checkbox checked={isTemplate} onCheckedChange={(v) => setIsTemplate(v === true)} />
-                Salvar como template reutilizável
+                Salvar como modelo reutilizável
               </label>
             ) : null}
           </DialogBody>

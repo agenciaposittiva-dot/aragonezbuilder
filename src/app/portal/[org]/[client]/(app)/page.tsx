@@ -25,6 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatDate, formatDateTime, todayISO } from "@/lib/format";
 import { portalAssetUrl } from "@/lib/portal-assets";
+import { bannerSlideKey } from "@/lib/portal-settings";
 import { can, inOrg } from "@/server/authz";
 import { requirePortal } from "@/server/auth/portal";
 import { listApprovals } from "@/server/services/approvals";
@@ -146,6 +147,9 @@ export default async function PortalHomePage({ params }: PageProps<"/portal/[org
           name={brandName}
           base={base}
           imageUrl={settings.banner.imageFileId ? portalAssetUrl(portal.client.id, "banner", { v: version }) : null}
+          slideUrls={settings.banner.slides.map((s, i) =>
+            s.imageFileId ? portalAssetUrl(portal.client.id, bannerSlideKey(i), { v: version }) : null,
+          )}
           logoUrl={logoUrl}
           fallbackTitle={`Olá, ${firstName}`}
           fallbackText={`Acompanhe aqui o que a ${actor.orgName} está produzindo para ${brandName}.`}

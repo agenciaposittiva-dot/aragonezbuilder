@@ -14,9 +14,13 @@ import { designAiTargets } from "@/server/services/design-ai";
 import { getSettings } from "@/server/services/organizations";
 import { projectOptions } from "@/server/services/projects";
 
-export const metadata: Metadata = { title: "Assistente IA" };
+export const metadata: Metadata = { title: "Criação com IA" };
 
-export default async function AiPage({ params }: PageProps<"/w/[org]/ai">) {
+export default async function AiPage({ params, searchParams }: PageProps<"/w/[org]/ai">) {
+  const sp = await searchParams;
+  // Atalho do painel: ?ferramenta=imagem (ou a chave de uma operação de texto).
+  const ferramenta =
+    typeof sp.ferramenta === "string" ? (sp.ferramenta === "imagem" ? "image" : sp.ferramenta) : undefined;
   const { org } = await params;
   const actor = await requireActor(org, { kind: "internal", permission: "ai.use" });
   const data = await inOrg(actor, async (s) => {
@@ -38,7 +42,7 @@ export default async function AiPage({ params }: PageProps<"/w/[org]/ai">) {
   return (
     <>
       <PageHeader
-        title="Assistente IA"
+        title="Criação com IA"
         description="Ideias, textos, roteiros, planejamentos e imagens com o contexto de cada marca. Você revisa tudo antes de usar."
         actions={
           can(actor, "designs.write") ? (
@@ -51,6 +55,7 @@ export default async function AiPage({ params }: PageProps<"/w/[org]/ai">) {
         }
       />
       <AiStudio
+        initialOp={ferramenta}
         status={{
           enabled: data.settings.enabled,
           configured: ready.length > 0,

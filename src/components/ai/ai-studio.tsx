@@ -89,6 +89,7 @@ export function AiStudio({
   canConfigure,
   canCreateTasks,
   canSaveFiles,
+  initialOp,
 }: {
   status: {
     enabled: boolean;
@@ -107,9 +108,13 @@ export function AiStudio({
   canConfigure: boolean;
   canCreateTasks: boolean;
   canSaveFiles: boolean;
+  /** Ferramenta aberta ao entrar (atalhos do painel: ?ferramenta=imagem ou a chave da operação). */
+  initialOp?: string;
 }) {
   const ws = useWorkspace();
-  const [opKey, setOpKey] = useState(AI_OPERATIONS[0]!.key);
+  const [opKey, setOpKey] = useState(
+    initialOp && (initialOp === IMAGE_OP || getOperation(initialOp)) ? initialOp : AI_OPERATIONS[0]!.key,
+  );
   const isImage = opKey === IMAGE_OP;
   const op = isImage ? null : getOperation(opKey)!;
   const task = operationTask(opKey);

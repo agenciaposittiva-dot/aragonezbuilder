@@ -4,13 +4,16 @@ import {
   ArrowLeft,
   Download,
   Eye,
+  Frame,
   History,
   ImagePlus,
   Keyboard,
   Layers,
   Maximize,
+  Moon,
   MoreHorizontal,
   Palette,
+  PanelRight,
   Plus,
   Redo2,
   Send,
@@ -39,6 +42,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -56,6 +61,8 @@ import {
   readDesignDocument,
   type DesignDocument,
 } from "@/lib/design-doc";
+import { findPreset, FORMAT_PRESETS } from "@/lib/design-doc/presets";
+import { formatLabel } from "@/lib/design-doc/template-categories";
 import { cn } from "@/lib/utils";
 import {
   createNamedVersionAction,
@@ -64,6 +71,7 @@ import {
   saveDesignAction,
   updateDesignMetaAction,
 } from "@/server/actions/designs";
+import { ChatDockButton } from "@/components/chat/chat-dock";
 import { DesignAiChat, type DesignAiHost } from "../design-ai-chat";
 import { DesignConflictDialog, DesignHistory } from "../design-history";
 import { createActions, type EditorBrand } from "./actions";
@@ -141,9 +149,18 @@ export function DesignEditor({
   const [name, setName] = useState(design.name);
   const [carouselAi, setCarouselAi] = useState<CarouselAiMode | null>(null);
   const [, setEditingText] = useState(false);
+  // Painéis recolhíveis (preferência deste navegador). Abaixo de 1280 px o chat de IA
+  // recolhe o painel esquerdo enquanto está aberto, para o canvas nunca ficar espremido.
+  const [leftCollapsed, setLeftCollapsed] = usePanelPref("editor:left-collapsed");
+  const [propsHidden, setPropsHidden] = usePanelPref("editor:props-hidden");
+  const narrow = useNarrow();
+  const leftClosed = leftCollapsed || (aiOpen && narrow);
+  // Aparência do editor: escuro por padrão (área de trabalho neutra para avaliar as cores da arte).
+  const [editorTheme, setEditorTheme] = useEditorTheme();
 
   const canUndo = useEditor(store, (s) => s.canUndo);
   const canRedo = useEditor(store, (s) => s.canRedo);
+  const pageSize = useEditor(store, (s) => ({ width: s.activePage.width, height: s.activePage.height }));
   const selection = useEditor(store, (s) => s.selection);
   const view = useEditor(store, (s) => s.view);
   const generated = useEditor(store, (s) => !!s.doc.meta?.generator);
@@ -257,6 +274,9 @@ export function DesignEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
+
+  // Referência estável: o observador de tamanho do canvas não é recriado a cada renderização.
+  const onCanvasReady = useCallback((size: { width: number; height: number }) => void startScene(size), [startScene]);
 
   useEffect(() => {
     return () => {
@@ -505,7 +525,11 @@ export function DesignEditor({
   const pickImage = () => fileInputRef.current?.click();
   const openPanel = (t: LeftTab) => {
     if (typeof window !== "undefined" && window.innerWidth < 1024) setMobileSheet(t === "layers" ? "layers" : t);
-    else setTab(t);
+    else {
+      setTab(t);
+      setLeftCollapsed(false);
+      if (aiOpen && narrow) setAiOpen(false);
+    }
   };
 
   const panelProps = {
@@ -543,11 +567,13 @@ export function DesignEditor({
         }}
       />
       <header className="flex h-12 shrink-0 items-center gap-1.5 border-b border-border bg-surface px-2 sm:px-3">
-        <Button variant="ghost" size="icon-sm" asChild aria-label="Voltar ao Estúdio">
-          <Link href={`/w/${ws.orgSlug}/studio`}>
-            <ArrowLeft />
-          </Link>
-        </Button>
+        <Tooltip content="Voltar ao Estúdio Criador">
+          <Button variant="ghost" size="icon-sm" asChild aria-label="Voltar ao Estúdio Criador">
+            <Link href={`/w/${ws.orgSlug}/studio`}>
+              <ArrowLeft />
+            </Link>
+          </Button>
+        </Tooltip>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -596,65 +622,155 @@ export function DesignEditor({
             </Button>
           </Tooltip>
         ) : null}
+        <ChatDockButton className="hidden sm:inline-flex" />
         <Tooltip content="Histórico de versões">
           <Button variant="ghost" size="icon-sm" onClick={() => setHistoryOpen(true)} aria-label="Histórico de versões">
             <History />
           </Button>
         </Tooltip>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+        {canWrite ? (
+          // Troca rápida de formato (como a referência): mesma ação do painel da página.
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="hidden xl:inline-flex"
+                aria-label="Formato da página"
+                data-testid="format-switch"
+                disabled={!ready}
+              >
+                <Frame />{" "}
+                {FORMAT_SHORT[findPreset(presetKeyOf(pageSize))?.key ?? ""] ??
+                  formatLabel(pageSize.width, pageSize.height)}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuLabel>Formato da página</DropdownMenuLabel>
+              <DropdownMenuRadioGroup
+                value={presetKeyOf(pageSize)}
+                onValueChange={(k) => {
+                  const p = findPreset(k);
+                  if (p) actions.setPageSize(p.width, p.height);
+                }}
+              >
+                {QUICK_FORMATS.map((k) => {
+                  const p = findPreset(k)!;
+                  return (
+                    <DropdownMenuRadioItem key={k} value={k}>
+                      {FORMAT_SHORT[k]}{" "}
+                      <span className="ml-auto text-[11px] text-fg-subtle">
+                        {p.width}×{p.height}
+                      </span>
+                    </DropdownMenuRadioItem>
+                  );
+                })}
+              </DropdownMenuRadioGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => (narrow ? setMobileSheet("props") : setPropsHidden(false))}>
+                Outros formatos e medidas…
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
+        <div className="hidden items-center md:flex" data-testid="zoom-controls">
+          <Tooltip content="Diminuir zoom (Ctrl −)">
             <Button
               variant="ghost"
-              size="sm"
-              className="hidden w-16 tabular-nums md:inline-flex"
-              aria-label="Zoom e visualização"
+              size="icon-sm"
+              onClick={() => scene?.zoomTo(scene.zoom / 1.25)}
+              disabled={!ready}
+              aria-label="Diminuir zoom"
             >
-              {zoomPct}%
+              <ZoomOut />
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-60">
-            <DropdownMenuItem onSelect={() => scene?.zoomTo(scene.zoom * 1.25)}>
-              <ZoomIn /> Aumentar zoom <span className="ml-auto text-[11px] text-fg-subtle">Ctrl +</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => scene?.zoomTo(scene.zoom / 1.25)}>
-              <ZoomOut /> Diminuir zoom <span className="ml-auto text-[11px] text-fg-subtle">Ctrl −</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => scene?.fit("page")}>
-              <Maximize /> Ajustar a página <span className="ml-auto text-[11px] text-fg-subtle">Shift 1</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => scene?.fit("all")}>Ver todas as páginas</DropdownMenuItem>
-            <DropdownMenuItem disabled={!selection.length} onSelect={() => scene?.fit("selection")}>
-              Ajustar à seleção <span className="ml-auto text-[11px] text-fg-subtle">Shift 2</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => scene?.zoomTo(1)}>
-              100% <span className="ml-auto text-[11px] text-fg-subtle">Shift 0</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>Precisão</DropdownMenuLabel>
-            <DropdownMenuCheckboxItem
-              checked={view.rulers}
-              onCheckedChange={(v) => store.setView({ rulers: v === true })}
+          </Tooltip>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="w-16 tabular-nums" aria-label="Zoom e visualização">
+                {zoomPct}%
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-60">
+              <DropdownMenuItem onSelect={() => scene?.zoomTo(scene.zoom * 1.25)}>
+                <ZoomIn /> Aumentar zoom <span className="ml-auto text-[11px] text-fg-subtle">Ctrl +</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => scene?.zoomTo(scene.zoom / 1.25)}>
+                <ZoomOut /> Diminuir zoom <span className="ml-auto text-[11px] text-fg-subtle">Ctrl −</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => scene?.fit("page")}>
+                <Maximize /> Ajustar a página <span className="ml-auto text-[11px] text-fg-subtle">Shift 1</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => scene?.fit("all")}>Ver todas as páginas</DropdownMenuItem>
+              <DropdownMenuItem disabled={!selection.length} onSelect={() => scene?.fit("selection")}>
+                Ajustar à seleção <span className="ml-auto text-[11px] text-fg-subtle">Shift 2</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => scene?.zoomTo(1)}>
+                100% <span className="ml-auto text-[11px] text-fg-subtle">Shift 0</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Precisão</DropdownMenuLabel>
+              <DropdownMenuCheckboxItem
+                checked={view.rulers}
+                onCheckedChange={(v) => store.setView({ rulers: v === true })}
+              >
+                Réguas
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={view.grid}
+                onCheckedChange={(v) => store.setView({ grid: v === true })}
+              >
+                Grade
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={view.snap}
+                onCheckedChange={(v) => store.setView({ snap: v === true })}
+              >
+                Alinhamento magnético
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Tooltip content="Aumentar zoom (Ctrl +)">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => scene?.zoomTo(scene.zoom * 1.25)}
+              disabled={!ready}
+              aria-label="Aumentar zoom"
             >
-              Réguas
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem checked={view.grid} onCheckedChange={(v) => store.setView({ grid: v === true })}>
-              Grade
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem checked={view.snap} onCheckedChange={(v) => store.setView({ snap: v === true })}>
-              Alinhamento magnético
-            </DropdownMenuCheckboxItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <ZoomIn />
+            </Button>
+          </Tooltip>
+        </div>
         {canWrite ? (
           // Entre 1024 e 1280 px o painel de propriedades vira gaveta, para o canvas não ficar apertado.
-          <Button
-            variant="ghost"
-            size="sm"
-            className="hidden lg:inline-flex xl:hidden"
-            onClick={() => setMobileSheet("props")}
-          >
-            <SlidersHorizontal /> Propriedades
-          </Button>
+          <Tooltip content="Propriedades">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="hidden lg:inline-flex xl:hidden"
+              onClick={() => setMobileSheet("props")}
+              aria-label="Propriedades"
+            >
+              <SlidersHorizontal />
+            </Button>
+          </Tooltip>
+        ) : null}
+        {canWrite && !aiOpen ? (
+          // Em telas largas o painel fica ao lado do canvas e pode ser recolhido.
+          <Tooltip content={propsHidden ? "Mostrar propriedades" : "Recolher propriedades"}>
+            <Button
+              variant={propsHidden ? "ghost" : "secondary"}
+              size="icon-sm"
+              className="hidden xl:inline-flex"
+              onClick={() => setPropsHidden(!propsHidden)}
+              aria-label={propsHidden ? "Mostrar propriedades" : "Recolher propriedades"}
+              aria-pressed={!propsHidden}
+              data-testid="toggle-properties"
+            >
+              <PanelRight />
+            </Button>
+          </Tooltip>
         ) : null}
         <Button
           variant="secondary"
@@ -712,6 +828,17 @@ export function DesignEditor({
               </DropdownMenuItem>
             ) : null}
             <DropdownMenuSeparator />
+            <DropdownMenuLabel className="flex items-center gap-1.5">
+              <Moon className="size-3.5" /> Aparência do editor
+            </DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={editorTheme}
+              onValueChange={(v) => setEditorTheme(v === "app" ? "app" : "dark")}
+            >
+              <DropdownMenuRadioItem value="dark">Escura</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="app">Igual ao aplicativo</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+            <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => setShortcutsOpen(true)}>
               <Keyboard /> Atalhos de teclado
             </DropdownMenuItem>
@@ -766,10 +893,24 @@ export function DesignEditor({
       <div className="flex min-h-0 flex-1">
         {canWrite ? (
           <aside
-            className="hidden w-[304px] shrink-0 flex-col border-r border-border bg-surface lg:flex"
+            className={cn(
+              "hidden shrink-0 flex-col border-r border-border bg-surface lg:flex",
+              leftClosed ? "w-12" : "w-[304px]",
+            )}
             data-testid="editor-left-panel"
+            data-collapsed={leftClosed ? "true" : "false"}
           >
-            <LeftPanel {...panelProps} tab={tab} onTab={setTab} />
+            <LeftPanel
+              {...panelProps}
+              tab={tab}
+              onTab={setTab}
+              collapsed={leftClosed}
+              onCollapsedChange={(v) => {
+                setLeftCollapsed(v);
+                // Abrir o painel com o chat aberto numa tela média: o chat cede o lugar.
+                if (!v && aiOpen && narrow) setAiOpen(false);
+              }}
+            />
           </aside>
         ) : null}
 
@@ -779,7 +920,7 @@ export function DesignEditor({
           actions={actions}
           canWrite={canWrite}
           canvasRef={canvasRef}
-          onReady={(size) => void startScene(size)}
+          onReady={onCanvasReady}
           onPickImage={pickImage}
           onComponents={() => openPanel("components")}
           ready={ready}
@@ -798,7 +939,7 @@ export function DesignEditor({
             </div>
             <DesignAiChat host={{ ...aiHost, where: aiWhere }} />
           </aside>
-        ) : canWrite ? (
+        ) : canWrite && !propsHidden ? (
           <aside
             className="hidden w-[288px] shrink-0 scrollbar-thin overflow-y-auto border-l border-border bg-surface xl:block"
             data-testid="properties-panel"
@@ -863,7 +1004,7 @@ export function DesignEditor({
                 brand: "Marca",
                 layers: "Camadas",
                 props: "Editar",
-                media: "Imagens",
+                media: "Fotos",
                 components: "Componentes",
                 templates: "Modelos",
                 ai: "Chat de edição com IA",
@@ -965,5 +1106,111 @@ function ShortcutsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: 
         </DialogBody>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Preferência de painel recolhido, guardada só neste navegador (conveniência; nada essencial). */
+function usePanelPref(key: string): [boolean, (v: boolean) => void] {
+  const value = useSyncExternalStore(
+    (fn) => {
+      window.addEventListener("storage", fn);
+      window.addEventListener(`pref:${key}`, fn);
+      return () => {
+        window.removeEventListener("storage", fn);
+        window.removeEventListener(`pref:${key}`, fn);
+      };
+    },
+    () => {
+      try {
+        return window.localStorage.getItem(key) === "1";
+      } catch {
+        return false;
+      }
+    },
+    () => false,
+  );
+  const set = useCallback(
+    (v: boolean) => {
+      try {
+        window.localStorage.setItem(key, v ? "1" : "0");
+      } catch {
+        // Sem armazenamento (navegação privada): vale só até recarregar.
+      }
+      window.dispatchEvent(new Event(`pref:${key}`));
+    },
+    [key],
+  );
+  return [value, set];
+}
+
+/** Formatos de troca rápida no cabeçalho (os demais ficam no painel da página). */
+const QUICK_FORMATS = ["story", "ig-portrait", "ig-square", "banner"] as const;
+const FORMAT_SHORT: Record<string, string> = {
+  story: "Vertical 9:16",
+  "ig-portrait": "Post 4:5",
+  "ig-square": "Quadrado 1:1",
+  banner: "Paisagem 16:9",
+};
+const presetKeyOf = (size: { width: number; height: number }) =>
+  FORMAT_PRESETS.find((p) => !p.carousel && p.width === size.width && p.height === size.height)?.key ?? "";
+
+type EditorTheme = "dark" | "app";
+
+/**
+ * Aparência do editor (preferência deste navegador). "dark" aplica o tema escuro
+ * da plataforma só enquanto o editor está aberto — inclusive em menus e caixas
+ * de diálogo — e devolve o tema anterior ao sair.
+ */
+function useEditorTheme(): [EditorTheme, (v: EditorTheme) => void] {
+  const KEY = "editor:theme";
+  const value = useSyncExternalStore(
+    (fn) => {
+      window.addEventListener("storage", fn);
+      window.addEventListener(`pref:${KEY}`, fn);
+      return () => {
+        window.removeEventListener("storage", fn);
+        window.removeEventListener(`pref:${KEY}`, fn);
+      };
+    },
+    (): EditorTheme => {
+      try {
+        return window.localStorage.getItem(KEY) === "app" ? "app" : "dark";
+      } catch {
+        return "dark";
+      }
+    },
+    (): EditorTheme => "dark",
+  );
+  useEffect(() => {
+    if (value !== "dark") return;
+    const root = document.documentElement;
+    const previous = root.dataset.theme;
+    root.dataset.theme = "dark";
+    return () => {
+      if (previous) root.dataset.theme = previous;
+      else delete root.dataset.theme;
+    };
+  }, [value]);
+  const set = useCallback((v: EditorTheme) => {
+    try {
+      window.localStorage.setItem(KEY, v);
+    } catch {
+      // Sem armazenamento (navegação privada): vale só até recarregar.
+    }
+    window.dispatchEvent(new Event(`pref:${KEY}`));
+  }, []);
+  return [value, set];
+}
+
+/** Abaixo de 1280 px (notebooks e tablets na horizontal). */
+function useNarrow() {
+  return useSyncExternalStore(
+    (fn) => {
+      const mq = window.matchMedia("(max-width: 1279.98px)");
+      mq.addEventListener("change", fn);
+      return () => mq.removeEventListener("change", fn);
+    },
+    () => window.matchMedia("(max-width: 1279.98px)").matches,
+    () => false,
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { AtSign, Hash, MessageSquare, Paperclip, Users, VolumeX, X } from "lucide-react";
+import { AtSign, Bell, Hash, MessageSquare, Paperclip, Users, VolumeX, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   createContext,
@@ -18,6 +18,7 @@ import { DEFAULT_CHAT_ALERTS, type ChatAlertPrefs } from "@/lib/chat-alerts";
 import { cn } from "@/lib/utils";
 import type { InboxMessage, InboxWatch } from "@/server/services/chat";
 import { chatGet } from "./api";
+import { useChatDock } from "./chat-dock";
 import { soundEngine, type SoundKind, type SoundState } from "./notification-sound";
 
 /*
@@ -65,6 +66,17 @@ type AlertCard = {
 
 type Summary = { messages: number; conversations: string[] };
 
+/** Aviso de um evento da plataforma (tarefa, aprovação, solicitação…), vindo do sino. */
+export type EventAlert = {
+  id: string;
+  title: string;
+  body: string | null;
+  at: string;
+  image: string | null;
+  /** Abre a área correspondente (e marca como lido). */
+  open: () => void;
+};
+
 export type NativePermission = NotificationPermission | "unsupported";
 export type SoundTest = "played" | "blocked" | "unsupported" | "device-off";
 
@@ -82,6 +94,8 @@ type AlertsCtx = {
   testSound: (volume?: number) => Promise<SoundTest>;
   nativePermission: NativePermission;
   requestNative: () => Promise<NativePermission>;
+  /** Avisos de eventos (do sino): cada id aparece uma única vez, sem som. */
+  pushEvents: (events: EventAlert[]) => void;
 };
 
 const AlertsContext = createContext<AlertsCtx | null>(null);
@@ -134,8 +148,10 @@ export function ChatAlertsProvider({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const dock = useChatDock();
   const [prefs, setPrefs] = useState<ChatAlertPrefs>(initialPrefs ?? DEFAULT_CHAT_ALERTS);
   const [cards, setCards] = useState<AlertCard[]>([]);
+  const [events, setEvents] = useState<EventAlert[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [sound, setSound] = useState<SoundState>("locked");
   const [deviceSound, setDeviceSound] = useState<"on" | "off" | null>(null);
@@ -150,7 +166,14 @@ export function ChatAlertsProvider({
   const soundAt = useRef(0);
   const soundByConversation = useRef<Map<string, number>>(new Map());
   const claimed = useRef<Set<string>>(new Set());
+  const seenEvents = useRef<Set<string>>(new Set());
   const channel = useRef<BroadcastChannel | null>(null);
+  // Conversa na tela dentro da janela flutuante: mensagem dela não vira aviso.
+  const dockActive = dock?.activeConversationId ?? null;
+  const dockActiveRef = useRef(dockActive);
+  useEffect(() => {
+    dockActiveRef.current = dockActive;
+  }, [dockActive]);
   const cardsRef = useRef<AlertCard[]>(cards);
   useEffect(() => {
     cardsRef.current = cards;
@@ -217,12 +240,24 @@ export function ChatAlertsProvider({
         // O chat já está aberto: troca de conversa pelo próprio histórico do chat.
         history.pushState(null, "", url);
         window.dispatchEvent(new PopStateEvent("popstate"));
+      } else if (dock) {
+        // Janela flutuante: a conversa abre por cima da página atual, sem sair dela.
+        dock.open(conversationId);
       } else {
         router.push(url);
       }
     },
-    [org, router],
+    [org, router, dock],
   );
+
+  const pushEvents = useCallback((items: EventAlert[]) => {
+    const fresh = items.filter((e) => !seenEvents.current.has(e.id));
+    if (!fresh.length) return;
+    for (const e of fresh) seenEvents.current.add(e.id);
+    setEvents((es) => [...fresh, ...es].slice(0, 8));
+    const last = fresh[0]!;
+    setAnnouncement(fresh.length > 1 ? `${fresh.length} avisos novos. ${last.title}.` : `Aviso: ${last.title}.`);
+  }, []);
 
   const showNative = useCallback(
     (groups: Map<string, InboxMessage[]>, preview: boolean, silent: boolean) => {
@@ -275,7 +310,7 @@ export function ChatAlertsProvider({
     for (const m of fresh) remember(m.id);
 
     const visible = document.visibilityState === "visible";
-    const activeId = visible ? activeConversation(org) : null;
+    const activeId = visible ? (activeConversation(org) ?? dockActive) : null;
     const live = fresh.filter((m) => m.ageMs <= STALE_MS);
     const stale = fresh.filter((m) => m.ageMs > STALE_MS && m.conversationId !== activeId);
     const inActive = live.filter((m) => m.conversationId === activeId);
@@ -459,7 +494,7 @@ export function ChatAlertsProvider({
     if (!enabled) return;
     const drop = () => {
       if (document.visibilityState !== "visible") return;
-      const id = activeConversation(org);
+      const id = activeConversation(org) ?? dockActiveRef.current;
       if (id)
         setCards((cs) => (cs.some((c) => c.conversationId === id) ? cs.filter((c) => c.conversationId !== id) : cs));
     };
@@ -525,8 +560,9 @@ export function ChatAlertsProvider({
         setNativePermission(p);
         return p;
       },
+      pushEvents,
     }),
-    [enabled, prefs, sound, deviceSound, enableSound, testSound, nativePermission],
+    [enabled, prefs, sound, deviceSound, enableSound, testSound, nativePermission, pushEvents],
   );
 
   return (
@@ -535,13 +571,21 @@ export function ChatAlertsProvider({
       {enabled ? (
         <AlertStack
           cards={cards}
+          events={events}
           summary={summary}
           duration={prefs.duration}
           sound={sound}
           onOpen={openConversation}
           onDismiss={(id) => setCards((cs) => cs.filter((c) => c.conversationId !== id))}
+          onOpenEvent={(id) => {
+            const ev = events.find((e) => e.id === id);
+            setEvents((es) => es.filter((e) => e.id !== id));
+            ev?.open();
+          }}
+          onDismissEvent={(id) => setEvents((es) => es.filter((e) => e.id !== id))}
           onDismissAll={() => {
             setCards([]);
+            setEvents([]);
             setSummary(null);
           }}
           onDismissSummary={() => setSummary(null)}
@@ -561,11 +605,14 @@ export function ChatAlertsProvider({
 
 type StackProps = {
   cards: AlertCard[];
+  events: EventAlert[];
   summary: Summary | null;
   duration: number;
   sound: SoundState;
   onOpen: (conversationId: string | null) => void;
   onDismiss: (conversationId: string) => void;
+  onOpenEvent: (id: string) => void;
+  onDismissEvent: (id: string) => void;
   onDismissAll: () => void;
   onDismissSummary: () => void;
   onEnableSound: () => void;
@@ -573,7 +620,7 @@ type StackProps = {
 
 function AlertStack(props: StackProps) {
   // Montada só com algo a mostrar: o estado de leitura (mouse/foco) recomeça a cada nova pilha.
-  if (!props.cards.length && !props.summary) return null;
+  if (!props.cards.length && !props.events.length && !props.summary) return null;
   return <StackBody {...props} />;
 }
 
@@ -591,11 +638,14 @@ const tabHidden = () => document.visibilityState !== "visible";
 
 function StackBody({
   cards,
+  events,
   summary,
   duration,
   sound,
   onOpen,
   onDismiss,
+  onOpenEvent,
+  onDismissEvent,
   onDismissAll,
   onDismissSummary,
   onEnableSound,
@@ -606,8 +656,11 @@ function StackBody({
   // Editor aberto: versão compacta no alto, ao centro (sobre a área de criação), longe da barra e dos painéis.
   const editor = useSyncExternalStore(subscribeEditor, editorOpen, () => false);
 
-  const shown = cards.slice(0, editor ? 1 : MAX_CARDS);
+  const slots = editor ? 1 : MAX_CARDS;
+  const shown = cards.slice(0, slots);
+  const shownEvents = events.slice(0, Math.max(0, slots - shown.length));
   const extra = cards.length - shown.length;
+  const extraEvents = events.length - shownEvents.length;
   // Lendo (mouse ou foco na pilha) ou fora da aba: nada fecha sozinho.
   const paused = hovered || focused || hidden;
   const width = editor ? "w-full" : "w-full sm:w-[22rem]";
@@ -673,8 +726,24 @@ function StackBody({
           onEnableSound={onEnableSound}
         />
       ))}
-      {extra > 0 || shown.length > 1 ? (
+      {shownEvents.map((e) => (
+        <EventCardView
+          key={e.id}
+          event={e}
+          duration={duration}
+          paused={paused}
+          compact={editor}
+          onOpen={() => onOpenEvent(e.id)}
+          onDismiss={() => onDismissEvent(e.id)}
+        />
+      ))}
+      {extra > 0 || extraEvents > 0 || shown.length + shownEvents.length > 1 ? (
         <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-border bg-surface/95 px-1 py-0.5 text-xs shadow-md backdrop-blur">
+          {extraEvents > 0 ? (
+            <span className="px-2 py-1 text-fg-muted">
+              {extraEvents === 1 ? "Mais 1 aviso no sino" : `Mais ${extraEvents} avisos no sino`}
+            </span>
+          ) : null}
           {extra > 0 ? (
             <button
               type="button"
@@ -711,6 +780,98 @@ function DismissButton({ label, onClick }: { label: string; onClick: () => void 
   );
 }
 
+/** Fecha sozinho depois de `total` ms; ler (mouse/foco) ou sair da aba pausa a contagem. */
+function useAutoClose(total: number, paused: boolean, version: number, onClose: () => void) {
+  const remaining = useRef(total);
+  const close = useEffectEvent(onClose);
+  useEffect(() => {
+    remaining.current = total;
+  }, [version, total]);
+  useEffect(() => {
+    if (!total || paused) return;
+    const started = Date.now();
+    const t = setTimeout(() => close(), remaining.current);
+    return () => {
+      clearTimeout(t);
+      remaining.current = Math.max(1500, remaining.current - (Date.now() - started));
+    };
+  }, [paused, version, total]);
+}
+
+function EventCardView({
+  event,
+  duration,
+  paused,
+  compact,
+  onOpen,
+  onDismiss,
+}: {
+  event: EventAlert;
+  duration: number;
+  paused: boolean;
+  compact: boolean;
+  onOpen: () => void;
+  onDismiss: () => void;
+}) {
+  useAutoClose(duration ? duration * 1000 : 0, paused, 0, onDismiss);
+  return (
+    <div
+      role="group"
+      aria-label={`Aviso: ${event.title}`}
+      data-event-alert={event.id}
+      className={cn(
+        "pointer-events-auto relative w-full rounded-xl border border-border bg-surface shadow-lg motion-safe:animate-scale-in",
+        !compact && "sm:w-[22rem]",
+      )}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.stopPropagation();
+          onDismiss();
+        }
+      }}
+    >
+      <button
+        type="button"
+        className="flex w-full items-start gap-3 rounded-xl p-3 pr-10 text-left hover:bg-surface-2/60"
+        onClick={onOpen}
+        aria-label={`Abrir: ${event.title}`}
+      >
+        {event.image ? (
+          <Avatar name={event.title} src={event.image} size={compact ? "md" : "lg"} />
+        ) : (
+          <span
+            className={cn(
+              "flex shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent-text",
+              compact ? "size-8" : "size-10",
+            )}
+          >
+            <Bell className="size-4" aria-hidden="true" />
+          </span>
+        )}
+        <span className="min-w-0 flex-1">
+          <span className="flex items-baseline gap-1.5">
+            <span className="truncate text-sm font-semibold">{event.title}</span>
+            <time dateTime={event.at} className="tabular shrink-0 text-[11px] text-fg-subtle">
+              {timeLabel(event.at)}
+            </time>
+          </span>
+          {event.body ? (
+            <span
+              className={cn(
+                "mt-0.5 block text-sm break-words text-fg-muted",
+                compact ? "line-clamp-1" : "line-clamp-2",
+              )}
+            >
+              {event.body}
+            </span>
+          ) : null}
+        </span>
+      </button>
+      <DismissButton label="Dispensar aviso" onClick={onDismiss} />
+    </div>
+  );
+}
+
 function AlertCardView({
   card,
   duration,
@@ -730,22 +891,8 @@ function AlertCardView({
   onDismiss: () => void;
   onEnableSound: () => void;
 }) {
-  // Menções ficam o dobro do tempo; ler (mouse/foco) ou sair da aba pausa a contagem.
-  const total = duration ? duration * 1000 * (card.mention ? 2 : 1) : 0;
-  const remaining = useRef(total);
-  const close = useEffectEvent(onDismiss);
-  useEffect(() => {
-    remaining.current = total;
-  }, [card.version, total]);
-  useEffect(() => {
-    if (!total || paused) return;
-    const started = Date.now();
-    const t = setTimeout(() => close(), remaining.current);
-    return () => {
-      clearTimeout(t);
-      remaining.current = Math.max(1500, remaining.current - (Date.now() - started));
-    };
-  }, [paused, card.version, total]);
+  // Menções ficam o dobro do tempo.
+  useAutoClose(duration ? duration * 1000 * (card.mention ? 2 : 1) : 0, paused, card.version, onDismiss);
 
   const group = card.kind !== "direct";
   const KindIcon = card.kind === "channel" ? Hash : card.kind === "group" ? Users : MessageSquare;

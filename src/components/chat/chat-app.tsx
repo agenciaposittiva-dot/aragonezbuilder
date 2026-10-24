@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { setAvailabilityAction } from "@/server/actions/chat";
 import { chatGet, type ChatMessageDTO, type ConversationSummary } from "./api";
 import { useChatAlerts } from "./chat-alerts";
+import { EMBED_ACTIVE, EMBED_OPEN } from "./chat-embed-bridge";
 import {
   ChannelBrowserDialog,
   ChatAiDialog,
@@ -76,8 +77,7 @@ function shortTime(iso: string | null) {
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 }
 
-function parseLocation(org: string) {
-  const prefix = `/w/${org}/chat`;
+function parseLocation(prefix: string) {
   const rest = location.pathname.startsWith(prefix) ? location.pathname.slice(prefix.length).replace(/^\//, "") : "";
   const id = rest.split("/")[0] || null;
   const m = Number(new URLSearchParams(location.search).get("m"));
@@ -95,6 +95,7 @@ export function ChatApp({
   ai,
   status,
   photoMaxBytes,
+  embed = false,
 }: {
   org: string;
   me: { userId: string; membershipId: string };
@@ -107,8 +108,11 @@ export function ChatApp({
   status: { availability: string; showLastSeen: boolean };
   /** Limite da foto de grupos e canais (bytes). */
   photoMaxBytes: number;
+  /** Dentro da janela flutuante (iframe em /chat-dock): endereços próprios e ponte com a página de fora. */
+  embed?: boolean;
 }) {
   const chat = useChat(org, { conversations: initial.conversations, activeId: initial.activeId });
+  const basePath = embed ? `/chat-dock/${org}` : `/w/${org}/chat`;
   const wide = useMedia("(min-width: 1280px)");
   const [panelOpen, setPanelOpen] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
@@ -138,25 +142,40 @@ export function ChatApp({
     (id: string | null, opts: { seq?: number | null; replace?: boolean } = {}) => {
       if (id !== activeId) chat.open(id);
       setFocusSeq(opts.seq ?? null);
-      const url = id ? `/w/${org}/chat/${id}${opts.seq ? `?m=${opts.seq}` : ""}` : `/w/${org}/chat`;
+      const url = id ? `${basePath}/${id}${opts.seq ? `?m=${opts.seq}` : ""}` : basePath;
       if (location.pathname + location.search !== url) {
         if (opts.replace) history.replaceState(null, "", url);
         else history.pushState(null, "", url);
       }
     },
-    [activeId, chat, org],
+    [activeId, chat, basePath],
   );
 
   // Voltar/avançar do navegador.
   useEffect(() => {
     const onPop = () => {
-      const { id, seq } = parseLocation(org);
+      const { id, seq } = parseLocation(basePath);
       chat.open(id);
       setFocusSeq(seq);
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
-  }, [chat, org]);
+  }, [chat, basePath]);
+
+  // Janela flutuante: a página de fora pede para abrir uma conversa e fica sabendo qual está na tela.
+  useEffect(() => {
+    if (!embed || window.parent === window) return;
+    const onMessage = (e: MessageEvent<{ type?: string; id?: unknown }>) => {
+      if (e.origin !== location.origin || e.data?.type !== EMBED_OPEN) return;
+      openConversation(typeof e.data.id === "string" ? e.data.id : null);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [embed, openConversation]);
+  useEffect(() => {
+    if (!embed || window.parent === window) return;
+    window.parent.postMessage({ type: EMBED_ACTIVE, id: activeId }, location.origin);
+  }, [embed, activeId]);
 
   const availability = useOrgAction(setAvailabilityAction, { onSuccess: () => chat.syncNow() });
   const changeStatus = (next: typeof myStatus) => {
@@ -199,7 +218,13 @@ export function ChatApp({
   const aiEnabled = ai.allowed;
 
   return (
-    <div className="-mx-4 -my-6 flex h-[calc(100dvh-3.5rem)] min-h-0 overflow-hidden border-border bg-bg sm:-mx-6 lg:-mx-8 lg:border-x">
+    <div
+      className={cn(
+        "flex min-h-0 overflow-hidden border-border bg-bg",
+        embed ? "h-dvh" : "-mx-4 -my-6 h-[calc(100dvh-3.5rem)] sm:-mx-6 lg:-mx-8 lg:border-x",
+      )}
+      data-chat-embed={embed ? "true" : undefined}
+    >
       {/* Lista de conversas */}
       <section
         aria-label="Conversas"
@@ -210,7 +235,8 @@ export function ChatApp({
       >
         <div className="space-y-2 border-b border-border p-3">
           <div className="flex items-center gap-2">
-            <h1 className="flex-1 text-base font-semibold">Chat da Equipe</h1>
+            <h1 className={cn("flex-1 text-base font-semibold", embed && "sr-only")}>Chat da Equipe</h1>
+            {embed ? <span className="flex-1" /> : null}
             <StatusMenu status={myStatus} onChange={changeStatus} />
             <Button size="icon-sm" variant="ghost" aria-label="Canais da equipe" onClick={() => setChannelsOpen(true)}>
               <Hash />

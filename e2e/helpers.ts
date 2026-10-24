@@ -17,10 +17,16 @@ export async function login(page: Page, email: string, path = "/login") {
   await page.click("button[type=submit]");
 }
 
-/** A página não pode rolar na horizontal (layout quebrado em telas pequenas). */
+/**
+ * Nada mais largo que a tela: nem rolagem horizontal nem a página "esticada"
+ * no celular (quando um elemento largo faz o navegador ampliar a área de
+ * layout, scrollWidth e innerWidth crescem juntos — por isso a comparação é
+ * com a largura real da janela).
+ */
 export async function expectNoHorizontalScroll(page: Page) {
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  expect(overflow).toBeLessThanOrEqual(1);
+  const width = page.viewportSize()?.width ?? (await page.evaluate(() => window.innerWidth));
+  const widest = await page.evaluate(() => Math.max(document.documentElement.scrollWidth, window.innerWidth));
+  expect(widest).toBeLessThanOrEqual(width + 1);
 }
 
 /** Sessão da proprietária da agência de demonstração em um navegador separado. */

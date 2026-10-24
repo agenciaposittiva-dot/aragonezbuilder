@@ -32,6 +32,7 @@ import {
   Minus,
   Music,
   Palette,
+  PanelLeftClose,
   Phone,
   Play,
   Plus,
@@ -80,13 +81,14 @@ import { useEditor, type EditorStore } from "./store";
 
 export type LeftTab = "add" | "layers" | "brand" | "media" | "components" | "templates";
 
+// Ordem da referência (modelos primeiro, camadas por último); "Adicionar" reúne texto, elementos e ícones.
 export const LEFT_TABS: { key: LeftTab; label: string; icon: typeof Plus }[] = [
-  { key: "add", label: "Adicionar", icon: Plus },
-  { key: "layers", label: "Camadas", icon: Layers },
-  { key: "brand", label: "Marca", icon: Palette },
-  { key: "media", label: "Imagens", icon: Images },
-  { key: "components", label: "Componentes", icon: Component },
   { key: "templates", label: "Modelos", icon: LayoutTemplate },
+  { key: "add", label: "Adicionar", icon: Plus },
+  { key: "media", label: "Fotos", icon: Images },
+  { key: "brand", label: "Marca", icon: Palette },
+  { key: "components", label: "Componentes", icon: Component },
+  { key: "layers", label: "Camadas", icon: Layers },
 ];
 
 export type PanelProps = {
@@ -103,40 +105,72 @@ export type PanelProps = {
   onNavigate?: (tab: LeftTab) => void;
 };
 
-export function LeftPanel(props: PanelProps & { tab: LeftTab; onTab: (t: LeftTab) => void }) {
-  const { tab, onTab } = props;
+/**
+ * Trilho de ícones + conteúdo do painel. Recolhido (botão no cabeçalho do painel),
+ * só o trilho fica (48 px) e o canvas ganha o espaço; qualquer ícone reabre.
+ */
+export function LeftPanel(
+  props: PanelProps & {
+    tab: LeftTab;
+    onTab: (t: LeftTab) => void;
+    collapsed?: boolean;
+    onCollapsedChange?: (collapsed: boolean) => void;
+  },
+) {
+  const { tab, onTab, collapsed = false, onCollapsedChange } = props;
   const current = LEFT_TABS.find((t) => t.key === tab)!;
   return (
     <div className="flex min-h-0 flex-1">
       <nav
-        className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-border py-2"
+        className={cn("flex w-12 shrink-0 flex-col items-center gap-1 py-2", !collapsed && "border-r border-border")}
         aria-label="Painéis do editor"
       >
-        {LEFT_TABS.map(({ key, label, icon: Icon }) => (
-          <Tooltip key={key} content={label} side="right">
-            <button
-              type="button"
-              aria-label={label}
-              aria-pressed={tab === key}
-              onClick={() => onTab(key)}
-              className={cn(
-                "inline-flex size-9 items-center justify-center rounded-lg [&_svg]:size-[18px]",
-                tab === key ? "bg-accent-soft text-fg" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
-              )}
-            >
-              <Icon />
-            </button>
-          </Tooltip>
-        ))}
+        {LEFT_TABS.map(({ key, label, icon: Icon }) => {
+          const active = tab === key && !collapsed;
+          return (
+            <Tooltip key={key} content={label} side="right">
+              <button
+                type="button"
+                aria-label={label}
+                aria-pressed={active}
+                onClick={() => {
+                  onTab(key);
+                  if (collapsed) onCollapsedChange?.(false);
+                }}
+                className={cn(
+                  "inline-flex size-9 items-center justify-center rounded-lg [&_svg]:size-[18px]",
+                  active ? "bg-accent-soft text-fg" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
+                )}
+              >
+                <Icon />
+              </button>
+            </Tooltip>
+          );
+        })}
       </nav>
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex h-10 shrink-0 items-center border-b border-border px-3.5 text-sm font-semibold">
-          {current.label}
+      {collapsed ? null : (
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex h-10 shrink-0 items-center justify-between border-b border-border pr-1.5 pl-3.5 text-sm font-semibold">
+            {current.label}
+            {onCollapsedChange ? (
+              <Tooltip content="Recolher painel (o canvas ganha o espaço)">
+                <button
+                  type="button"
+                  aria-label="Recolher painel"
+                  data-testid="toggle-left-panel"
+                  onClick={() => onCollapsedChange(true)}
+                  className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg [&_svg]:size-4"
+                >
+                  <PanelLeftClose />
+                </button>
+              </Tooltip>
+            ) : null}
+          </div>
+          <div className="min-h-0 flex-1 scrollbar-thin overflow-y-auto p-3.5">
+            <PanelBody {...props} tab={tab} />
+          </div>
         </div>
-        <div className="min-h-0 flex-1 scrollbar-thin overflow-y-auto p-3.5">
-          <PanelBody {...props} tab={tab} />
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -227,7 +261,7 @@ function AddPanel({ actions, onPickImage, onDone, onNavigate }: PanelProps) {
         <div className="grid grid-cols-3 gap-1.5">
           {(
             [
-              ["media", "Imagens", Images],
+              ["media", "Fotos", Images],
               ["components", "Componentes", Component],
               ["templates", "Modelos", LayoutTemplate],
             ] as const

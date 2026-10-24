@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import sharp from "sharp";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { AUTOMATION_PRESETS } from "@/lib/automation-presets";
@@ -6,14 +6,14 @@ import type { Actor } from "@/server/authz";
 import { withOrg } from "@/server/db";
 import { automationRules, automationRuns, domainEvents, notifications, tasks } from "@/server/db/schema";
 import { dispatchPendingEvents } from "@/server/events/dispatcher";
-import { scanDueSoonTasks } from "@/server/events/schedules";
+import { scanDueSoonTasks, scanOverdueTasks } from "@/server/events/schedules";
 import { ValidationError } from "@/server/errors";
 import { approvalTaskOptions, decideApproval, requestApproval } from "@/server/services/approvals";
 import { saveRule } from "@/server/services/automations";
 import { createClient } from "@/server/services/clients";
 import { storeUpload } from "@/server/services/files";
 import { createProject } from "@/server/services/projects";
-import { addDependency, createTask, getTask, toggleTaskDone, updateTask } from "@/server/services/tasks";
+import { addDependency, createTask, deleteTask, getTask, toggleTaskDone, updateTask } from "@/server/services/tasks";
 import { listStatuses } from "@/server/services/workflow";
 import { addMember, as, createOrgWithOwner, resetDb } from "./helpers";
 
@@ -186,6 +186,58 @@ describe("central de tarefas: automações e integrações", () => {
     const notes = await notesOf(designer.userId);
     expect(notes.find((n) => n.title === "Prazo próximo: Vence amanhã")?.body).toMatch(/^Vence amanhã \(/);
     expect(notes.find((n) => n.title === "Prazo próximo: Vence hoje")?.body).toMatch(/^Vence hoje/);
+  });
+
+  it("atrasada: um aviso não lido por tarefa (o novo substitui) e tarefa na lixeira não avisa", async () => {
+    const mk = (title: string) =>
+      as(ctx.actor, (s) =>
+        createTask(s, { projectId, title, dueDate: iso(-2), assigneeMembershipId: designer.membershipId }),
+      );
+    const late = await mk("Relatório atrasado");
+    const trashed = await mk("Apagada atrasada");
+    await as(ctx.actor, (s) => deleteTask(s, trashed.id));
+    const overdueEvents = () =>
+      withOrg(ctx.org.id, (tx) =>
+        tx
+          .select()
+          .from(domainEvents)
+          .where(and(eq(domainEvents.type, "task.overdue"), inArray(domainEvents.entityId, [late.id, trashed.id]))),
+      );
+    const lateNotes = async () =>
+      (await notesOf(designer.userId)).filter((n) => n.type === "task.overdue" && n.entityId === late.id);
+
+    await scanOverdueTasks();
+    await scanOverdueTasks();
+    expect((await overdueEvents()).map((e) => e.entityId)).toEqual([late.id]);
+    await dispatchPendingEvents(300);
+    const [first] = await lateNotes();
+    expect(first?.title).toBe("Tarefa atrasada: Relatório atrasado");
+    expect(first?.body).toBe(`O prazo era ${iso(-2).split("-").reverse().join("/")}.`);
+    expect(first?.link).toBe(`/w/${ctx.org.slug}/tasks/${late.id}`);
+
+    // No dia seguinte a verificação roda de novo: o aviso não lido é trocado, não empilhado.
+    const yesterday = sql`now() - interval '1 day'`;
+    await withOrg(ctx.org.id, (tx) =>
+      tx.update(domainEvents).set({ createdAt: yesterday }).where(eq(domainEvents.entityId, late.id)),
+    );
+    await scanOverdueTasks();
+    await dispatchPendingEvents(300);
+    const afterSecond = await lateNotes();
+    expect(afterSecond).toHaveLength(1);
+    expect(afterSecond[0]!.id).not.toBe(first!.id);
+
+    // Depois de lido, o próximo lembrete chega como novo (o lido fica no histórico).
+    await withOrg(ctx.org.id, (tx) =>
+      tx.update(notifications).set({ readAt: new Date() }).where(eq(notifications.id, afterSecond[0]!.id)),
+    );
+    await withOrg(ctx.org.id, (tx) =>
+      tx.update(domainEvents).set({ createdAt: yesterday }).where(eq(domainEvents.entityId, late.id)),
+    );
+    await scanOverdueTasks();
+    await dispatchPendingEvents(300);
+    const afterThird = await lateNotes();
+    expect(afterThird).toHaveLength(2);
+    expect(afterThird.filter((n) => !n.readAt)).toHaveLength(1);
   });
 
   it("aprovação vinculada à tarefa: revisão, aprovação do cliente conclui pela regra", async () => {

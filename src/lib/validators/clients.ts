@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isoDate, moneyCents, optionalText, optionalUuid, requiredText, uuid } from "./common";
+import { LABEL_COLORS } from "./tasks";
 
 export const CLIENT_STATUS = ["lead", "active", "paused", "inactive"] as const;
 export const CLIENT_STATUS_LABEL: Record<(typeof CLIENT_STATUS)[number], string> = {
@@ -24,8 +25,28 @@ export const clientInput = z.object({
   status: z.enum(CLIENT_STATUS).default("active"),
   notesInternal: optionalText(5000),
   leadMembershipId: optionalUuid,
+  /** Categoria da agência. Ausente = não muda (edição); "" ou null = sem categoria. */
+  categoryId: z.union([z.uuid(), z.literal(""), z.null()]).optional(),
 });
 export type ClientInput = z.input<typeof clientInput>;
+
+/* Categorias de clientes --------------------------------------------- */
+
+export const CATEGORY_COLORS = LABEL_COLORS;
+
+export const clientCategoryInput = z.object({
+  id: optionalUuid,
+  name: requiredText("o nome da categoria", 40),
+  color: z.enum(CATEGORY_COLORS).default("slate"),
+});
+
+export const clientCategoryOrderInput = z.object({ ids: z.array(uuid).min(1).max(100) });
+
+export const clientCategoryMoveInput = z.object({
+  clientId: uuid,
+  /** null = sem categoria. */
+  categoryId: uuid.nullable(),
+});
 
 export const contactInput = z.object({
   id: optionalUuid,
@@ -99,6 +120,8 @@ export const brandProfileInput = z.object({
 export const clientListParams = z.object({
   q: z.string().trim().max(100).optional(),
   status: z.enum(CLIENT_STATUS).optional(),
+  /** id da categoria ou "none" (sem categoria). */
+  category: z.union([z.uuid(), z.literal("none")]).optional(),
   archived: z.coerce.boolean().optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(5).max(100).default(25),

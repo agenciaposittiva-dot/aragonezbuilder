@@ -162,11 +162,16 @@ test.describe("avisos de mensagens do chat", () => {
     await expectNoHorizontalScroll(helena);
     await shot(helena, info, "janela");
 
-    // Clique: abre exatamente esta conversa e marca como lida (regra do chat).
+    // Clique: abre exatamente esta conversa na janela flutuante do chat (a página continua a mesma)
+    // e marca como lida (regra do chat).
     const read = helena.waitForRequest((r) => r.url().endsWith("/api/chat/read") && r.method() === "POST");
     await alert.getByRole("button", { name: /Abrir conversa/ }).click();
-    await helena.waitForURL(new RegExp(`/chat/${conversationId}$`));
-    await expect(helena.getByTestId("chat-message").filter({ hasText: `a arte ${token}` })).toBeVisible();
+    await expect(helena.getByTestId("chat-dock")).toBeVisible();
+    const frame = helena.frameLocator("[data-testid=chat-dock-frame]");
+    await expect(frame.getByTestId("chat-message").filter({ hasText: `a arte ${token}` })).toBeVisible({
+      timeout: 30_000,
+    });
+    expect(new URL(helena.url()).pathname).toBe(ORG);
     const body = (await read).postDataJSON() as { conversationId: string };
     expect(body.conversationId).toBe(conversationId);
     await expect(alert).toHaveCount(0);

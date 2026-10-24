@@ -117,8 +117,36 @@
     {
       "idx": 16,
       "version": "7",
-      "when": 1792843677340,
-      "tag": "0016_maquina_conteudo",
+      "when": 1792697200349,
+      "tag": "0016_clientes_categorias",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792700565590,
+      "tag": "0017_aprovacao_por_link",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792702623882,
+      "tag": "0018_rotina_e_referencias",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792775084856,
+      "tag": "0019_logo_background",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792849196434,
+      "tag": "0020_maquina_conteudo",
       "breakpoints": true
     }
   ]

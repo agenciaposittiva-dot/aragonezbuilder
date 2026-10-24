@@ -1,9 +1,11 @@
 import { and, asc, desc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { inSequence } from "@/server/db/sequence";
 import {
+  aiGenerations,
   approvals,
   auditLogs,
   clients,
+  designs,
   files,
   memberships,
   projects,
@@ -13,6 +15,7 @@ import {
   workflowStatuses,
 } from "@/server/db/schema";
 import { assertInternal, can, fileScope, projectScope, taskScope, type Scope } from "@/server/authz";
+import { designScope, listDesigns } from "./designs";
 import { currentMrr } from "./finance";
 
 const TZ = "America/Sao_Paulo";
@@ -249,6 +252,108 @@ async function managerKpis(s: Scope) {
   };
 }
 
+function monthStart() {
+  return new Date(`${todayISO().slice(0, 7)}-01T00:00:00-03:00`);
+}
+
+/** Estúdio: artes recentes (miniaturas reais), carrosséis em andamento e aprovados no mês. */
+async function studioOverview(s: Scope) {
+  if (!can(s.actor, "designs.read")) return null;
+  const recent = await listDesigns(s, { limit: 4 });
+  const [row] = await s.db
+    .select({
+      // Carrossel ainda não exportado = em andamento.
+      carousels: sql<number>`count(*) filter (where ${designs.document}->'meta'->>'carousel' = 'true' and ${designs.outputFileId} is null)::int`,
+      total: sql<number>`count(*)::int`,
+    })
+    .from(designs)
+    .where(and(designScope(s), eq(designs.isTemplate, false), isNull(designs.archivedAt)));
+  let approvedThisMonth: number | null = null;
+  if (can(s.actor, "files.read")) {
+    const [a] = await s.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(approvals)
+      .innerJoin(files, eq(files.id, approvals.fileId))
+      .where(
+        and(
+          eq(approvals.stage, "client"),
+          eq(approvals.status, "approved"),
+          sql`${approvals.decidedAt} >= ${monthStart()}`,
+          fileScope(s.actor),
+        ),
+      );
+    approvedThisMonth = a?.n ?? 0;
+  }
+  return { recent, carouselsInProgress: row?.carousels ?? 0, designs: row?.total ?? 0, approvedThisMonth };
+}
+
+/**
+ * Projetos recentes pela última atividade real (projeto, tarefas ou artes),
+ * com a miniatura da arte mais recente do projeto, quando houver.
+ */
+async function recentProjects(s: Scope) {
+  if (!can(s.actor, "projects.read")) return [];
+  const lastActivity = sql<Date>`greatest(
+    ${projects.updatedAt},
+    coalesce((select max(t.updated_at) from ${tasks} t where t.project_id = ${projects.id}), ${projects.updatedAt}),
+    coalesce((select max(d.updated_at) from ${designs} d where d.project_id = ${projects.id} and d.deleted_at is null), ${projects.updatedAt})
+  )`;
+  return s.db
+    .select({
+      id: projects.id,
+      name: projects.name,
+      clientName: clients.name,
+      dueDate: projects.dueDate,
+      statusName: workflowStatuses.name,
+      statusColor: workflowStatuses.color,
+      lastActivity,
+      openTasks: sql<number>`(select count(*)::int from ${tasks} t where t.project_id = ${projects.id} and t.completed_at is null and t.archived_at is null and t.deleted_at is null)`,
+      designCount: sql<number>`(select count(*)::int from ${designs} d where d.project_id = ${projects.id} and d.deleted_at is null and d.archived_at is null and d.is_template = false)`,
+      thumbnail: sql<string | null>`(select d.thumbnail from ${designs} d where d.project_id = ${projects.id} and d.deleted_at is null and d.archived_at is null and d.thumbnail is not null order by d.updated_at desc limit 1)`,
+    })
+    .from(projects)
+    .innerJoin(clients, eq(clients.id, projects.clientId))
+    .innerJoin(workflowStatuses, eq(workflowStatuses.id, projects.statusId))
+    .where(and(projectScope(s.actor), isNull(projects.archivedAt), isNull(projects.deletedAt)))
+    .orderBy(desc(lastActivity))
+    .limit(6);
+}
+
+/** Prazos de projetos nos próximos 14 dias (agenda do painel). */
+async function projectDeadlines(s: Scope) {
+  if (!can(s.actor, "projects.read")) return [];
+  const today = todayISO();
+  return s.db
+    .select({ id: projects.id, name: projects.name, clientName: clients.name, dueDate: projects.dueDate })
+    .from(projects)
+    .innerJoin(clients, eq(clients.id, projects.clientId))
+    .innerJoin(workflowStatuses, eq(workflowStatuses.id, projects.statusId))
+    .where(
+      and(
+        projectScope(s.actor),
+        isNull(projects.archivedAt),
+        isNull(projects.deletedAt),
+        sql`${workflowStatuses.category} not in ('done','cancelled')`,
+        sql`${projects.dueDate} between ${today}::date and ${addDays(today, 14)}::date`,
+      ),
+    )
+    .orderBy(asc(projects.dueDate))
+    .limit(6);
+}
+
+/** Gerações de IA da pessoa no mês (textos e imagens). */
+async function aiThisMonth(s: Scope) {
+  if (!can(s.actor, "ai.use")) return null;
+  const [row] = await s.db
+    .select({
+      total: sql<number>`count(*)::int`,
+      images: sql<number>`count(*) filter (where ${aiGenerations.kind} = 'image')::int`,
+    })
+    .from(aiGenerations)
+    .where(and(eq(aiGenerations.userId, s.actor.userId), sql`${aiGenerations.createdAt} >= ${monthStart()}`));
+  return { total: row?.total ?? 0, images: row?.images ?? 0 };
+}
+
 export async function getDashboard(s: Scope) {
   assertInternal(s.actor);
   const [tasksMine, waiting, triage, risk, activity, kpis] = await inSequence(
@@ -262,7 +367,24 @@ export async function getDashboard(s: Scope) {
     () => recentActivity(s),
     () => managerKpis(s),
   );
-  return { tasks: tasksMine, approvals: waiting, requests: triage, projectsAtRisk: risk, activity, kpis };
+  const [studio, projectsRecent, deadlines, ai] = await inSequence(
+    () => studioOverview(s),
+    () => recentProjects(s),
+    () => projectDeadlines(s),
+    () => aiThisMonth(s),
+  );
+  return {
+    tasks: tasksMine,
+    approvals: waiting,
+    requests: triage,
+    projectsAtRisk: risk,
+    activity,
+    kpis,
+    studio,
+    recentProjects: projectsRecent,
+    deadlines,
+    ai,
+  };
 }
 
 export type DashboardData = Awaited<ReturnType<typeof getDashboard>>;

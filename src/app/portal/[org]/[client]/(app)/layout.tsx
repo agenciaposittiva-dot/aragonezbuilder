@@ -60,6 +60,7 @@ export default async function PortalLayout({ children, params }: LayoutProps<"/p
               settings.logoFileId || portal.clientLogoFileId
                 ? portalAssetUrl(portal.client.id, "logo", { v: version })
                 : null,
+            logoBackground: portal.clientLogoBackground,
             orgName: actor.orgName,
             orgLogoUrl: actor.settings.portal.showAgencyLogo ? actor.orgLogoSrc : null,
           }}

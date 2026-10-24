@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import type { z } from "zod";
@@ -29,14 +29,34 @@ export function ClientFormDialog({
   trigger,
   client,
   members,
+  categories,
+  defaultCategoryId,
+  defaultOpen = false,
 }: {
   trigger: React.ReactNode;
   client?: { id: string } & Partial<FormValues>;
   members: { membershipId: string; name: string }[];
+  /** Com a lista, o formulário mostra (e grava) a categoria; sem ela, a categoria não muda. */
+  categories?: { id: string; name: string }[];
+  defaultCategoryId?: string;
+  /** Abre ao carregar (atalho "Novo cliente" do menu: ?novo=1). */
+  defaultOpen?: boolean;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
   const { orgSlug } = useWorkspace();
-  const [open, setOpen] = useState(false);
+  const [open, setOpenState] = useState(defaultOpen);
+  const setOpen = (v: boolean) => {
+    setOpenState(v);
+    // Fechar o atalho tira ?novo= da URL (recarregar não reabre o formulário).
+    if (!v && params.get("novo")) {
+      const next = new URLSearchParams(params.toString());
+      next.delete("novo");
+      next.delete("categoria");
+      router.replace(next.size ? `${pathname}?${next}` : pathname, { scroll: false });
+    }
+  };
   const form = useForm<FormValues>({
     resolver: zodResolver(clientInput) as never,
     defaultValues: {
@@ -51,6 +71,7 @@ export function ClientFormDialog({
       status: client?.status ?? "active",
       notesInternal: client?.notesInternal ?? "",
       leadMembershipId: client?.leadMembershipId ?? "",
+      ...(categories ? { categoryId: client?.categoryId ?? defaultCategoryId ?? "" } : {}),
     },
   });
   const create = useOrgAction(createClientAction, {
@@ -119,6 +140,18 @@ export function ClientFormDialog({
                 ))}
               </NativeSelect>
             </Field>
+            {categories ? (
+              <Field label="Categoria" htmlFor="c-category" hint="Organiza o cliente no menu e na lista de clientes.">
+                <NativeSelect id="c-category" {...form.register("categoryId")}>
+                  <option value="">Sem categoria</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </Field>
+            ) : null}
             <Field label="Responsável pelo atendimento" htmlFor="c-lead">
               <NativeSelect id="c-lead" {...form.register("leadMembershipId")}>
                 <option value="">{client ? "Manter atual" : "Eu mesmo"}</option>

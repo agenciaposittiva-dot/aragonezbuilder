@@ -3,6 +3,12 @@ import type { Scope } from "@/server/authz";
 
 export type Changes = Record<string, { from: unknown; to: unknown }>;
 
+/**
+ * O mínimo para registrar: a transação da organização e quem fez. `userId`
+ * nulo = sistema ou pessoa sem conta (ex.: decisão pelo link de aprovação).
+ */
+export type ActivityScope = { db: Scope["db"]; actor: { orgId: string; userId: string | null } };
+
 export type ActivityEntry = {
   action: string;
   entityType: string;
@@ -24,7 +30,7 @@ export type ActivityEntry = {
  * da operação. Se a operação falhar, nada é registrado; se for confirmada, o
  * worker processa o evento (notificações, automações, integrações).
  */
-export async function recordActivity(s: Scope, entry: ActivityEntry) {
+export async function recordActivity(s: ActivityScope, entry: ActivityEntry) {
   await s.db.insert(auditLogs).values({
     organizationId: s.actor.orgId,
     actorUserId: s.actor.userId,
