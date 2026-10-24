@@ -117,7 +117,7 @@ async function prepare(s: Scope, selection: unknown): Promise<Prepared> {
   const def = resolved.def;
   if (!def.text) throw new BrandAiError(`${def.label} não gera texto. Escolha um modelo de texto.`);
   return {
-    provider: def.text(resolved.apiKey ?? ""),
+    provider: def.text(resolved.apiKey ?? "", { baseUrl: resolved.baseUrl }),
     providerId: def.id,
     model: resolved.model,
     source: resolved.source,

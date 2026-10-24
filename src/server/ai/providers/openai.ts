@@ -6,16 +6,23 @@ import {
   type ImageEditRequest,
   type ImageRequest,
   type ImageResult,
+  type ProviderOpts,
 } from "../types";
 import { isNoCredits, noCreditsError } from "../errors";
 import { isStrictCompatible, withSchemaInstruction } from "../json-schema";
 
+/** Endereço base da API (padrão oficial; credenciais BYOK podem apontar um gateway compatível). */
+export function openAiBase(baseUrl?: string | null): string {
+  return (baseUrl || "https://api.openai.com").replace(/\/+$/, "");
+}
+
 /** Modelos disponíveis para a chave (cache por processo, 1 hora). */
 let modelCache: { key: string; at: number; models: string[] } | null = null;
 
-async function listModels(apiKey: string, signal?: AbortSignal): Promise<string[]> {
-  if (modelCache && modelCache.key === apiKey && Date.now() - modelCache.at < 3_600_000) return modelCache.models;
-  const res = await fetch("https://api.openai.com/v1/models", {
+async function listModels(apiKey: string, signal?: AbortSignal, base = openAiBase()): Promise<string[]> {
+  const cacheKey = `${base}\n${apiKey}`;
+  if (modelCache && modelCache.key === cacheKey && Date.now() - modelCache.at < 3_600_000) return modelCache.models;
+  const res = await fetch(`${base}/v1/models`, {
     signal,
     headers: { authorization: `Bearer ${apiKey}` },
   });
@@ -23,7 +30,7 @@ async function listModels(apiKey: string, signal?: AbortSignal): Promise<string[
   if (!res.ok) throw new AiProviderError(`Erro da OpenAI (${res.status}).`, "unavailable");
   const data = (await res.json()) as { data?: { id: string }[] };
   const models = (data.data ?? []).map((m) => m.id);
-  modelCache = { key: apiKey, at: Date.now(), models };
+  modelCache = { key: cacheKey, at: Date.now(), models };
   return models;
 }
 
@@ -54,11 +61,12 @@ export function pickDefaultOpenAiModel(models: string[]): string | null {
  * é escolhido pela organização ou detectado automaticamente. O custo não é estimado
  * (sem tabela de preços cadastrada); os tokens informados são registrados.
  */
-export function createOpenAiProvider(apiKey: string): AiProvider {
+export function createOpenAiProvider(apiKey: string, opts?: ProviderOpts): AiProvider {
+  const base = openAiBase(opts?.baseUrl);
   async function generate(req: GenerateRequest): Promise<GenerateResult> {
     let model = req.model;
     if (!model) {
-      model = pickDefaultOpenAiModel(await listModels(apiKey, req.signal)) ?? "";
+      model = pickDefaultOpenAiModel(await listModels(apiKey, req.signal, base)) ?? "";
       if (!model) throw new AiProviderError("Defina o modelo da OpenAI nas configurações de IA.", "config");
     }
     const user = req.images?.length
@@ -73,7 +81,7 @@ export function createOpenAiProvider(apiKey: string): AiProvider {
     const schema = req.jsonSchema;
     const strict = schema ? isStrictCompatible(schema) : false;
     const call = (format: "schema" | "json" | null) =>
-      fetch("https://api.openai.com/v1/chat/completions", {
+      fetch(`${base}/v1/chat/completions`, {
         method: "POST",
         signal: req.signal,
         headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
@@ -144,7 +152,7 @@ export function createOpenAiProvider(apiKey: string): AiProvider {
  * da API para os gpt-image e só vão quando informados.
  */
 export async function generateOpenAiImage(apiKey: string, req: ImageRequest): Promise<ImageResult> {
-  const res = await fetch("https://api.openai.com/v1/images/generations", {
+  const res = await fetch(`${openAiBase(req.baseUrl)}/v1/images/generations`, {
     method: "POST",
     signal: req.signal,
     headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
@@ -209,7 +217,7 @@ export async function editOpenAiImage(apiKey: string, req: ImageEditRequest): Pr
   if (req.size && req.size !== "auto") form.set("size", req.size);
   const ext = req.mimeType === "image/jpeg" ? "jpg" : req.mimeType === "image/webp" ? "webp" : "png";
   form.set("image", new Blob([new Uint8Array(req.image)], { type: req.mimeType }), `original.${ext}`);
-  const res = await fetch("https://api.openai.com/v1/images/edits", {
+  const res = await fetch(`${openAiBase(req.baseUrl)}/v1/images/edits`, {
     method: "POST",
     signal: req.signal,
     headers: { authorization: `Bearer ${apiKey}` },

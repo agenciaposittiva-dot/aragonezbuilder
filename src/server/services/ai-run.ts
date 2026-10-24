@@ -52,6 +52,7 @@ export async function runGeneration(
     module: prepared.module,
     task: prepared.task,
     selectionSource: prepared.source,
+    keySource: prepared.keySource,
     clientId: prepared.clientId,
     projectId: prepared.projectId,
   };
@@ -186,6 +187,7 @@ export async function runImage(actor: Actor, prepared: PreparedImage, opts: { si
         module: prepared.module,
         task: "image_generation",
         selectionSource: prepared.source,
+        keySource: prepared.keySource,
         clientId: prepared.clientId,
         projectId: prepared.projectId,
         inputTokens: result?.inputTokens ?? null,

@@ -11,12 +11,12 @@ type Version = {
   width: number | null;
   height: number | null;
   note: string | null;
-  source: "upload" | "editor" | "ai";
+  source: "upload" | "editor" | "ai" | "drive";
   createdAt: Date;
   uploadedByName: string | null;
 };
 
-const SOURCE = { upload: "Upload", editor: "Editor", ai: "IA" } as const;
+const SOURCE = { upload: "Upload", editor: "Editor", ai: "IA", drive: "Google Drive" } as const;
 
 export function VersionsList({
   versions,

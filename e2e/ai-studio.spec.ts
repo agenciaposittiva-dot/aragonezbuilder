@@ -27,6 +27,8 @@ const opButton = (page: Page, label: string) =>
 
 test.describe("assistente de IA", () => {
   test("sugestão de tarefas, histórico sem JSON cru, texto vira demanda e projeto na imagem", async ({ page }) => {
+    // Encadeia duas gerações, um recarregamento e a criação de uma demanda: precisa de mais tempo no celular.
+    test.slow();
     await enter(page);
     const topic = `Lançamento ${Date.now().toString(36)}`;
     await page.goto(`${ORG}/ai`);
@@ -35,7 +37,7 @@ test.describe("assistente de IA", () => {
     // Sugestão de tarefas (estruturada): lista revisável, nada criado sem confirmar.
     await opButton(page, "Sugestão de tarefas").click();
     await page.locator("#ai-project").selectOption({ index: 1 });
-    await page.fill("#ai-topic", topic);
+    await page.getByLabel("Observações").fill(topic);
     await page.getByRole("button", { name: "Gerar", exact: true }).click();
     const tasks = page.getByTestId("ai-tasks");
     await expect(tasks).toBeVisible({ timeout: 60_000 });
@@ -44,8 +46,9 @@ test.describe("assistente de IA", () => {
     // Histórico: reabrir o item estruturado mostra a lista de tarefas, não o JSON.
     await page.reload();
     await page.waitForLoadState("networkidle");
+    // Item do histórico (o botão da operação, no menu, tem só o rótulo).
     await page
-      .getByRole("button", { name: new RegExp(topic) })
+      .getByRole("button", { name: /Sugestão de tarefas · / })
       .first()
       .click();
     await expect(page.getByTestId("ai-tasks")).toBeVisible();

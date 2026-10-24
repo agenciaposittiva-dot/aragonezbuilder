@@ -154,7 +154,10 @@ senha de `SEED_PASSWORD`; por isso o script recusa rodar com
 - Para não aplicar migrações num build específico, defina `SKIP_DB_MIGRATE=1`.
 - **Segredos**: trocar `BETTER_AUTH_SECRET` encerra todas as sessões e invalida
   links de download já emitidos. Sem `ENCRYPTION_KEY`, as chaves de IA salvas
-  pelas agências são criptografadas com uma chave derivada do `BETTER_AUTH_SECRET`;
-  defina `ENCRYPTION_KEY` antes de salvar chaves se quiser trocar o segredo depois.
+  pelas agências (e as chaves pessoais, BYOK) são criptografadas com uma chave
+  derivada do `BETTER_AUTH_SECRET`; defina `ENCRYPTION_KEY` (`openssl rand
+  -base64 32`) antes de salvar chaves se quiser trocar o segredo depois. Trocar
+  `ENCRYPTION_KEY` invalida as chaves de IA guardadas: elas precisam ser
+  cadastradas de novo (procedimento em `docs/SECURITY.md`).
 - A conta administradora nunca tem a senha alterada pelo deploy: para trocar,
   use "Esqueci minha senha" ou o perfil.

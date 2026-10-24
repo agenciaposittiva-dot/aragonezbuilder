@@ -187,9 +187,12 @@ test.describe("gerar imagem no editor", () => {
     await expect(error).toBeVisible({ timeout: 30_000 });
     await expect(error).toContainText(/Gerar imagens|gpt-image/);
 
-    // 7. Biblioteca vazia (nenhuma imagem gerada ainda).
+    // 7. Biblioteca carrega: vazia (nenhuma imagem gerada ainda) ou com as imagens de IA já existentes no cliente.
     await gen.getByTestId("image-generator-library-toggle").click();
-    await expect(gen.getByTestId("image-generator-library")).toContainText("Nenhuma imagem gerada");
+    const library = gen.getByTestId("image-generator-library");
+    await expect(library).not.toContainText("Carregando…", { timeout: 30_000 });
+    const libraryText = (await library.textContent()) ?? "";
+    expect(/Nenhuma imagem gerada/.test(libraryText) || (await library.locator("img").count()) > 0).toBe(true);
 
     // 13. Fechar e reabrir: descrição, formato e estado continuam.
     await closeGenerator(page);
@@ -338,6 +341,43 @@ test.describe("gerar imagem no editor", () => {
     await expect.poll(async () => (await objects(page, 1))[0]!.src).toBe(srcA);
     expect((await objects(page, 1))[0]).toMatchObject({ id: bg.id, width: 1080, height: 1080 });
     await expect(toast(page, "Imagem substituída no slide 2.")).toBeVisible();
+
+    // Ampliar a imagem selecionada (Magnific): fator escolhido, resultado salvo e pronto para substituir.
+    let upscaleBody: Record<string, unknown> | null = null;
+    await page.route("**/api/designs/ai/upscale-image", async (route) => {
+      upscaleBody = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        json: {
+          ok: true,
+          result: {
+            generationId: FILE_ID,
+            provider: "magnific",
+            providerLabel: "Magnific (Freepik AI)",
+            model: "image-upscaler-precision-v2",
+            modelLabel: "Magnific Precision v2 (ampliar, fiel ao original)",
+            objectId: bg.id,
+            pageId: "p2",
+            originalVersionId: versionOf(srcA),
+            scale: 4,
+            image: { fileId: FILE_ID, versionId: versionOf(srcB), src: srcB, width: 1920, height: 1280 },
+            warnings: [],
+            usage: { costMicros: null, durationMs: 900 },
+          },
+        },
+      });
+    });
+    gen = await openGenerator(page);
+    const upscale = gen.getByTestId("image-upscale");
+    await expect(upscale).toBeVisible();
+    await expect(gen.getByTestId("image-upscale-model")).not.toBeEmpty();
+    await upscale.getByRole("radio", { name: "4×" }).click();
+    await upscale.getByTestId("image-upscale-run").click();
+    await expect(toast(page, "Imagem ampliada 4× (1920×1280 px) e salva em Arquivos.")).toBeVisible({
+      timeout: 30_000,
+    });
+    expect(upscaleBody).toMatchObject({ objectId: bg.id, scale: 4 });
+    await expect(gen.getByTestId("image-generator-preview")).toHaveAttribute("src", srcB);
+    await expect(gen.getByTestId("image-generator-insert-replace")).toBeEnabled();
 
     // 12. Descartar os resultados (as imagens continuam em Arquivos e na arte).
     gen = await openGenerator(page);

@@ -215,6 +215,37 @@ salvamento automático como qualquer imagem; `src` é `/api/files/<versão>`.
 Nenhum modelo é inventado: a lista vem de `GET /v1/models` da conta (os
 `gpt-image-*` que a chave tiver). A demonstração local não gera imagens.
 
+### 7.1 Magnific (Freepik AI)
+
+Provedor de **imagem** (`server/ai/providers/magnific.ts`, API oficial em
+docs.magnific.com; base `https://api.magnific.com`, cabeçalho
+`x-magnific-api-key` — `api.freepik.com`/`x-freepik-api-key` aceitam a mesma
+chave). Chave por organização (Configurações → Inteligência artificial) ou
+`MAGNIFIC_API_KEY` no servidor; nunca vai ao navegador. A API não lista
+modelos: o catálogo é o da documentação e a chave é validada numa chamada
+real (`GET /v1/ai/image-upscaler-precision`).
+
+| Modelo | Endpoint | Uso no editor |
+|---|---|---|
+| `mystic` | `POST /v1/ai/mystic` + `GET /v1/ai/mystic/{task-id}` | Gerar imagem: 13 proporções nomeadas (`aspect_ratio`), resolução 1K/2K/4K, 1 imagem por tarefa, "Usar a imagem selecionada como referência" (`structure_reference` em base64, `structure_strength`). |
+| `classic-fast` | `POST /v1/ai/text-to-image` (síncrono) | Gerar imagem rápida: `negative_prompt`, `num_images`, `image.size`. |
+| `image-upscaler-precision-v2` | `POST /v1/ai/image-upscaler-precision-v2` + `GET …/{task-id}` | "Ampliar imagem selecionada": `scale_factor` 2–16, fiel ao original. |
+| `image-upscaler` | `POST /v1/ai/image-upscaler` + `GET …/{task-id}` | Ampliação criativa: `scale_factor` 2x–16x, descrição opcional, `optimized_for`/`engine` quando informados. |
+
+Tarefas assíncronas: a rota espera `CREATED → IN_PROGRESS → COMPLETED` (até
+95 s; `FAILED` vira erro claro) e baixa `data.generated[]`. A ampliação usa a
+tarefa `image_upscale` (capacidade `imageUpscale`), rota
+`POST /api/designs/ai/upscale-image`, serviço `prepareDesignImageUpscale` /
+`saveDesignImageUpscale`: a imagem precisa estar em Arquivos (mesmo cliente),
+o limite documentado de 25,3 MP é checado antes de gastar créditos e o
+resultado entra em Arquivos (nota "Ampliada por IA", tags `ia/estudio/upscale`)
+para a pessoa **substituir** pelo fluxo normal. Créditos: a API não informa o
+consumo por tarefa (custo fica "não informado"); uma assinatura do site não
+inclui a API. Não integrados ainda (documentação sem todos os parâmetros
+confirmados nesta sessão): relight, expandir, remover fundo, style transfer.
+Validação com chave real pendente (ambiente de desenvolvimento sem acesso à
+API): os testes usam a API simulada com os formatos da documentação.
+
 ## 8. Limitações conhecidas
 
 - PDF com páginas em imagem (JPEG), sem texto selecionável.

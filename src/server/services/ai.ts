@@ -229,6 +229,8 @@ export type PreparedGeneration = {
   module: string;
   task: AiTask;
   source: string;
+  /** De quem era a credencial usada (pessoal, organização, servidor). */
+  keySource: string | null;
   reason: string;
   warnings: string[];
   clientId: string | null;
@@ -295,13 +297,14 @@ export async function prepareGeneration(s: Scope, raw: z.input<typeof generateIn
     prompt,
     maxTokens,
     model: resolved.model,
-    provider: resolved.def.text!(resolved.apiKey ?? ""),
+    provider: resolved.def.text!(resolved.apiKey ?? "", { baseUrl: resolved.baseUrl }),
     providerId: resolved.def.id,
     providerLabel: resolved.def.label,
     demo,
     module: data.module,
     task,
     source: resolved.source,
+    keySource: resolved.keySource,
     reason: resolved.reason,
     warnings: resolved.warnings,
     clientId,
@@ -327,6 +330,8 @@ export async function recordUsage(
     module?: string | null;
     task?: string | null;
     selectionSource?: string | null;
+    /** De quem era a credencial: user (pessoal), org, env; null = não informado. */
+    keySource?: string | null;
     inputTokens?: number | null;
     outputTokens?: number | null;
     /** Null quando o provedor não dá dados suficientes (nada é inventado). */
@@ -349,6 +354,7 @@ export async function recordUsage(
       module: entry.module ?? null,
       task: entry.task ?? null,
       selectionSource: entry.selectionSource ?? null,
+      keySource: entry.keySource ?? null,
       inputTokens: entry.inputTokens ?? 0,
       outputTokens: entry.outputTokens ?? 0,
       costMicros: entry.costMicros ?? null,
@@ -468,10 +474,12 @@ export const aiSettingsInput = z.object({
   /** Limites de custo em US$ (convertidos para micro-dólares). */
   monthlyCostLimitUsd: usd.optional(),
   confirmAboveUsd: usd.optional(),
-  provider: z.enum(["anthropic", "openai", "gemini", "demo"]).optional(),
+  provider: z.enum(["anthropic", "openai", "gemini", "magnific", "demo"]).optional(),
   model: z.string().trim().max(160).optional(),
   /** undefined = manter; "" = remover; texto = nova chave. */
   apiKey: z.string().trim().max(400).optional(),
+  /** Política: pessoas podem conectar chaves de IA próprias (BYOK). */
+  allowPersonalKeys: z.boolean().optional(),
 });
 
 export async function getAiSettingsView(s: Scope) {
@@ -485,6 +493,7 @@ export async function getAiSettingsView(s: Scope) {
     userDailyRequestLimit: settings.userDailyRequestLimit,
     monthlyCostLimitUsd: settings.monthlyCostLimitMicros / 1_000_000,
     confirmAboveUsd: settings.confirmAboveMicros / 1_000_000,
+    allowPersonalKeys: settings.allowPersonalKeys,
   };
 }
 
@@ -507,6 +516,7 @@ export async function updateAiSettings(s: Scope, raw: z.input<typeof aiSettingsI
       ...(data.confirmAboveUsd !== undefined
         ? { confirmAboveMicros: Math.round(data.confirmAboveUsd * 1_000_000) }
         : {}),
+      ...(data.allowPersonalKeys !== undefined ? { allowPersonalKeys: data.allowPersonalKeys } : {}),
       ...(data.provider ? { provider: data.provider, model: data.model ?? "" } : {}),
     },
   });

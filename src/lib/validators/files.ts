@@ -49,7 +49,7 @@ export const uploadMetaInput = z.object({
   tags: z.array(tag).max(20).default([]),
   note: optionalText(500),
   /** Origem da versão: envio manual, exportação do editor ou geração por IA. */
-  source: z.enum(["upload", "editor", "ai"]).default("upload"),
+  source: z.enum(["upload", "editor", "ai", "drive"]).default("upload"),
 });
 export type UploadMeta = z.input<typeof uploadMetaInput>;
 

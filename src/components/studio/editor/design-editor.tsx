@@ -77,6 +77,7 @@ import { DesignConflictDialog, DesignHistory } from "../design-history";
 import { createActions, type EditorBrand } from "./actions";
 import { CanvasArea } from "./canvas-area";
 import { CarouselAiDialog, type CarouselAiMode } from "./carousel-ai";
+import { exportVersionToDriveAction, googleDriveStatusAction } from "@/server/actions/google-drive";
 import { downloadExport, sendExportToFiles, type ExportOptions } from "./export";
 import { ExportDialog } from "./export-dialog";
 import { ensureFonts, whenFontLoads } from "./fonts";
@@ -147,7 +148,18 @@ export function DesignEditor({
   const [conflictDismissed, setConflictDismissed] = useState(false);
   const [recovery, setRecovery] = useState<LocalDraft<unknown> | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
-  const [exporting, setExporting] = useState<"download" | "send" | null>(null);
+  // Google Drive da pessoa (só para oferecer o destino; os tokens ficam no servidor).
+  const [driveConnected, setDriveConnected] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    void googleDriveStatusAction(ws.orgSlug, {})
+      .then((r) => alive && r.ok && setDriveConnected(r.data.connected && r.data.status === "connected"))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [ws.orgSlug]);
+  const [exporting, setExporting] = useState<"download" | "send" | "drive" | null>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [name, setName] = useState(design.name);
@@ -467,9 +479,9 @@ export function DesignEditor({
     }
   };
 
-  const doSend = async (o: ExportOptions) => {
+  const doSend = async (o: ExportOptions, destination: "files" | "drive" = "files") => {
     if (!sceneRef.current) return;
-    setExporting("send");
+    setExporting(destination === "drive" ? "drive" : "send");
     try {
       if (!(await flushOrWarn())) return;
       const r = await sendExportToFiles(exportCtx(), o);
@@ -483,6 +495,33 @@ export function DesignEditor({
       toast.success(what, {
         action: { label: "Abrir", onClick: () => window.open(`/w/${ws.orgSlug}/files/${r.fileId}`, "_self") },
       });
+      if (destination === "drive") {
+        // Depois da cópia na plataforma, cada arquivo vai ao Drive da pessoa; só confirma com a resposta do Google.
+        const progress = toast.loading(`Enviando ${r.versions.length} arquivo(s) ao Google Drive…`);
+        let sent = 0;
+        let firstLink: string | null = null;
+        let failure: string | null = null;
+        for (const v of r.versions) {
+          const res = await exportVersionToDriveAction(ws.orgSlug, { versionId: v.versionId });
+          if (!res.ok) {
+            failure = res.error;
+            break;
+          }
+          sent++;
+          firstLink ??= res.data.webViewLink;
+          toast.loading(`Enviando ao Google Drive… ${sent} de ${r.versions.length}`, { id: progress });
+        }
+        toast.dismiss(progress);
+        if (failure) {
+          toast.error(`Google Drive: ${sent} de ${r.versions.length} enviado(s). ${failure}`);
+        } else {
+          toast.success(`${sent} arquivo(s) salvo(s) no seu Google Drive.`, {
+            action: firstLink
+              ? { label: "Abrir no Drive", onClick: () => window.open(firstLink!, "_blank") }
+              : undefined,
+          });
+        }
+      }
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -1058,9 +1097,10 @@ export function DesignEditor({
         onOpenChange={setExportOpen}
         store={store}
         canSend={canWrite && !design.isTemplate}
+        driveConnected={driveConnected}
         busy={exporting}
         onDownload={(o) => void doDownload(o)}
-        onSend={(o) => void doSend(o)}
+        onSend={(o, destination) => void doSend(o, destination)}
       />
       <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
       <CarouselAiDialog

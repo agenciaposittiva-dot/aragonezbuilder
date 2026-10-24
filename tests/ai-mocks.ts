@@ -50,7 +50,13 @@ export function anthropicModel(id: string, line: string, opts: { structured?: bo
 
 export type AiMockState = {
   /** Chaves aceitas por provedor (as demais recebem 401). */
-  valid: { anthropic: Set<string>; openai: Set<string>; gemini: Set<string> };
+  valid: { anthropic: Set<string>; openai: Set<string>; gemini: Set<string>; magnific: Set<string> };
+  /** Magnific: tarefas assíncronas criadas (id → caminho, corpo e consultas feitas). */
+  magnificTasks: Map<string, { path: string; body: Record<string, unknown>; polls: number }>;
+  /** Magnific: quantas consultas devolvem IN_PROGRESS antes de COMPLETED. */
+  magnificPolls: number;
+  /** Magnific: status final forçado da tarefa (ex.: "FAILED"). */
+  magnificFinal: string;
   anthropicModels: ReturnType<typeof anthropicModel>[];
   openaiModels: string[];
   geminiModels: { name: string; displayName?: string; supportedGenerationMethods: string[] }[];
@@ -71,6 +77,16 @@ async function requestedPng(size: string) {
     .png()
     .toBuffer();
   return buf.toString("base64");
+}
+
+/** Tamanho "WxH" para uma proporção nomeada da Magnific (ex.: social_post_4_5) e resolução (1k/2k/4k). */
+function namedSize(aspect: string, resolution: string) {
+  const m = /_(\d+)_(\d+)$/.exec(aspect);
+  const w = m ? Number(m[1]) : 1;
+  const h = m ? Number(m[2]) : 1;
+  const longest = resolution === "1k" ? 1024 : resolution === "4k" ? 4096 : 2048;
+  const scale = longest / Math.max(w, h);
+  return `${Math.round(w * scale)}x${Math.round(h * scale)}`;
 }
 
 function json(body: unknown, status = 200) {
@@ -112,7 +128,10 @@ function anthropicStream(model: string, text: string) {
 export function installAiMock() {
   const calls: MockCall[] = [];
   const state: AiMockState = {
-    valid: { anthropic: new Set(), openai: new Set(), gemini: new Set() },
+    valid: { anthropic: new Set(), openai: new Set(), gemini: new Set(), magnific: new Set() },
+    magnificTasks: new Map(),
+    magnificPolls: 1,
+    magnificFinal: "COMPLETED",
     anthropicModels: [
       anthropicModel("claude-sonnet-5-5", "sonnet", { created: "2026-05-01T00:00:00Z" }),
       anthropicModel("claude-haiku-5-5", "haiku", { created: "2026-04-01T00:00:00Z" }),
@@ -205,11 +224,100 @@ export function installAiMock() {
       }
     }
 
+    if (u.host === "api.magnific.com" || u.host === "api.freepik.com") {
+      const key = headers.get("x-magnific-api-key") ?? headers.get("x-freepik-api-key") ?? "";
+      if (!state.valid.magnific.has(key)) return json({ message: "Invalid API key" }, 401);
+      if (u.pathname === "/v1/ai/image-upscaler-precision" && method === "GET") return json({ data: [] });
+      if (state.failStatus) return json({ message: "falha simulada" }, state.failStatus);
+      if (u.pathname === "/v1/ai/text-to-image" && method === "POST") {
+        const n = Math.max(1, Number(body?.num_images ?? 1) || 1);
+        const size = String((body?.image as { size?: string } | undefined)?.size ?? "square_1_1");
+        const b64 = state.imageSize === "request" ? await requestedPng(namedSize(size, "1k")) : TINY_PNG;
+        return json({
+          data: Array.from({ length: n }, () => ({ base64: b64, has_nsfw: false })),
+          meta: { prompt: body?.prompt, seed: 1, inference_steps: 8, guidance_scale: 1, image: { size } },
+        });
+      }
+      const task = /^\/v1\/ai\/(mystic|image-upscaler|image-upscaler-precision-v2)$/.exec(u.pathname);
+      if (task && method === "POST") {
+        const id = `task-${state.magnificTasks.size + 1}`;
+        state.magnificTasks.set(id, { path: u.pathname, body: body ?? {}, polls: 0 });
+        return json({ data: { task_id: id, status: "CREATED", generated: [] } });
+      }
+      const poll = /^\/v1\/ai\/(mystic|image-upscaler|image-upscaler-precision-v2)\/([^/]+)$/.exec(u.pathname);
+      if (poll && method === "GET") {
+        const t = state.magnificTasks.get(poll[2]!);
+        if (!t) return json({ message: "Task not found" }, 404);
+        t.polls++;
+        if (t.polls <= state.magnificPolls)
+          return json({ data: { task_id: poll[2], status: "IN_PROGRESS", generated: [] } });
+        if (state.magnificFinal !== "COMPLETED")
+          return json({ data: { task_id: poll[2], status: state.magnificFinal, generated: [] } });
+        return json({
+          data: {
+            task_id: poll[2],
+            status: "COMPLETED",
+            generated: [`https://cdn.magnific.test/${poll[2]}.png`],
+            has_nsfw: [false],
+          },
+        });
+      }
+    }
+
+    if (u.host === "cdn.magnific.test") {
+      const id = u.pathname.replace(/^\//, "").replace(/\.png$/, "");
+      const t = state.magnificTasks.get(id);
+      if (!t) return new Response("not found", { status: 404 });
+      let png: Buffer;
+      if (t.path === "/v1/ai/mystic") {
+        png =
+          state.imageSize === "request"
+            ? Buffer.from(
+                await requestedPng(
+                  namedSize(String(t.body.aspect_ratio ?? "square_1_1"), String(t.body.resolution ?? "2k")),
+                ),
+                "base64",
+              )
+            : Buffer.from(TINY_PNG, "base64");
+      } else {
+        // Ampliação: devolve a imagem original escalada pelo fator pedido.
+        const original = Buffer.from(String(t.body.image ?? ""), "base64");
+        const factor = Number(String(t.body.scale_factor ?? "2").replace(/x$/, "")) || 2;
+        const meta = await sharp(original).metadata();
+        png = await sharp(original)
+          .resize((meta.width ?? 1) * factor, (meta.height ?? 1) * factor, { kernel: "nearest" })
+          .png()
+          .toBuffer();
+      }
+      return new Response(new Uint8Array(png), { status: 200, headers: { "content-type": "image/png" } });
+    }
+
     if (u.host === "generativelanguage.googleapis.com") {
       if (!state.valid.gemini.has(headers.get("x-goog-api-key") ?? "")) {
         return json({ error: { code: 400, message: "API key not valid", status: "INVALID_ARGUMENT" } }, 400);
       }
       if (u.pathname === "/v1beta/models") return json({ models: state.geminiModels });
+    }
+
+    // Gateway compatível com a API da OpenAI (endereço personalizado de uma conexão pessoal).
+    if (u.host.endsWith(".gateway.test") && (headers.get("authorization") ?? "").startsWith("Bearer ")) {
+      const key = (headers.get("authorization") ?? "").replace(/^Bearer /, "");
+      if (!state.valid.openai.has(key))
+        return json({ error: { message: "Incorrect API key", code: "invalid_api_key" } }, 401);
+      if (u.pathname === "/v1/models") {
+        return json({
+          object: "list",
+          data: state.openaiModels.map((id) => ({ id, object: "model", created: 1_760_000_000, owned_by: "openai" })),
+        });
+      }
+      if (u.pathname === "/v1/chat/completions") {
+        return json({
+          id: "chatcmpl-gateway",
+          model: String(body?.model),
+          choices: [{ index: 0, message: { role: "assistant", content: state.reply }, finish_reason: "stop" }],
+          usage: { prompt_tokens: 90, completion_tokens: 40 },
+        });
+      }
     }
 
     throw new Error(`Chamada de rede inesperada no teste: ${method} ${url}`);
@@ -225,6 +333,9 @@ export function installAiMock() {
       calls.length = 0;
       state.failStatus = null;
       state.imageSize = "tiny";
+      state.magnificTasks.clear();
+      state.magnificPolls = 1;
+      state.magnificFinal = "COMPLETED";
     },
   };
 }

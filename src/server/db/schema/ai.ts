@@ -40,6 +40,8 @@ export const aiUsage = pgTable(
     task: text(),
     /** Como o modelo foi escolhido: explicit, user_task, org, auto… */
     selectionSource: text(),
+    /** De quem era a credencial usada: user (chave pessoal), org (chave da organização), env (plataforma). */
+    keySource: text(),
     inputTokens: integer().notNull().default(0),
     outputTokens: integer().notNull().default(0),
     /** Custo informado/estimado em micro-dólares (1e-6 USD); null quando o provedor não dá dados suficientes. */
@@ -104,6 +106,8 @@ export const aiProviderConfigs = pgTable(
       .references(() => organizations.id, { onDelete: "cascade" }),
     provider: text().notNull(),
     enabled: boolean().notNull().default(true),
+    /** Política: pessoas podem usar chave própria (BYOK) deste provedor. */
+    allowUserKeys: boolean().notNull().default(true),
     /** Chave da organização criptografada (src/server/crypto.ts). Nunca vai ao navegador. */
     keyEncrypted: text(),
     status: aiProviderStatus().notNull().default("unverified"),
@@ -115,6 +119,40 @@ export const aiProviderConfigs = pgTable(
     ...timestamps,
   },
   (t) => [primaryKey({ columns: [t.organizationId, t.provider] })],
+);
+
+/**
+ * Conexão de IA pessoal (BYOK): a chave da própria pessoa, criptografada no
+ * servidor (src/server/crypto.ts), com estado da última validação e os modelos
+ * descobertos. Vale só para quem a cadastrou, dentro da organização; nunca
+ * vai ao navegador (só o final mascarado).
+ */
+export const aiUserConnections = pgTable(
+  "ai_user_connections",
+  {
+    id: id(),
+    organizationId: uuid()
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    userId: text()
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    provider: text().notNull(),
+    keyEncrypted: text().notNull(),
+    /** Endereço base alternativo (só provedores compatíveis), já validado contra endereços internos. */
+    endpointUrl: text(),
+    enabled: boolean().notNull().default(true),
+    status: aiProviderStatus().notNull().default("unverified"),
+    lastError: text(),
+    lastCheckedAt: tstz(),
+    models: jsonb().$type<AiModelInfo[]>().notNull().default([]),
+    modelsFetchedAt: tstz(),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("ai_user_connections_scope").on(t.organizationId, t.userId, t.provider),
+    index().on(t.organizationId, t.userId),
+  ],
 );
 
 /**

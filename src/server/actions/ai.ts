@@ -26,7 +26,7 @@ export const updateAiSettingsAction = orgAction(aiSettingsInput, updateAiSetting
 
 export const createSuggestedTasksAction = orgAction(suggestedTasksInput, createSuggestedTasks);
 
-const providerId = z.enum(["anthropic", "openai", "gemini", "demo"]);
+const providerId = z.enum(["anthropic", "openai", "gemini", "magnific", "demo"]);
 
 /** A chave nunca volta para o navegador: a resposta traz só o resultado da validação. */
 export const saveProviderKeyAction = orgAction(

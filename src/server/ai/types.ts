@@ -1,6 +1,12 @@
 import type { ModelCaps } from "@/lib/ai-tasks";
 
-export type AiProviderId = "anthropic" | "openai" | "gemini" | "demo";
+export type AiProviderId = "anthropic" | "openai" | "gemini" | "magnific" | "demo";
+
+/** Opções de conexão por credencial (BYOK): endereço base alternativo, só em provedores compatíveis. */
+export type ProviderOpts = { baseUrl?: string | null };
+
+/** De quem é a credencial em uso: pessoal, da organização, do servidor, ou nenhuma (ex.: demonstração). */
+export type KeySource = "user" | "org" | "env" | "none";
 
 /** Imagem enviada junto com o pedido (só para modelos que leem imagens). */
 export type AiImageInput = { mediaType: "image/png" | "image/jpeg" | "image/webp" | "image/gif"; data: Buffer };
@@ -58,6 +64,41 @@ export type ImageRequest = {
   n?: number;
   /** Nível de qualidade no vocabulário do provedor (ex.: OpenAI: auto, low, medium, high); só enviado quando informado. */
   quality?: string;
+  /** Proporção no vocabulário do provedor (ex.: Magnific: square_1_1), quando a API recebe proporção em vez de tamanho. */
+  aspectRatio?: string;
+  /** Resolução no vocabulário do provedor (ex.: Magnific: 1k, 2k, 4k). */
+  resolution?: string;
+  /** Instruções negativas (só para APIs que têm o parâmetro). */
+  negativePrompt?: string;
+  /** Imagens de referência (só para modelos que aceitam): estrutura/composição e/ou estilo. */
+  references?: { structure?: Buffer; structureStrength?: number; style?: Buffer; adherence?: number };
+  /** Endereço base alternativo da credencial (BYOK), quando o provedor aceita. */
+  baseUrl?: string | null;
+  signal?: AbortSignal;
+};
+
+/** Ampliação (upscale) de uma imagem existente por um modelo que amplia. */
+export type ImageUpscaleRequest = {
+  model: string;
+  /** Imagem original (PNG, JPEG ou WebP). */
+  image: Buffer;
+  mimeType: string;
+  /** Fator de ampliação (2, 4, 8 ou 16). */
+  scale: number;
+  /** Descrição opcional (modelos criativos). */
+  prompt?: string;
+  /** Opções no vocabulário do provedor; só enviadas quando informadas. */
+  optimizedFor?: string;
+  creativity?: number;
+  hdr?: number;
+  resemblance?: number;
+  fractality?: number;
+  engine?: string;
+  flavor?: string;
+  sharpen?: number;
+  smartGrain?: number;
+  ultraDetail?: number;
+  baseUrl?: string | null;
   signal?: AbortSignal;
 };
 
@@ -70,6 +111,7 @@ export type ImageEditRequest = {
   mimeType: string;
   /** Ex.: "1024x1024" ou "auto". */
   size: string;
+  baseUrl?: string | null;
   signal?: AbortSignal;
 };
 

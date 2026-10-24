@@ -248,13 +248,14 @@ export async function prepareDesignAi(s: Scope, raw: z.input<typeof designAiRequ
       prompt,
       maxTokens,
       model: resolved.model,
-      provider: resolved.def.text!(resolved.apiKey ?? ""),
+      provider: resolved.def.text!(resolved.apiKey ?? "", { baseUrl: resolved.baseUrl }),
       providerId: resolved.def.id,
       providerLabel: resolved.def.label,
       demo,
       module: "editor",
       task: "design_edit",
       source: resolved.source,
+      keySource: resolved.keySource,
       reason: resolved.reason,
       warnings: resolved.warnings,
       clientId: d.clientId,
@@ -438,6 +439,7 @@ export type PreparedDesignImage = {
   providerLabel: string;
   model: AiModelInfo;
   source: string;
+  keySource: string | null;
   task: "image_edit" | "image_generation";
   run: (signal?: AbortSignal) => Promise<ImageResult>;
 };
@@ -513,13 +515,23 @@ export async function prepareDesignImage(
     providerLabel,
     model: resolved.model,
     source: resolved.source,
+    keySource: resolved.keySource,
     task,
     run: async (signal) => {
+      const baseUrl = resolved.baseUrl;
       if (data.mode === "edit") {
         const image = await getStorage().get(storageKey);
-        return edit!(apiKey, { model: resolved.model.id, prompt: data.instruction, image, mimeType, size, signal });
+        return edit!(apiKey, {
+          model: resolved.model.id,
+          baseUrl,
+          prompt: data.instruction,
+          image,
+          mimeType,
+          size,
+          signal,
+        });
       }
-      return generate!(apiKey, { model: resolved.model.id, prompt: data.instruction, size, signal });
+      return generate!(apiKey, { model: resolved.model.id, baseUrl, prompt: data.instruction, size, signal });
     },
   };
 }
@@ -564,6 +576,7 @@ export async function saveDesignImage(
     module: "editor",
     task: prepared.task,
     selectionSource: prepared.source,
+    keySource: prepared.keySource,
     clientId: d.clientId,
     projectId: d.projectId,
     inputTokens: result.inputTokens,

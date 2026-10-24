@@ -133,7 +133,7 @@ export const files = pgTable(
   ],
 );
 
-export const fileSource = pgEnum("file_source", ["upload", "editor", "ai"]);
+export const fileSource = pgEnum("file_source", ["upload", "editor", "ai", "drive"]);
 
 export const fileVersions = pgTable(
   "file_versions",

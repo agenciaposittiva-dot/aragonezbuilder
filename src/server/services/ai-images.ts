@@ -29,6 +29,7 @@ export type PreparedImage = {
   providerId: string;
   providerLabel: string;
   source: string;
+  keySource: string | null;
   reason: string;
   warnings: string[];
   module: string;
@@ -77,13 +78,21 @@ export async function prepareImage(s: Scope, raw: z.input<typeof imageInput>): P
     providerId: def.id,
     providerLabel: def.label,
     source: resolved.source,
+    keySource: resolved.keySource,
     reason: resolved.reason,
     warnings: resolved.warnings,
     module: data.module,
     clientId,
     projectId: data.projectId ?? null,
     saveToFiles: data.saveToFiles && can(s.actor, "files.write"),
-    run: (signal) => generate(apiKey, { model: resolved.model.id, prompt: data.prompt, size: data.size, signal }),
+    run: (signal) =>
+      generate(apiKey, {
+        model: resolved.model.id,
+        baseUrl: resolved.baseUrl,
+        prompt: data.prompt,
+        size: data.size,
+        signal,
+      }),
   };
 }
 
@@ -96,6 +105,7 @@ export async function saveImageResult(s: Scope, prepared: PreparedImage, result:
     module: prepared.module,
     task: "image_generation",
     selectionSource: prepared.source,
+    keySource: prepared.keySource,
     clientId: prepared.clientId,
     projectId: prepared.projectId,
     inputTokens: result.inputTokens,

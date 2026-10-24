@@ -32,6 +32,7 @@ export type PreparedStructured = {
   providerLabel: string;
   model: Awaited<ReturnType<typeof resolveSelection>>["model"];
   source: string;
+  keySource: string | null;
   reason: string;
   warnings: string[];
   demo: boolean;
@@ -52,11 +53,12 @@ export async function prepareStructured(
   if (!def.text)
     throw new ModelSelectionError(`${def.label} não gera texto. Escolha um modelo de texto.`, "model_incompatible");
   return {
-    provider: def.text(resolved.apiKey ?? ""),
+    provider: def.text(resolved.apiKey ?? "", { baseUrl: resolved.baseUrl }),
     providerId: def.id,
     providerLabel: PROVIDER_LABEL[def.id] ?? def.label,
     model: resolved.model,
     source: resolved.source,
+    keySource: resolved.keySource,
     reason: resolved.reason,
     warnings: resolved.warnings,
     demo: def.id === "demo",
@@ -133,6 +135,7 @@ export async function callStructured<T>(
   const started = Date.now();
   const usage = {
     provider: prep.providerId,
+    keySource: prep.keySource,
     model: prep.model.id,
     operation: req.operation,
     module: prep.module,

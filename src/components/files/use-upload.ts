@@ -22,7 +22,11 @@ export type UploadItem = {
   error?: string;
 };
 
-type UploadResponse = { ok: boolean; error?: string; results?: { ok: boolean; error?: string }[] };
+type UploadResponse = {
+  ok: boolean;
+  error?: string;
+  results?: { ok: boolean; error?: string; fileId?: string; versionId?: string }[];
+};
 
 /** Envia arquivos para /api/uploads um a um, com progresso real (XHR). */
 export function useUpload(orgSlug: string) {
@@ -45,7 +49,7 @@ export function useUpload(orgSlug: string) {
   const reset = useCallback(() => setItems([]), []);
 
   const sendOne = (item: UploadItem, target: UploadTarget) =>
-    new Promise<boolean>((resolve) => {
+    new Promise<{ ok: boolean; versionId: string | null }>((resolve) => {
       const form = new FormData();
       form.set("orgSlug", orgSlug);
       form.append("file", item.file, item.file.name);
@@ -79,13 +83,13 @@ export function useUpload(orgSlug: string) {
               : i,
           ),
         );
-        resolve(ok);
+        resolve({ ok, versionId: ok ? (res.results?.[0]?.versionId ?? null) : null });
       };
       xhr.onerror = () => {
         setItems((prev) =>
           prev.map((i) => (i.id === item.id ? { ...i, status: "error", error: "Falha de conexão" } : i)),
         );
-        resolve(false);
+        resolve({ ok: false, versionId: null });
       };
       setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, status: "uploading" } : i)));
       xhr.send(form);
@@ -96,9 +100,16 @@ export function useUpload(orgSlug: string) {
       setBusy(true);
       const queue = items.filter((i) => i.status === "queued" || i.status === "error");
       let done = 0;
-      for (const item of queue) if (await sendOne(item, target)) done++;
+      const versions: string[] = [];
+      for (const item of queue) {
+        const r = await sendOne(item, target);
+        if (r.ok) {
+          done++;
+          if (r.versionId) versions.push(r.versionId);
+        }
+      }
       setBusy(false);
-      return { done, failed: queue.length - done };
+      return { done, failed: queue.length - done, versions };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [items, orgSlug],

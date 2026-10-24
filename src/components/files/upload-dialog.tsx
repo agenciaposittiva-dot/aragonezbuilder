@@ -22,6 +22,7 @@ import { formatBytes } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { FILE_CATEGORIES, FILE_CATEGORY_LABEL } from "@/lib/validators/files";
 import { FileIcon } from "./file-icon";
+import { exportVersionToDriveAction } from "@/server/actions/google-drive";
 import { useUpload, type UploadTarget } from "./use-upload";
 
 type Option = { id: string; name: string };
@@ -37,6 +38,7 @@ export function UploadDialog({
   maxBytes,
   allowCategory = true,
   onUploaded,
+  drive,
 }: {
   trigger: React.ReactNode;
   target?: UploadTarget;
@@ -48,6 +50,8 @@ export function UploadDialog({
   maxBytes?: number;
   allowCategory?: boolean;
   onUploaded?: () => void;
+  /** Google Drive da pessoa: conectado e se é o destino preferido (cópia além da plataforma). */
+  drive?: { connected: boolean; preferred: boolean };
 }) {
   const router = useRouter();
   const { orgSlug } = useWorkspace();
@@ -59,6 +63,7 @@ export function UploadDialog({
   const [category, setCategory] = useState(target.category ?? "general");
   const [tags, setTags] = useState((target.tags ?? []).join(", "));
   const [note, setNote] = useState("");
+  const [toDrive, setToDrive] = useState(!!drive?.connected && !!drive?.preferred);
   const inputRef = useRef<HTMLInputElement>(null);
   const { items, add, remove, reset, upload, busy } = useUpload(orgSlug);
   const single = !!newVersionOf;
@@ -92,6 +97,21 @@ export function UploadDialog({
     });
     if (res.done) {
       toast.success(single ? "Nova versão enviada" : `${res.done} arquivo(s) enviado(s)`);
+      if (toDrive && drive?.connected && res.versions.length) {
+        // Cópia no Google Drive da pessoa: só confirma com a resposta do Google, um a um.
+        let sent = 0;
+        let failure: string | null = null;
+        for (const versionId of res.versions) {
+          const r = await exportVersionToDriveAction(orgSlug, { versionId });
+          if (!r.ok) {
+            failure = r.error;
+            break;
+          }
+          sent++;
+        }
+        if (failure) toast.error(`Google Drive: ${sent} de ${res.versions.length} enviado(s). ${failure}`);
+        else toast.success(`${sent} arquivo(s) também salvo(s) no seu Google Drive.`);
+      }
       router.refresh();
       onUploaded?.();
     }
@@ -251,6 +271,18 @@ export function UploadDialog({
                         {f.name}
                       </option>
                     ))}
+                  </NativeSelect>
+                </Field>
+              ) : null}
+              {drive?.connected ? (
+                <Field label="Destino" htmlFor="up-destination">
+                  <NativeSelect
+                    id="up-destination"
+                    value={toDrive ? "drive" : "platform"}
+                    onChange={(e) => setToDrive(e.target.value === "drive")}
+                  >
+                    <option value="platform">Armazenamento da plataforma</option>
+                    <option value="drive">Plataforma + cópia no meu Google Drive</option>
                   </NativeSelect>
                 </Field>
               ) : null}

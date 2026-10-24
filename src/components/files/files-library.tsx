@@ -69,6 +69,8 @@ export function FilesLibrary({
   canDelete = false,
   maxBytes,
   cloud,
+  driveConnected = false,
+  drivePreferred = false,
 }: {
   rows: FileListRow[];
   total: number;
@@ -84,6 +86,10 @@ export function FilesLibrary({
   canDelete?: boolean;
   maxBytes: number;
   cloud?: CloudExtras;
+  /** A pessoa tem o Google Drive conectado (ações "Salvar no Google Drive"). */
+  driveConnected?: boolean;
+  /** O destino preferido da pessoa inclui a cópia no Drive. */
+  drivePreferred?: boolean;
 }) {
   const view = searchParams.view === "list" ? "list" : "grid";
   const folderId =
@@ -104,6 +110,7 @@ export function FilesLibrary({
       projects={scope.projectId ? undefined : projects?.filter((p) => !scope.clientId || p.clientId === scope.clientId)}
       folders={folders.map((f) => ({ id: f.id, name: f.name }))}
       maxBytes={maxBytes}
+      drive={{ connected: driveConnected, preferred: drivePreferred }}
       trigger={
         <Button variant="primary">
           <Upload /> Enviar arquivos
@@ -253,7 +260,7 @@ export function FilesLibrary({
                 view={view}
                 actions={
                   canWrite || canDelete
-                    ? { canWrite, canDelete, folders: folders.map((f) => ({ id: f.id, name: f.name })) }
+                    ? { canWrite, canDelete, folders: folders.map((f) => ({ id: f.id, name: f.name })), driveConnected }
                     : undefined
                 }
               />

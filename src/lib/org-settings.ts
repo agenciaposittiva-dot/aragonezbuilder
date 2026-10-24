@@ -39,7 +39,7 @@ export const orgSettingsSchema = z.object({
   ai: z
     .object({
       enabled: z.boolean().default(true),
-      provider: z.enum(["anthropic", "openai", "gemini", "demo"]).default("anthropic"),
+      provider: z.enum(["anthropic", "openai", "gemini", "magnific", "demo"]).default("anthropic"),
       model: z.string().default(""),
       /** Autoriza o envio de dados de clientes (tom de voz, briefings...) ao provedor externo. */
       allowClientContext: z.boolean().default(false),
@@ -51,6 +51,8 @@ export const orgSettingsSchema = z.object({
       monthlyCostLimitMicros: z.number().int().nonnegative().default(0),
       /** Pede confirmação quando o custo estimado de uma geração passa deste valor (micro-dólares; 0 = nunca). */
       confirmAboveMicros: z.number().int().nonnegative().default(0),
+      /** Política: pessoas podem conectar chaves de IA próprias (BYOK). Provedores podem ser bloqueados um a um. */
+      allowPersonalKeys: z.boolean().default(true),
       /** Chaves de API próprias da organização, sempre criptografadas (src/server/crypto.ts). */
       keys: z
         .object({ anthropic: z.string().optional(), openai: z.string().optional(), gemini: z.string().optional() })

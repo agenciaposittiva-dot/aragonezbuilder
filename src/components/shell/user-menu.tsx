@@ -1,6 +1,6 @@
 "use client";
 
-import { Compass, LogOut, Palette, ShieldCheck, UserRound } from "lucide-react";
+import { Cloud, Compass, LogOut, Palette, ShieldCheck, Sparkles, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Avatar } from "@/components/ui/avatar";
@@ -47,6 +47,16 @@ export function UserMenu({ accountHref, guide = false }: { accountHref: string; 
         <DropdownMenuItem asChild>
           <Link href={`${accountHref}#seguranca`}>
             <ShieldCheck /> Segurança e sessões
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href={`${accountHref}/ai`}>
+            <Sparkles /> Minhas inteligências artificiais
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href={`${accountHref}/integrations`}>
+            <Cloud /> Armazenamento e integrações
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSub>

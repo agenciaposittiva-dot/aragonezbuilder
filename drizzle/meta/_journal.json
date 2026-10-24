@@ -148,6 +148,20 @@
       "when": 1792863764436,
       "tag": "0020_design_favorites",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792867196426,
+      "tag": "0021_ai_user_connections",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792868741793,
+      "tag": "0022_google_drive",
+      "breakpoints": true
     }
   ]
 }

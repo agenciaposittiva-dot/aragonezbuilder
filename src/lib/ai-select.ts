@@ -18,6 +18,7 @@ export const PROVIDER_LABEL: Record<string, string> = {
   anthropic: "Anthropic (Claude)",
   openai: "OpenAI (ChatGPT)",
   gemini: "Google Gemini",
+  magnific: "Magnific (Freepik AI)",
   demo: "Demonstração local (sem IA real)",
 };
 
@@ -90,7 +91,7 @@ const TIER_SCORE: Record<AiPriority, Record<ModelTier, number>> = {
   balanced: { balanced: 3, quality: 2.2, fast: 2, unknown: 1.5 },
 };
 
-const PROVIDER_ORDER = ["anthropic", "openai", "gemini", "demo"];
+const PROVIDER_ORDER = ["anthropic", "openai", "gemini", "magnific", "demo"];
 
 /** Custo de referência (US$ por milhão, média entrada/saída) quando o preço é conhecido. */
 function blendedPrice(m: AiModelInfo) {

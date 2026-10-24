@@ -213,7 +213,7 @@ async function prepare(s: Scope, task: "trend_analysis" | "copy", selection: unk
   const def = resolved.def;
   if (!def.text) throw new TrendAiError(`${def.label} não gera texto. Escolha um modelo de texto.`);
   return {
-    provider: def.text(resolved.apiKey ?? ""),
+    provider: def.text(resolved.apiKey ?? "", { baseUrl: resolved.baseUrl }),
     providerId: def.id,
     model: resolved.model,
     source: resolved.source,

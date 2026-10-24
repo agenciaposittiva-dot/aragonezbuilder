@@ -1,12 +1,13 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { AiModelInfo } from "@/lib/ai-tasks";
 import { assertCan, type Scope } from "@/server/authz";
 import { PROVIDER_IDS, providerDef, type ProviderDef } from "@/server/ai/registry";
-import { AiProviderError, type AiProviderId } from "@/server/ai/types";
+import { AiProviderError, type AiProviderId, type KeySource, type ProviderOpts } from "@/server/ai/types";
 import { decryptSecret, encryptSecret, maskSecret } from "@/server/crypto";
-import { aiProviderConfigs } from "@/server/db/schema";
+import { aiProviderConfigs, aiUserConnections } from "@/server/db/schema";
 import { NotFoundError, ValidationError } from "@/server/errors";
 import { recordActivity } from "./activity";
+import { getSettings } from "./organizations";
 
 /** Modelos descobertos ficam em cache por 24 h; erros temporários são revalidados após 10 min. */
 const MODELS_TTL_MS = 24 * 60 * 60 * 1000;
@@ -24,6 +25,8 @@ export type ProviderState = {
   /** Somente para administradores: final da chave da organização, mascarado. */
   keyMask: string | null;
   enabled: boolean;
+  /** Política: pessoas podem usar chave própria (BYOK) deste provedor. */
+  userKeysAllowed: boolean;
   status: ConfigRow["status"];
   lastError: string | null;
   lastCheckedAt: Date | null;
@@ -73,6 +76,7 @@ function stateOf(d: ProviderDef, row: ConfigRow | undefined, admin: boolean): Pr
     keySource: source,
     keyMask: admin && source === "org" && key ? maskSecret(key) : null,
     enabled,
+    userKeysAllowed: row?.allowUserKeys ?? true,
     status,
     lastError: row?.lastError ?? null,
     lastCheckedAt: row?.lastCheckedAt ?? null,
@@ -107,10 +111,10 @@ type Probe =
   | { ok: false; status: "invalid" | "error"; error: string; models?: AiModelInfo[] };
 
 /** Chamada real de listagem de modelos: valida a credencial sem gravar nada. */
-async function probe(d: ProviderDef, key: string | null): Promise<Probe> {
+export async function probeProvider(d: ProviderDef, key: string | null, opts: ProviderOpts = {}): Promise<Probe> {
   if (d.needsKey && !key) return { ok: false, status: "invalid", error: "Nenhuma chave configurada." };
   try {
-    const models = await d.listModels(key ?? "", AbortSignal.timeout(20_000));
+    const models = await d.listModels(key ?? "", AbortSignal.timeout(20_000), opts);
     if (!models.length) {
       return { ok: false, status: "error", error: "A conta não tem modelos compatíveis disponíveis.", models: [] };
     }
@@ -125,7 +129,7 @@ async function probe(d: ProviderDef, key: string | null): Promise<Probe> {
 
 /** Valida e guarda o resultado (status, erro, modelos). Não altera a habilitação. */
 async function check(s: Scope, d: ProviderDef, key: string | null): Promise<{ ok: boolean; error: string | null }> {
-  const r = await probe(d, key);
+  const r = await probeProvider(d, key);
   const now = new Date();
   if (r.ok) {
     await upsert(s, d.id, {
@@ -156,7 +160,7 @@ export async function saveProviderKey(s: Scope, provider: string, apiKey: string
   if (!d.needsKey) throw new ValidationError("Este provedor não usa chave.");
   const key = apiKey.trim();
   if (key.length < 8 || key.length > 400) throw new ValidationError("Chave inválida.", { apiKey: ["Chave inválida"] });
-  const r = await probe(d, key);
+  const r = await probeProvider(d, key);
   if (r.ok) {
     const now = new Date();
     await upsert(s, d.id, {
@@ -230,6 +234,22 @@ export async function setProviderEnabled(s: Scope, provider: string, enabled: bo
   });
 }
 
+/** Política por provedor: permite (ou não) que pessoas usem chave própria dele. */
+export async function setProviderUserKeysAllowed(s: Scope, provider: string, allowed: boolean) {
+  assertCan(s.actor, "ai.settings");
+  const d = def(provider);
+  if (!d.needsKey) throw new ValidationError("Este provedor não usa chave.");
+  await upsert(s, d.id, { allowUserKeys: allowed });
+  await recordActivity(s, {
+    action: allowed ? "ai_provider_user_keys_allowed" : "ai_provider_user_keys_blocked",
+    entityType: "organization",
+    entityId: s.actor.orgId,
+    summary: `Chaves pessoais de ${d.label} ${allowed ? "permitidas" : "bloqueadas"}`,
+    metadata: { provider: d.id },
+    event: false,
+  });
+}
+
 /** Mesma lista de modelos (pelos ids); uma lista nova vazia não conta como mudança. */
 function sameIds(live: AiModelInfo[], saved: AiModelInfo[]) {
   if (!live.length) return null;
@@ -242,13 +262,81 @@ function sameIds(live: AiModelInfo[], saved: AiModelInfo[]) {
  * validados aqui, antes do primeiro uso; credenciais inválidas não são
  * tentadas de novo até um administrador revalidar.
  */
+export type ReadyProvider = {
+  def: ProviderDef;
+  key: string | null;
+  /** Endereço base da credencial pessoal, quando houver. */
+  baseUrl: string | null;
+  keySource: KeySource;
+  models: AiModelInfo[];
+};
+
+/** Conexões pessoais ativas da pessoa (BYOK); só usadas se a política da organização permitir. */
+async function personalConnections(s: Scope) {
+  const rows = await s.db
+    .select()
+    .from(aiUserConnections)
+    .where(and(eq(aiUserConnections.userId, s.actor.userId), eq(aiUserConnections.enabled, true)));
+  return new Map(rows.map((r) => [r.provider, r]));
+}
+
+/**
+ * Modelos das conexões pessoais já validadas e ativas da pessoa, por provedor,
+ * respeitando a política da organização (sem revalidar nada).
+ */
+export async function personalReadyModels(s: Scope): Promise<Map<string, AiModelInfo[]>> {
+  const personal = await personalConnections(s);
+  const out = new Map<string, AiModelInfo[]>();
+  if (!personal.size) return out;
+  const settings = await getSettings(s);
+  if (!settings.ai.allowPersonalKeys) return out;
+  const rows = await loadRows(s);
+  for (const [provider, c] of personal) {
+    if (c.status !== "valid" || !c.models.length) continue;
+    if (!(rows.get(provider)?.allowUserKeys ?? true)) continue;
+    out.set(provider, c.models);
+  }
+  return out;
+}
+
 export async function readyProviders(s: Scope) {
   const rows = await loadRows(s);
-  const out: { def: ProviderDef; key: string | null; models: AiModelInfo[] }[] = [];
+  const out: ReadyProvider[] = [];
   const unavailable: { id: AiProviderId; label: string; reason: string }[] = [];
+  const personal = await personalConnections(s);
+  const allowPersonal = personal.size > 0 ? (await getSettings(s)).ai.allowPersonalKeys : false;
   for (const id of PROVIDER_IDS) {
     const d = def(id);
     let row = rows.get(id);
+    // 1) Chave pessoal válida e ativa tem precedência sobre a da organização e a do servidor.
+    const conn = personal.get(id);
+    if (conn && d.needsKey && allowPersonal && (row?.allowUserKeys ?? true)) {
+      const userKey = decryptSecret(conn.keyEncrypted);
+      if (userKey) {
+        let c = conn;
+        const staleUser =
+          c.status === "unverified" ||
+          (c.status === "valid" && (!c.modelsFetchedAt || Date.now() - c.modelsFetchedAt.getTime() > MODELS_TTL_MS)) ||
+          (c.status === "error" && (!c.lastCheckedAt || Date.now() - c.lastCheckedAt.getTime() > RETRY_ERROR_MS));
+        if (staleUser) {
+          const r = await probeProvider(d, userKey, { baseUrl: c.endpointUrl });
+          const now = new Date();
+          const patch = r.ok
+            ? { status: "valid" as const, lastError: null, lastCheckedAt: now, models: r.models, modelsFetchedAt: now }
+            : { status: r.status, lastError: r.error, lastCheckedAt: now };
+          await s.db
+            .update(aiUserConnections)
+            .set({ ...patch, updatedAt: now })
+            .where(eq(aiUserConnections.id, c.id));
+          c = { ...c, ...patch };
+        }
+        if (c.status === "valid" && c.models.length) {
+          out.push({ def: d, key: userKey, baseUrl: c.endpointUrl, keySource: "user", models: c.models });
+          continue;
+        }
+        // Pessoal inválida: cai para a credencial compartilhada (a página "Minhas IAs" mostra o erro).
+      }
+    }
     const state = stateOf(d, row, false);
     if (!state.enabled) {
       unavailable.push({
@@ -258,7 +346,7 @@ export async function readyProviders(s: Scope) {
       });
       continue;
     }
-    const { key } = keyOf(row, d);
+    const { key, source } = keyOf(row, d);
     if (d.needsKey && !key) {
       unavailable.push({ id, label: d.label, reason: "sem chave válida" });
       continue;
@@ -282,7 +370,7 @@ export async function readyProviders(s: Scope) {
       unavailable.push({ id, label: d.label, reason: row?.lastError ?? "credencial não validada" });
       continue;
     }
-    out.push({ def: d, key, models: row.models });
+    out.push({ def: d, key, baseUrl: null, keySource: source, models: row.models });
   }
   return { ready: out, unavailable };
 }

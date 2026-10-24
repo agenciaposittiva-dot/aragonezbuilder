@@ -68,7 +68,7 @@ async function prepare(s: Scope, selection: unknown): Promise<Prepared> {
   const demo = def.id === "demo";
   if (!demo && !settings.allowClientContext) throw new ValidationError(PREVIEW_POLICY_MESSAGE);
   return {
-    provider: def.text(resolved.apiKey ?? ""),
+    provider: def.text(resolved.apiKey ?? "", { baseUrl: resolved.baseUrl }),
     providerId: def.id,
     model: resolved.model,
     source: resolved.source,

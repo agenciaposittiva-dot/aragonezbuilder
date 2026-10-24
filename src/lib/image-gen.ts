@@ -131,11 +131,57 @@ export type ImageProviderOptions = {
   sizes: { w: number; h: number }[];
   /** Níveis de qualidade aceitos (null = o provedor não oferece a opção). */
   qualities: Record<string, string> | null;
+  /** Rótulo da opção de qualidade na interface (padrão: "Qualidade"; Magnific: "Resolução"). */
+  qualityLabel?: string;
   /** Quantas variações podem ser pedidas de uma vez. */
   maxVariations: number;
   /** A API aceita instruções negativas (o que evitar) como parâmetro próprio. */
   negativePrompt: boolean;
+  /** A API recebe uma proporção nomeada (chave → proporção) em vez de um tamanho em pixels. */
+  aspectRatios?: Record<string, Ratio>;
+  /** O modelo aceita uma imagem da arte como referência de estrutura/composição. */
+  references?: boolean;
 };
+
+/** Proporções nomeadas da Magnific (Mystic e Classic): parâmetro `aspect_ratio` / `image.size`. */
+export const MAGNIFIC_ASPECT_RATIOS: Record<string, Ratio> = {
+  square_1_1: { w: 1, h: 1 },
+  classic_4_3: { w: 4, h: 3 },
+  traditional_3_4: { w: 3, h: 4 },
+  widescreen_16_9: { w: 16, h: 9 },
+  social_story_9_16: { w: 9, h: 16 },
+  smartphone_horizontal_20_9: { w: 20, h: 9 },
+  smartphone_vertical_9_20: { w: 9, h: 20 },
+  standard_3_2: { w: 3, h: 2 },
+  portrait_2_3: { w: 2, h: 3 },
+  horizontal_2_1: { w: 2, h: 1 },
+  vertical_1_2: { w: 1, h: 2 },
+  social_5_4: { w: 5, h: 4 },
+  social_post_4_5: { w: 4, h: 5 },
+};
+
+/** Resoluções do Mystic (parâmetro `resolution`); o lado maior fica próximo do valor. */
+export const MAGNIFIC_RESOLUTIONS = {
+  "1k": "1K (≈1024 px)",
+  "2k": "2K (≈2048 px)",
+  "4k": "4K (≈4096 px)",
+} as const;
+
+/** Tamanho aproximado para uma proporção nomeada, dado o lado maior. */
+export function namedRatioSize(ratio: Ratio, longest: number): { w: number; h: number } {
+  const scale = longest / Math.max(ratio.w, ratio.h);
+  return { w: Math.round(ratio.w * scale), h: Math.round(ratio.h * scale) };
+}
+
+/** Chave da proporção nomeada mais próxima da proporção pedida. */
+export function nearestNamedRatio(ratio: Ratio, table: Record<string, Ratio>): string {
+  const want = Math.log(ratio.w / ratio.h);
+  return Object.entries(table).sort(
+    ([, a], [, b]) => Math.abs(Math.log(a.w / a.h) - want) - Math.abs(Math.log(b.w / b.h) - want),
+  )[0]![0];
+}
+
+const MAGNIFIC_SIZES = Object.values(MAGNIFIC_ASPECT_RATIOS).map((r) => namedRatioSize(r, 2048));
 
 export const IMAGE_PROVIDER_OPTIONS: Record<string, ImageProviderOptions> = {
   // POST /v1/images/generations (gpt-image-*): size 1024x1024 | 1536x1024 | 1024x1536 | auto,
@@ -150,10 +196,47 @@ export const IMAGE_PROVIDER_OPTIONS: Record<string, ImageProviderOptions> = {
     maxVariations: IMAGE_GEN_LIMITS.variations,
     negativePrompt: false,
   },
+  // Magnific: proporção nomeada (aspect_ratio) em vez de tamanho; demais opções variam por modelo.
+  magnific: {
+    sizes: MAGNIFIC_SIZES,
+    qualities: MAGNIFIC_RESOLUTIONS,
+    qualityLabel: "Resolução",
+    maxVariations: 1,
+    negativePrompt: false,
+    aspectRatios: MAGNIFIC_ASPECT_RATIOS,
+    references: true,
+  },
 };
 
-export function imageProviderOptions(provider: string | null | undefined): ImageProviderOptions | null {
-  return provider ? (IMAGE_PROVIDER_OPTIONS[provider] ?? null) : null;
+/** Ajustes por modelo (a mesma API pode ter parâmetros diferentes por modelo). */
+export const IMAGE_MODEL_OPTIONS: Record<string, Partial<ImageProviderOptions>> = {
+  // POST /v1/ai/mystic: 1 imagem por tarefa; resolution 1k/2k/4k; structure_reference/style_reference; sem prompt negativo.
+  "magnific:mystic": {
+    qualities: MAGNIFIC_RESOLUTIONS,
+    qualityLabel: "Resolução",
+    maxVariations: 1,
+    negativePrompt: false,
+    references: true,
+  },
+  // POST /v1/ai/text-to-image (Classic rápido): negative_prompt, num_images, image.size; sem resolução.
+  "magnific:classic-fast": {
+    sizes: Object.values(MAGNIFIC_ASPECT_RATIOS).map((r) => namedRatioSize(r, 1024)),
+    qualities: null,
+    maxVariations: IMAGE_GEN_LIMITS.variations,
+    negativePrompt: true,
+    references: false,
+  },
+};
+
+export function imageProviderOptions(
+  provider: string | null | undefined,
+  model?: string | null,
+): ImageProviderOptions | null {
+  if (!provider) return null;
+  const base = IMAGE_PROVIDER_OPTIONS[provider];
+  if (!base) return null;
+  const over = model ? IMAGE_MODEL_OPTIONS[`${provider}:${model}`] : undefined;
+  return over ? { ...base, ...over } : base;
 }
 
 /* ------------------------------------------------------------------ */

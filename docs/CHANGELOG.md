@@ -6,6 +6,40 @@ Publicação em produção depende da implantação de cada ambiente.
 
 `tests/changelog.test.ts` confere que os dois registros estão iguais e que os testes citados existem.
 
+## #31 — Google Drive por pessoa: conectar, exportar do Estúdio, importar e organizar
+
+- **Data:** 2026-10-24
+- **Módulo:** Arquivos e integrações
+- **Status:** Implementado e testado
+- **Descrição:** Nova seção Meu perfil → "Armazenamento e integrações" com o Google Drive: cada pessoa conecta a própria conta pelo OAuth 2.0 oficial (estado assinado contra CSRF, tokens criptografados no servidor, nunca no navegador), vê o estado da conexão e a conta, testa o acesso, renova a autorização quando o Google pede e desconecta com confirmação (revogando o token). Escopo restrito por padrão (só arquivos e pastas criados pela plataforma; escopo amplo opcional por configuração). Preferências: destino dos novos arquivos (plataforma ou plataforma + cópia no Drive), organização automática das pastas (cliente, projeto, ano) e pasta padrão, com criação da pasta "Aragonez Builder". Na biblioteca, a aba Google Drive navega nas pastas autorizadas, busca por nome, cria pastas e importa arquivos para um cliente/projeto (origem "Google Drive" registrada). As ações de um arquivo ganharam "Salvar no Google Drive" e o Exportar do Estúdio ganhou "Enviar para Arquivos e Google Drive" (PNG/JPG/PDF), com link do arquivo no final. Nada é migrado automaticamente nem compartilhado. Migração aditiva 0022 (google_drive_connections, google_drive_files, origem "drive"). A validação real depende de GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET (passo a passo em docs/GOOGLE-DRIVE.md).
+- **Problema resolvido:** Não havia como usar o Drive da própria pessoa: as exportações ficavam só na plataforma e importar do Drive exigia baixar e subir manualmente.
+- **Testes executados:**
+  - tests/google-drive.test.ts — estado assinado, URL de autorização (escopo restrito, redirecionamento, estado), conexão com tokens criptografados e conta confirmada (sem escopo nada é salvo), isolamento entre pessoas e organizações, testar acesso e autorização necessária, renovação de token, exportar com pastas cliente/projeto e elo com a versão, importar com validações e origem drive, navegar/buscar/criar pasta/pasta padrão, falhas (quota, limite, indisponível, rede), desconectar com revogação
+  - e2e/google-drive.spec.ts — página pelo perfil, estado do Google Drive (configurado ou não) e aba na biblioteca (desktop e celular)
+
+## #30 — Minhas inteligências artificiais: chaves de IA próprias por pessoa (BYOK)
+
+- **Data:** 2026-10-24
+- **Módulo:** Inteligência artificial
+- **Status:** Implementado e testado
+- **Descrição:** Cada pessoa pode conectar as próprias chaves de IA (Anthropic, OpenAI, Gemini e Magnific) em Meu perfil → "Minhas inteligências artificiais": a chave é validada numa chamada real antes de ser guardada (criptografada no servidor, só o final mascarado aparece), pode ser testada, ativada/desativada e removida com confirmação, e vale só para quem a cadastrou. Uma chave pessoal válida e ativa tem prioridade sobre a chave da organização e a do servidor; os modelos dela aparecem nos seletores e podem ser o padrão por finalidade (texto, copy, legendas, planejamento, tarefas, chat, edição de artes, imagem, edição e ampliação de imagem). O consumo com chave própria fica separado do consumo com credenciais da organização (ai_usage.key_source) e aparece na própria página. A organização controla a política em Configurações → Inteligência artificial (permitir chaves pessoais no geral e por provedor, com a contagem de pessoas conectadas, sem ver segredos). OpenAI e Magnific aceitam endereço de API personalizado (gateways compatíveis), só HTTPS e nunca endereços internos. Migração aditiva 0021 (ai_user_connections, allow_user_keys, key_source).
+- **Problema resolvido:** Só a chave da organização (ou do servidor) podia ser usada: quem tinha crédito próprio num provedor não conseguia usá-lo, e o consumo de todo mundo caía na mesma conta.
+- **Testes executados:**
+  - tests/ai-connections.test.ts — criptografia/máscara, validação de endereço (SSRF, DNS), chave inválida não salva e não vaza, cadastro válido e isolamento entre pessoas e organizações, precedência pessoal > organização, seletor e padrão por finalidade com o modelo pessoal, uso com key_source e consumo separado, política geral e por provedor, endereço personalizado usado na chamada, testar/erro/remover, limite de tentativas
+  - tests/ai-models.test.ts, tests/ai.test.ts — regressão da escolha de modelos e das gerações
+  - e2e/ai-connections.spec.ts — página pessoal pelo perfil, provedores sem segredo, endereço só nos compatíveis, política da organização bloqueia e libera (desktop e celular)
+
+## #29 — Magnific (Freepik AI): gerar, usar referência e ampliar imagens no editor
+
+- **Data:** 2026-10-24
+- **Módulo:** Estúdio Criador
+- **Status:** Implementado e testado
+- **Descrição:** A Magnific entrou como provedor de IA de imagem (API oficial), com chave por organização em Configurações → Inteligência artificial ou MAGNIFIC_API_KEY no servidor. Modelos do catálogo oficial: Mystic (geração em 1K/2K/4K com 13 proporções e "Usar a imagem selecionada como referência"), Classic rápido (instruções negativas e variações) e os ampliadores Magnific Precision v2 e Creative. O painel "Gerar imagem" ganhou a opção Resolução e a seção "Ampliar imagem selecionada" (2× a 16×, modelo escolhível). As tarefas assíncronas da Magnific são acompanhadas até concluir; o resultado vai para Arquivos e entra na arte pelo fluxo normal (inserir, fundo ou substituir). Erros de chave, créditos, limite e tarefa falha aparecem em linguagem clara, sem expor a credencial; o limite de 25,3 megapixels é conferido antes de gastar créditos. Validação contra a API real depende de uma chave da Magnific (não disponível neste ambiente).
+- **Problema resolvido:** Só a OpenAI gerava imagens no editor; não havia como ampliar a resolução de uma imagem nem usar uma imagem da arte como referência de composição.
+- **Testes executados:**
+  - tests/magnific.test.ts — proporção nomeada e opções por modelo; chave validada por chamada real e catálogo só de imagem; Mystic com tarefa consultada até concluir e imagem salva; referência exige a política de dados e vai em base64; Classic síncrono com negativo e variações; ampliação (fator, limite de MP, modelo incompatível, arquivo/uso/histórico, Creative); erros (FAILED, 402, 429, 503) sem a chave
+  - tests/design-image-gen.test.ts, tests/design-ai.test.ts, tests/ai*.test.ts — regressão dos provedores existentes (OpenAI inalterada)
+
 ## #28 — Inadimplência por cliente, contratos a vencer e carga da equipe
 
 - **Data:** 2026-10-24

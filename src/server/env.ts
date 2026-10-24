@@ -86,6 +86,13 @@ const schema = z.object({
   /** Provedor inicial das novas organizações (padrão: o primeiro com chave configurada). */
   AI_DEFAULT_PROVIDER: blankAsUndefined(z.enum(["anthropic", "openai", "gemini", "demo"]).optional()),
   GEMINI_API_KEY: optional,
+  /** Google Drive por pessoa (OAuth 2.0). Escopo: "file" (só arquivos criados pela plataforma, padrão) ou "full". */
+  GOOGLE_CLIENT_ID: optional,
+  GOOGLE_CLIENT_SECRET: optional,
+  GOOGLE_DRIVE_SCOPE: blankAsUndefined(z.enum(["file", "full"]).optional()),
+  /** Magnific (Freepik AI): chave da API (aceita também FREEPIK_API_KEY) e endereço base opcional. */
+  MAGNIFIC_API_KEY: optional,
+  MAGNIFIC_API_BASE_URL: optional,
   /** Redis (Upstash) para o limite de tentativas do login. */
   UPSTASH_REDIS_REST_URL: optional,
   UPSTASH_REDIS_REST_TOKEN: optional,
@@ -143,6 +150,7 @@ function source(): NodeJS.ProcessEnv {
     BLOB_READ_WRITE_TOKEN: pickEnv("BLOB_READ_WRITE_TOKEN"),
     BLOB_STORE_ID: pickEnv("BLOB_STORE_ID"),
     GEMINI_API_KEY: pickEnv("GEMINI_API_KEY"),
+    MAGNIFIC_API_KEY: pickEnv("MAGNIFIC_API_KEY", "FREEPIK_API_KEY"),
     DATABASE_OWNER_URL: databaseOwnerUrl(),
     APP_URL: e.APP_URL || (vercelHost ? `https://${vercelHost}` : undefined),
   };

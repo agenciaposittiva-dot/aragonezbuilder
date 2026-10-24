@@ -23,6 +23,7 @@ import {
   type AiTask,
 } from "@/lib/ai-tasks";
 import { formatDateTime, formatNumber } from "@/lib/format";
+import { setProviderUserKeysAllowedAction } from "@/server/actions/ai-connections";
 import {
   deleteAiPreferenceAction,
   removeProviderKeyAction,
@@ -33,7 +34,7 @@ import {
   validateProviderAction,
 } from "@/server/actions/ai";
 
-type ProviderId = "anthropic" | "openai" | "gemini" | "demo";
+type ProviderId = "anthropic" | "openai" | "gemini" | "magnific" | "demo";
 
 type Provider = {
   id: ProviderId;
@@ -50,6 +51,10 @@ type Provider = {
   ready: boolean;
   params: string[];
   notes: string[];
+  /** Política: pessoas podem usar chave própria deste provedor. */
+  userKeysAllowed: boolean;
+  /** Quantas pessoas conectaram chave própria (nenhum segredo). */
+  personal: { total: number; working: number } | null;
 };
 
 type View = {
@@ -60,6 +65,7 @@ type View = {
   userDailyRequestLimit: number;
   monthlyCostLimitUsd: number;
   confirmAboveUsd: number;
+  allowPersonalKeys: boolean;
 };
 
 type Report = {
@@ -169,6 +175,7 @@ function ProviderRow({ provider: p }: { provider: Provider }) {
   const validate = useOrgAction(validateProviderAction);
   const toggle = useOrgAction(setProviderEnabledAction, { success: "Provedor atualizado" });
   const removeKey = useOrgAction(removeProviderKeyAction, { success: "Chave própria removida" });
+  const userKeys = useOrgAction(setProviderUserKeysAllowedAction, { success: "Política de chaves pessoais salva" });
   const st = p.needsKey && p.keySource === "none" ? null : STATUS[p.status];
   const [saveError, setSaveError] = useState<string | null>(null);
   const [checkResult, setCheckResult] = useState<string | null>(null);
@@ -178,7 +185,13 @@ function ProviderRow({ provider: p }: { provider: Provider }) {
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-medium">{p.label}</span>
         {st ? <Badge tone={st.tone}>{st.label}</Badge> : <Badge tone="outline">Não configurado</Badge>}
-        {p.kinds.includes("image") ? <Badge tone="info">texto e imagem</Badge> : <Badge tone="outline">texto</Badge>}
+        {p.kinds.includes("image") && p.kinds.includes("text") ? (
+          <Badge tone="info">texto e imagem</Badge>
+        ) : p.kinds.includes("image") ? (
+          <Badge tone="info">imagem</Badge>
+        ) : (
+          <Badge tone="outline">texto</Badge>
+        )}
         <span className="flex-1" />
         <label className="flex items-center gap-2 text-sm">
           {p.enabled ? "Habilitado" : "Desabilitado"}
@@ -201,6 +214,28 @@ function ProviderRow({ provider: p }: { provider: Provider }) {
         {p.lastCheckedAt ? ` Última verificação: ${formatDateTime(p.lastCheckedAt)}.` : ""}
         {p.status === "valid" ? ` ${p.models.length} modelo(s) disponível(is).` : ""}
       </p>
+      {p.needsKey ? (
+        <label className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-surface-2/60 px-3 py-2 text-xs">
+          <span>
+            <span className="font-medium">Chaves pessoais (BYOK)</span>
+            <span className="block text-fg-muted">
+              {p.personal?.total
+                ? `${p.personal.total} pessoa(s) com chave própria, ${p.personal.working} funcionando.`
+                : "Ninguém conectou chave própria ainda."}{" "}
+              Uma chave pessoal válida tem prioridade sobre a da organização só para quem a cadastrou.
+            </span>
+          </span>
+          <span className="flex items-center gap-2">
+            {p.userKeysAllowed ? "Permitidas" : "Bloqueadas"}
+            <Switch
+              checked={p.userKeysAllowed}
+              disabled={userKeys.pending}
+              onCheckedChange={(v) => userKeys.run({ provider: p.id, allowed: v })}
+              aria-label={`Permitir chaves pessoais de ${p.label}`}
+            />
+          </span>
+        </label>
+      ) : null}
       {p.lastError && p.status !== "valid" ? <p className="text-xs text-danger">{p.lastError}</p> : null}
       {saveError ? <p className="text-xs text-danger">{saveError}</p> : null}
       {checkResult ? <p className="text-xs text-fg-muted">{checkResult}</p> : null}
@@ -544,6 +579,26 @@ function PolicyCard({ view }: { view: View }) {
                 checked={state.allowChatContext}
                 onCheckedChange={(v) => setState({ ...state, allowChatContext: v })}
                 aria-label="Permitir que a IA leia conversas do chat"
+              />
+            </label>
+          </div>
+          <div className="rounded-lg border border-border bg-surface-2/50 p-4 sm:col-span-2">
+            <label className="flex items-start justify-between gap-4">
+              <span>
+                <span className="flex items-center gap-2 text-sm font-medium">
+                  <KeyRound className="size-4 text-accent-text" /> Permitir chaves de IA pessoais (BYOK)
+                </span>
+                <span className="mt-1 block text-xs text-fg-muted">
+                  Cada pessoa pode conectar as próprias chaves em &ldquo;Minhas inteligências artificiais&rdquo;. A chave fica
+                  criptografada, vale só para quem cadastrou e tem prioridade sobre a chave da organização. O consumo
+                  com chave pessoal é cobrado na conta da pessoa. Desligado, só as credenciais da organização e do
+                  servidor são usadas; provedores também podem ser bloqueados um a um acima.
+                </span>
+              </span>
+              <Switch
+                checked={state.allowPersonalKeys}
+                onCheckedChange={(v) => setState({ ...state, allowPersonalKeys: v })}
+                aria-label="Permitir chaves de IA pessoais"
               />
             </label>
           </div>

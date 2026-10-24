@@ -12,6 +12,7 @@ import {
   Trash2,
   Undo2,
   X,
+  Maximize2,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useSyncExternalStore } from "react";
@@ -45,7 +46,11 @@ import { cn } from "@/lib/utils";
 import { designAiSetupAction } from "@/server/actions/design-ai";
 import { enhanceImagePromptAction, generatedImagesAction } from "@/server/actions/design-image-gen";
 import type { DesignAiSetup } from "@/server/services/design-ai";
-import type { DesignImageGenResult, GeneratedLibraryItem } from "@/server/services/design-image-gen";
+import type {
+  DesignImageGenResult,
+  DesignImageUpscaleResult,
+  GeneratedLibraryItem,
+} from "@/server/services/design-image-gen";
 import { loadImage } from "./media";
 import { useEditor, type EditorStore } from "./store";
 
@@ -91,6 +96,18 @@ export type ImageGenState = {
   quality: string;
   variations: number;
   negativePrompt: string;
+  /** Usar a imagem selecionada na arte como referência de composição (modelos que aceitam). */
+  useReference: boolean;
+  /** Ampliar resolução (upscale) da imagem selecionada. */
+  upscale: {
+    selection: AiSelection;
+    showModel: boolean;
+    scale: 2 | 4 | 8 | 16;
+    status: "idle" | "running" | "error";
+    error: { message: string; alternatives: Alternative[] } | null;
+    costPrompt: string | null;
+    last: DesignImageUpscaleResult | null;
+  };
   context: ImageContextMode;
   /** Modelo de imagem (gerar). */
   selection: AiSelection;
@@ -121,6 +138,16 @@ const initialState = (): ImageGenState => ({
   quality: "",
   variations: 1,
   negativePrompt: "",
+  useReference: false,
+  upscale: {
+    selection: { mode: "default" },
+    showModel: false,
+    scale: 2,
+    status: "idle",
+    error: null,
+    costPrompt: null,
+    last: null,
+  },
   context: "none",
   selection: { mode: "default" },
   showModel: false,
@@ -181,6 +208,8 @@ export function useImageGen(gen: ImageGenStore) {
 const MODULE = "editor";
 const TASK = "image_generation" as const;
 const ENHANCE_TASK = "image_prompt" as const;
+const UPSCALE_TASK = "image_upscale" as const;
+const UPSCALE_SCALES = [2, 4, 8, 16] as const;
 const FORMAT_ORDER: ImageFormatKey[] = ["square", "portrait", "story", "landscape", "page", "custom"];
 const PROMPT_EXAMPLE =
   "Ex.: Fotografia publicitária hiper-realista de um frasco de perfume premium sobre uma superfície de mármore preto, iluminação cinematográfica, reflexos controlados, composição sofisticada e acabamento de campanha de luxo.";
@@ -260,7 +289,22 @@ export function ImageGeneratorPanel({
     [setup, st.enhanceSelection],
   );
   const providerLabel = (id: string) => setup?.picker.providers.find((p) => p.id === id)?.label ?? id;
-  const options = imageProviderOptions(preview && !preview.problem ? preview.model?.provider : null);
+  const options = imageProviderOptions(
+    preview && !preview.problem ? preview.model?.provider : null,
+    preview && !preview.problem ? preview.model?.id : null,
+  );
+  // Modelo de ampliação (upscale) da imagem selecionada.
+  const upscalePreview = useMemo(
+    () =>
+      setup
+        ? previewSelection(setup.picker.providers, setup.picker.preferences, {
+            module: MODULE,
+            task: UPSCALE_TASK,
+            selection: st.upscale.selection,
+          })
+        : null,
+    [setup, st.upscale.selection],
+  );
   const ratio = ratioOf(st.format, page, st.customRatio);
   const output = ratio && options ? outputSizeFor(ratio, options.sizes) : null;
   const contextBlocked = !!design.clientId && !!setup && !setup.allowClientContext && !setup.demo;
@@ -300,6 +344,10 @@ export function ImageGeneratorPanel({
           variations: Math.min(gen.state.variations, options?.maxVariations ?? 1),
           negativePrompt:
             options?.negativePrompt && gen.state.negativePrompt.trim() ? gen.state.negativePrompt : undefined,
+          reference:
+            options?.references && gen.state.useReference && selectedImageId
+              ? { objectId: selectedImageId }
+              : undefined,
           context: gen.state.context,
           document: store.doc,
           pageId: store.activePageId,
@@ -388,6 +436,79 @@ export function ImageGeneratorPanel({
       toast.error("Falha de conexão ao melhorar a descrição.");
     } finally {
       gen.set({ enhancing: false });
+    }
+  }
+
+  /* ---------------------------- ampliação ---------------------------- */
+
+  const upscaling = st.upscale.status === "running";
+  const setUpscale = (patch: Partial<ImageGenState["upscale"]>) =>
+    gen.set((s) => ({ upscale: { ...s.upscale, ...patch } }));
+
+  async function upscale(opts: { confirmCost?: boolean; sel?: AiSelection } = {}) {
+    if (upscaling || blocked || !selectedImageId) return;
+    const sel = opts.sel ?? gen.state.upscale.selection;
+    const controller = new AbortController();
+    gen.start(controller);
+    setUpscale({ status: "running", error: null, costPrompt: null, selection: sel });
+    try {
+      const res = await fetch("/api/designs/ai/upscale-image", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          orgSlug,
+          designId: design.id,
+          objectId: selectedImageId,
+          scale: gen.state.upscale.scale,
+          document: store.doc,
+          ai: sel,
+          confirmCost: opts.confirmCost,
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        result?: DesignImageUpscaleResult;
+        error?: string;
+        code?: string;
+        alternatives?: Alternative[];
+      };
+      if (res.ok && json.ok && json.result) {
+        const r = json.result;
+        await loadImage(r.image.src);
+        gen.set((s) => ({
+          upscale: { ...s.upscale, status: "idle", last: r },
+          picked: { ...r.image, name: `IA: ampliada ${r.scale}×`, origin: "result" },
+        }));
+        for (const w of r.warnings) toast.info(w);
+        toast.success(
+          `Imagem ampliada ${r.scale}× (${r.image.width}×${r.image.height} px) e salva em Arquivos. Use "Substituir" para trocá-la na arte.`,
+        );
+        return;
+      }
+      if (json.code === "cost_confirmation") {
+        setUpscale({ status: "idle", costPrompt: json.error ?? "Confirme o custo para continuar." });
+        return;
+      }
+      setUpscale({
+        status: "error",
+        error: {
+          message: json.error ?? "Não foi possível ampliar a imagem. Tente novamente.",
+          alternatives: json.alternatives ?? [],
+        },
+      });
+    } catch {
+      if (controller.signal.aborted) {
+        setUpscale({ status: "idle" });
+        toast.info("Ampliação cancelada.");
+      } else {
+        setUpscale({
+          status: "error",
+          error: { message: "Sem conexão com o servidor. Verifique a internet e tente de novo.", alternatives: [] },
+        });
+      }
+    } finally {
+      gen.finish(controller);
     }
   }
 
@@ -802,7 +923,7 @@ export function ImageGeneratorPanel({
         <H>Qualidade e estilo</H>
         {options?.qualities ? (
           <label className="grid gap-1 text-xs">
-            <span className="text-fg-muted">Qualidade</span>
+            <span className="text-fg-muted">{options.qualityLabel ?? "Qualidade"}</span>
             <NativeSelect
               value={st.quality}
               onChange={(e) => gen.set({ quality: e.target.value })}
@@ -871,6 +992,21 @@ export function ImageGeneratorPanel({
               disabled={running}
               className="min-h-0 text-xs"
             />
+          </label>
+        ) : null}
+        {options?.references ? (
+          <label className="flex items-start gap-2 text-xs" data-testid="image-generator-reference">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={st.useReference && !!selectedImageId}
+              disabled={running || !selectedImageId}
+              onChange={(e) => gen.set({ useReference: e.target.checked })}
+            />
+            <span className="text-fg-muted">
+              Usar a imagem selecionada como referência de composição
+              {selectedImageId ? "" : " (selecione uma imagem no slide atual)"}
+            </span>
           </label>
         ) : null}
         {!options && preview && !preview.problem ? (
@@ -946,6 +1082,134 @@ export function ImageGeneratorPanel({
           </div>
         ) : null}
       </section>
+
+      {/* Ampliar resolução da imagem selecionada */}
+      {setup && selectedImageId ? (
+        <section className="grid gap-2" data-testid="image-upscale">
+          <H>Ampliar imagem selecionada</H>
+          <p className="text-[11px] text-fg-subtle">
+            Aumenta a resolução da imagem selecionada com um modelo de ampliação (ex.: Magnific). O resultado vai para
+            Arquivos; você escolhe se substitui a imagem na arte.
+          </p>
+          {st.upscale.showModel ? (
+            <AiModelPicker
+              providers={setup.picker.providers}
+              preferences={setup.picker.preferences}
+              task={UPSCALE_TASK}
+              module={MODULE}
+              value={st.upscale.selection}
+              onChange={(selection) => setUpscale({ selection, error: null })}
+              disabled={upscaling}
+            />
+          ) : (
+            <div className="flex items-start gap-1.5 text-xs" data-testid="image-upscale-model">
+              {upscalePreview?.problem ? (
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-danger" />
+              ) : (
+                <Maximize2 className="mt-0.5 size-3.5 shrink-0 text-fg-subtle" />
+              )}
+              <span className={cn("min-w-0 flex-1", upscalePreview?.problem ? "text-danger" : "text-fg-muted")}>
+                {upscalePreview?.problem
+                  ? upscalePreview.problem
+                  : upscalePreview?.model
+                    ? `${upscalePreview.model.label} · ${providerLabel(upscalePreview.model.provider)}`
+                    : "Escolha automática"}
+              </span>
+              <button
+                type="button"
+                className="shrink-0 text-[11px] text-accent-text underline"
+                onClick={() => setUpscale({ showModel: true })}
+              >
+                Alterar
+              </button>
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <div role="radiogroup" aria-label="Fator de ampliação" className="flex gap-1">
+              {UPSCALE_SCALES.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  role="radio"
+                  aria-checked={st.upscale.scale === n}
+                  disabled={upscaling}
+                  onClick={() => setUpscale({ scale: n })}
+                  className={cn(
+                    "h-8 rounded-md border px-2 text-xs transition-colors disabled:opacity-50",
+                    st.upscale.scale === n
+                      ? "border-accent bg-accent-soft font-medium text-fg"
+                      : "border-border bg-surface text-fg-muted hover:text-fg",
+                  )}
+                >
+                  {n}×
+                </button>
+              ))}
+            </div>
+            {upscaling ? (
+              <Button size="sm" variant="ghost" onClick={() => gen.cancel()} aria-label="Cancelar ampliação">
+                <X /> Cancelar
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => void upscale()}
+                disabled={blocked}
+                data-testid="image-upscale-run"
+              >
+                <Maximize2 /> Ampliar {st.upscale.scale}×
+              </Button>
+            )}
+          </div>
+          {upscaling ? (
+            <p
+              role="status"
+              className="flex items-center gap-1.5 text-xs text-fg-muted"
+              data-testid="image-upscale-running"
+            >
+              <Spinner className="size-3.5" /> Ampliando… tarefas assíncronas do provedor podem levar até dois minutos.
+            </p>
+          ) : null}
+          {st.upscale.costPrompt ? (
+            <div role="alert" className="grid gap-1.5 rounded-md bg-warning-soft/60 p-2 text-xs">
+              <span>{st.upscale.costPrompt}</span>
+              <span className="flex gap-1.5">
+                <Button size="xs" variant="primary" onClick={() => void upscale({ confirmCost: true })}>
+                  Confirmar e ampliar
+                </Button>
+                <Button size="xs" variant="ghost" onClick={() => setUpscale({ costPrompt: null })}>
+                  Cancelar
+                </Button>
+              </span>
+            </div>
+          ) : null}
+          {st.upscale.error ? (
+            <div
+              role="alert"
+              className="grid gap-1.5 rounded-md bg-danger-soft p-2 text-xs text-danger"
+              data-testid="image-upscale-error"
+            >
+              <span className="flex items-start gap-1.5">
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" /> {st.upscale.error.message}
+              </span>
+              {st.upscale.error.alternatives.length ? (
+                <span className="flex flex-wrap gap-1.5">
+                  {st.upscale.error.alternatives.map((a) => (
+                    <Button
+                      key={`${a.provider}:${a.model}`}
+                      size="xs"
+                      variant="secondary"
+                      onClick={() => void upscale({ sel: { mode: "manual", provider: a.provider, model: a.model } })}
+                    >
+                      Usar {a.label} ({a.providerLabel})
+                    </Button>
+                  ))}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       {/* Resultados */}
       {st.result ? (

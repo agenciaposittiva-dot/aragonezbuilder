@@ -121,13 +121,20 @@ export async function downloadExport(ctx: Ctx, o: ExportOptions) {
 export async function sendExportToFiles(
   ctx: Ctx,
   o: ExportOptions,
-): Promise<{ fileId: string; count: number; newVersions: number }> {
+): Promise<{
+  fileId: string;
+  count: number;
+  newVersions: number;
+  /** Versões criadas/atualizadas (para enviar também ao Google Drive). */
+  versions: { fileId: string; versionId: string; name: string }[];
+}> {
   const files = await renderExport(ctx, o);
   const doc = ctx.store.doc;
   const outputs = { ...(doc.meta?.outputs ?? {}) };
   let pdfOutput = doc.meta?.pdfOutputFileId ?? null;
   let first: string | null = null;
   let newVersions = 0;
+  const versions: { fileId: string; versionId: string; name: string }[] = [];
   for (const f of files) {
     const isFirstPage = f.pageId === doc.pages[0]!.id;
     const previous = f.pageId ? (outputs[f.pageId] ?? (isFirstPage ? ctx.design.outputFileId : null)) : pdfOutput;
@@ -164,11 +171,12 @@ export async function sendExportToFiles(
     if (f.pageId) outputs[f.pageId] = up.fileId;
     else pdfOutput = up.fileId;
     first ??= up.fileId;
+    versions.push({ fileId: up.fileId, versionId: up.versionId, name: f.name });
   }
   // Guarda onde cada página foi parar (a próxima exportação vira nova versão). Não entra no desfazer.
   ctx.store.dispatch([{ op: "setMeta", set: { outputs, pdfOutputFileId: pdfOutput } }], {
     history: false,
     reason: "edit",
   });
-  return { fileId: first!, count: files.length, newVersions };
+  return { fileId: first!, count: files.length, newVersions, versions };
 }

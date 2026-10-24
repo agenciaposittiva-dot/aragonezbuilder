@@ -38,6 +38,41 @@
 - Chaves de API criptografadas (AES-256-GCM). Registro completo de uso.
 - Sem execução de código ou acesso direto ao banco pelo modelo.
 
+### Chaves de IA pessoais (BYOK)
+- Tabela `ai_user_connections` (por organização e pessoa, RLS forçado): a chave
+  é validada numa chamada real ao provedor antes de ser gravada, criptografada
+  com `encryptSecret` (AES-256-GCM, `src/server/crypto.ts`); uma chave
+  recusada nunca substitui a atual.
+- Nunca volta ao navegador: as telas recebem só o final mascarado (`••••a1b2`);
+  erros, respostas de ações e `audit_logs` guardam apenas o provedor.
+- Isolamento: `listMyConnections`/`saveMyConnection`/`testMyConnection`/
+  `removeMyConnection` filtram por `userId` do ator dentro do escopo da
+  organização; outra pessoa (ou outra organização) não enxerga nem usa a chave.
+- Precedência: chave pessoal válida e ativa > chave da organização > chave do
+  servidor. A origem fica registrada em `ai_usage.key_source` (`user`, `org`,
+  `env`) para separar o consumo.
+- Política: `settings.ai.allowPersonalKeys` (geral) e
+  `ai_provider_configs.allow_user_keys` (por provedor); bloqueadas, as chaves
+  pessoais deixam de ser usadas e não podem ser cadastradas/reativadas.
+- Endereço personalizado (só OpenAI e Magnific, gateways compatíveis): HTTPS
+  obrigatório, sem credenciais na URL, porta padrão, nomes/IPs internos e
+  nomes que resolvem para faixas privadas são recusados (`src/lib/endpoint-url.ts`
+  + verificação de DNS em `validateEndpointUrl`).
+- Limite de 10 validações por pessoa a cada 10 minutos (por processo).
+
+### Chave mestra de criptografia e rotação
+- `ENCRYPTION_KEY` (32 bytes em base64) cifra as chaves de IA da organização e
+  as pessoais. Sem ela, usa-se uma chave derivada de `BETTER_AUTH_SECRET`.
+- Para gerar: `openssl rand -base64 32`.
+- Rotação: esta versão não lê duas chaves mestras ao mesmo tempo. Procedimento
+  suportado: avisar as agências e pessoas, trocar `ENCRYPTION_KEY` no servidor
+  e pedir que cadastrem as chaves de IA de novo — as linhas antigas deixam de
+  abrir ("não foi possível ler a chave guardada") e a próxima validação as
+  marca como erro até a chave ser informada outra vez. Registre a troca no
+  diário de operação. Quem precisar de rotação sem recadastro deve implementar
+  leitura com a chave anterior (`ENCRYPTION_KEY_PREVIOUS`) e recifragem em
+  lote antes de ativar o recurso em produção.
+
 ## Webhooks de automação
 - HTTPS obrigatório (exceto em desenvolvimento), assinatura HMAC, tempo limite e
   bloqueio de endereços privados/loopback/metadados (proteção contra SSRF).

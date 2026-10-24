@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
+import { Cloud, Sparkles } from "lucide-react";
+import Link from "next/link";
 import { ChatAlertsForm } from "@/components/account/chat-alerts-form";
 import { PasswordForm } from "@/components/account/password-form";
 import { ProfilePhotoEditor } from "@/components/account/profile-photo-editor";
 import { ProfileForm } from "@/components/account/profile-form";
 import { NotificationPreferencesForm } from "@/components/account/notification-preferences-form";
 import { SessionsList } from "@/components/account/sessions-list";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { can, inOrg } from "@/server/authz";
@@ -31,6 +34,47 @@ export default async function AccountPage({ params }: PageProps<"/w/[org]/accoun
     <>
       <PageHeader title="Meu perfil" description={`${actor.roleName} em ${actor.orgName}`} />
       <div className="grid max-w-3xl gap-6">
+        {can(actor, "ai.use") ? (
+          <Card id="ia" className="scroll-mt-20">
+            <CardHeader>
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Sparkles className="size-4 text-accent-text" aria-hidden="true" /> Minhas inteligências artificiais
+                </CardTitle>
+                <CardDescription>
+                  Conecte suas próprias chaves de IA (OpenAI, Anthropic, Gemini, Magnific), escolha o modelo padrão de
+                  cada finalidade e acompanhe o seu consumo. As chaves ficam criptografadas no servidor e valem só para
+                  você.
+                </CardDescription>
+              </div>
+              <Button variant="secondary" asChild>
+                <Link href={`/w/${actor.orgSlug}/account/ai`} data-testid="account-ai-link">
+                  Gerenciar
+                </Link>
+              </Button>
+            </CardHeader>
+          </Card>
+        ) : null}
+        {can(actor, "files.write") ? (
+          <Card id="integracoes" className="scroll-mt-20">
+            <CardHeader>
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Cloud className="size-4 text-accent-text" aria-hidden="true" /> Armazenamento e integrações
+                </CardTitle>
+                <CardDescription>
+                  Conecte o seu Google Drive para salvar exportações do Estúdio e importar arquivos. A conexão é só sua;
+                  os tokens ficam criptografados no servidor.
+                </CardDescription>
+              </div>
+              <Button variant="secondary" asChild>
+                <Link href={`/w/${actor.orgSlug}/account/integrations`} data-testid="account-integrations-link">
+                  Gerenciar
+                </Link>
+              </Button>
+            </CardHeader>
+          </Card>
+        ) : null}
         <Card id="foto" className="scroll-mt-20">
           <CardHeader>
             <div>

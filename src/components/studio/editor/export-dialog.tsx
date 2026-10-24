@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Send } from "lucide-react";
+import { Cloud, Download, Send } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +22,7 @@ export function ExportDialog({
   onOpenChange,
   store,
   canSend,
+  driveConnected = false,
   busy,
   onDownload,
   onSend,
@@ -30,9 +31,11 @@ export function ExportDialog({
   onOpenChange: (v: boolean) => void;
   store: EditorStore;
   canSend: boolean;
-  busy: "download" | "send" | null;
+  /** A pessoa tem o Google Drive conectado: oferece enviar também para lá. */
+  driveConnected?: boolean;
+  busy: "download" | "send" | "drive" | null;
   onDownload: (o: ExportOptions) => void;
-  onSend: (o: ExportOptions) => void;
+  onSend: (o: ExportOptions, destination?: "files" | "drive") => void;
 }) {
   const doc = useEditor(store, (s) => s.doc);
   const active = useEditor(store, (s) => s.activePageId);
@@ -165,6 +168,17 @@ export function ExportDialog({
           >
             <Download /> Baixar
           </Button>
+          {canSend && driveConnected ? (
+            <Button
+              variant="secondary"
+              onClick={() => onSend(opts, "drive")}
+              loading={busy === "drive"}
+              disabled={!pageIds.length || !!busy}
+              data-testid="export-drive"
+            >
+              <Cloud /> Enviar para Arquivos e Google Drive
+            </Button>
+          ) : null}
           {canSend ? (
             <Button
               variant="primary"

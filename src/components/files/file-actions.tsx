@@ -26,6 +26,7 @@ import { useWorkspace } from "@/components/shell/workspace-context";
 import { useOrgAction } from "@/hooks/use-action";
 import { cn } from "@/lib/utils";
 import { deleteFileAction, duplicateFileAction, patchFileAction, setFileArchivedAction } from "@/server/actions/files";
+import { DriveExportMenuItem } from "./drive-export-button";
 
 export type FileActionsTarget = {
   id: string;
@@ -40,6 +41,8 @@ export type FileActionsPermissions = {
   canDelete: boolean;
   /** Pastas para onde o arquivo pode ir (mesmo cliente/projeto). */
   folders?: { id: string; name: string }[];
+  /** A pessoa tem o Google Drive conectado: oferece "Salvar no Google Drive". */
+  driveConnected?: boolean;
 };
 
 /**
@@ -144,7 +147,7 @@ export function FileActionsMenu({
   const archive = useOrgAction(setFileArchivedAction, {
     success: file.archived ? "Arquivo desarquivado" : "Arquivo arquivado",
   });
-  const { canWrite, canDelete, folders = [] } = permissions;
+  const { canWrite, canDelete, folders = [], driveConnected = false } = permissions;
 
   return (
     <>
@@ -162,6 +165,7 @@ export function FileActionsMenu({
               </a>
             </DropdownMenuItem>
           ) : null}
+          {file.versionId && canWrite && driveConnected ? <DriveExportMenuItem versionId={file.versionId} /> : null}
           {canWrite ? (
             <>
               <DropdownMenuItem

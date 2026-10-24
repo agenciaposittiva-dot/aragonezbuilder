@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { can, inOrg } from "@/server/authz";
 import { requireActor } from "@/server/auth/session";
 import { loadCloud } from "@/server/services/files-page";
+import { googleDriveStatus } from "@/server/services/google-drive";
 
 export const metadata: Metadata = { title: "Biblioteca" };
 
@@ -13,6 +14,7 @@ export default async function FilesPage({ params, searchParams }: PageProps<"/w/
   const sp = await searchParams;
   const actor = await requireActor(org, { kind: "internal", permission: "files.read" });
   const data = await inOrg(actor, (s) => loadCloud(s, sp));
+  const drive = await inOrg(actor, (s) => googleDriveStatus(s));
   const base = `/w/${actor.orgSlug}`;
   return (
     <>
@@ -36,6 +38,8 @@ export default async function FilesPage({ params, searchParams }: PageProps<"/w/
         canWrite={data.canWrite}
         canDelete={data.canDelete}
         maxBytes={data.maxBytes}
+        driveConnected={drive.connected && drive.status === "connected"}
+        drivePreferred={drive.preferredDestination === "drive"}
         cloud={{
           usage: data.usage,
           recentDesigns: data.recentDesigns,

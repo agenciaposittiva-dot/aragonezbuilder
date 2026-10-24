@@ -5,7 +5,8 @@ import { priceOf } from "./pricing";
 import { createAnthropicProvider } from "./providers/anthropic";
 import { createDemoProvider, editDemoImage } from "./providers/demo";
 import { createGeminiProvider } from "./providers/gemini";
-import { createOpenAiProvider, editOpenAiImage, generateOpenAiImage } from "./providers/openai";
+import { generateMagnificImage, listMagnificModels, MAGNIFIC_LABEL, upscaleMagnificImage } from "./providers/magnific";
+import { createOpenAiProvider, editOpenAiImage, generateOpenAiImage, openAiBase } from "./providers/openai";
 import {
   AiProviderError,
   type AiProvider,
@@ -13,6 +14,8 @@ import {
   type ImageEditRequest,
   type ImageRequest,
   type ImageResult,
+  type ImageUpscaleRequest,
+  type ProviderOpts,
 } from "./types";
 
 /*
@@ -37,14 +40,20 @@ export type ProviderDef = {
   params: string[];
   /** Limites e observações exibidos na administração. */
   notes: string[];
+  /** Aceita endereço base personalizado por credencial (ex.: gateway compatível com a API). */
+  customEndpoint?: boolean;
   /** Lista os modelos disponíveis para a chave (também valida a credencial). */
-  listModels: (apiKey: string, signal?: AbortSignal) => Promise<AiModelInfo[]>;
+  listModels: (apiKey: string, signal?: AbortSignal, opts?: ProviderOpts) => Promise<AiModelInfo[]>;
   /** Cliente de texto. */
-  text?: (apiKey: string) => AiProvider;
+  text?: (apiKey: string, opts?: ProviderOpts) => AiProvider;
   /** Geração de imagem, quando implementada e confirmada pela documentação oficial. */
   image?: (apiKey: string, req: ImageRequest) => Promise<ImageResult>;
   /** Edição de imagem com a original como referência (quando a API oficial oferece). */
   imageEdit?: (apiKey: string, req: ImageEditRequest) => Promise<ImageResult>;
+  /** Ampliação de resolução (upscale), quando a API oficial oferece. */
+  imageUpscale?: (apiKey: string, req: ImageUpscaleRequest) => Promise<ImageResult>;
+  /** Endereço para obter a chave/créditos (exibido na administração). */
+  keyHelp?: string;
 };
 
 function cap(v: boolean | null | undefined): Capability {
@@ -166,8 +175,8 @@ export function classifyOpenAiModel(id: string): AiModelInfo | null {
   });
 }
 
-async function listOpenAi(apiKey: string, signal?: AbortSignal): Promise<AiModelInfo[]> {
-  const res = await fetch("https://api.openai.com/v1/models", {
+async function listOpenAi(apiKey: string, signal?: AbortSignal, opts?: ProviderOpts): Promise<AiModelInfo[]> {
+  const res = await fetch(`${openAiBase(opts?.baseUrl)}/v1/models`, {
     signal,
     headers: { authorization: `Bearer ${apiKey}` },
   });
@@ -307,6 +316,7 @@ export const PROVIDERS: Record<AiProviderId, ProviderDef> = {
       "Edição de imagens existentes (com a original como referência) pelos modelos gpt-image.",
       "Custo não informado (sem tabela de preços cadastrada); tokens são registrados quando a API informa.",
     ],
+    customEndpoint: true,
     listModels: listOpenAi,
     text: createOpenAiProvider,
     image: generateOpenAiImage,
@@ -326,6 +336,31 @@ export const PROVIDERS: Record<AiProviderId, ProviderDef> = {
     ],
     listModels: listGemini,
     text: createGeminiProvider,
+  },
+  magnific: {
+    id: "magnific",
+    label: MAGNIFIC_LABEL,
+    kinds: ["image"],
+    needsKey: true,
+    envKey: () => env.MAGNIFIC_API_KEY,
+    params: [
+      "Mystic: prompt, aspect_ratio, resolution (1k/2k/4k), structure_reference/style_reference (opcionais)",
+      "Classic rápido: prompt, negative_prompt, num_images, image.size",
+      "Precision v2: image, scale_factor (2–16), flavor, sharpen, smart_grain, ultra_detail",
+      "Creative: image, scale_factor (2x–16x), optimized_for, prompt, creativity, hdr, resemblance, fractality, engine",
+    ],
+    notes: [
+      "API oficial (docs.magnific.com): geração Mystic e Classic, ampliação Precision v2 e Creative. Tarefas assíncronas são consultadas até concluir.",
+      "A API não lista modelos: o catálogo vem da documentação; a chave é validada numa chamada real.",
+      "Só gera imagens (não é modelo de texto). Edição por referência: Mystic aceita imagem de estrutura/estilo.",
+      "Créditos: a API não informa o consumo por tarefa; acompanhe no painel da Magnific. Uma assinatura do site não inclui a API.",
+      "Resultado da ampliação limitado a 25,3 megapixels (documentação).",
+    ],
+    keyHelp: "magnific.com → API (chave e créditos da API)",
+    customEndpoint: true,
+    listModels: listMagnificModels,
+    image: generateMagnificImage,
+    imageUpscale: upscaleMagnificImage,
   },
   demo: {
     id: "demo",

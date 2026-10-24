@@ -21,6 +21,8 @@ export type ModelCaps = {
   effort: Capability;
   /** Edita uma imagem enviada como referência (não só gera do zero). Ausente = não confirmado. */
   imageEdit?: Capability;
+  /** Amplia a resolução de uma imagem existente (upscale). Ausente = não confirmado. */
+  imageUpscale?: Capability;
 };
 
 export type AiModelInfo = {
@@ -83,6 +85,11 @@ export const AI_TASKS = {
     label: "Editar imagens (com a original como referência)",
     kind: "image",
     needs: { imageEdit: "required" },
+  },
+  image_upscale: {
+    label: "Ampliar resolução de imagens (upscale)",
+    kind: "image",
+    needs: { imageUpscale: "required" },
   },
   chat: { label: "Conversa / copiloto", kind: "text", needs: { text: "required" } },
   task_planning: {
@@ -156,6 +163,7 @@ const OPERATION_TASK: Record<string, AiTask> = {
   image_edit: "image_edit",
   // Gerar imagem no editor (src/server/services/design-image-gen.ts).
   image_generate: "image_generation",
+  image_upscale: "image_upscale",
   image_prompt: "image_prompt",
   // Central de pré-visualização (src/server/services/preview-ai.ts).
   preview_review: "copy",
@@ -173,6 +181,7 @@ export const CAP_LABEL: Record<keyof ModelCaps, string> = {
   structured: "saída estruturada",
   effort: "controle de esforço",
   imageEdit: "edição de imagem com referência",
+  imageUpscale: "ampliação de imagem (upscale)",
 };
 
 /* ------------------------------------------------------------------ */

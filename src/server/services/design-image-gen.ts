@@ -2,7 +2,15 @@ import "server-only";
 import { and, desc, eq, isNull, like, sql } from "drizzle-orm";
 import sharp from "sharp";
 import { z } from "zod";
-import { fileSrc, readDesignDocument, type DesignDocument, type DesignObject, type DesignPage } from "@/lib/design-doc";
+import {
+  fileSrc,
+  locate,
+  readDesignDocument,
+  versionIdOfSrc,
+  type DesignDocument,
+  type DesignObject,
+  type DesignPage,
+} from "@/lib/design-doc";
 import { PROVIDER_LABEL } from "@/lib/ai-select";
 import type { AiModelInfo } from "@/lib/ai-tasks";
 import {
@@ -14,6 +22,8 @@ import {
   IMAGE_STYLE_KEYS,
   IMAGE_STYLES,
   imageProviderOptions,
+  namedRatioSize,
+  nearestNamedRatio,
   providerSizeFor,
   ratioLabel,
   ratioOf,
@@ -25,6 +35,7 @@ import {
 } from "@/lib/image-gen";
 import { assertCan, assertInternal, can, fileScope, inOrg, type Actor, type Scope } from "@/server/authz";
 import { AiProviderError, type ImageResult } from "@/server/ai/types";
+import { getStorage } from "@/server/storage";
 import { aiGenerations, clients, files, fileVersions, user } from "@/server/db/schema";
 import { ForbiddenError, ValidationError } from "@/server/errors";
 import { assertCanGenerate, CostConfirmationError, recordUsage, saveGeneration } from "./ai";
@@ -33,7 +44,7 @@ import { callStructured, modelNotice, prepareStructured, recordStructuredSuccess
 import { getBrandProfile } from "./clients";
 import { POLICY_MESSAGE } from "./design-ai";
 import { getDesign } from "./designs";
-import { storeUpload } from "./files";
+import { getVersionForDownload, storeUpload } from "./files";
 
 /*
  * "Gerar imagem" do Estúdio Criador: cria imagens por IA sem sair do editor.
@@ -70,10 +81,42 @@ export const designImageGenRequest = z.object({
   /** Estado atual do editor (pode ter alterações não salvas): base do contexto. */
   document: z.record(z.string(), z.unknown()).optional(),
   pageId: z.string().max(64).optional(),
+  /** Imagem da arte usada como referência de estrutura (só modelos que aceitam, ex.: Magnific Mystic). */
+  reference: z
+    .object({ objectId: z.string().min(1).max(64), strength: z.number().int().min(0).max(100).optional() })
+    .nullish(),
   ai: aiSelectionInput.optional(),
   confirmCost: z.boolean().optional(),
 });
 export type DesignImageGenInput = z.input<typeof designImageGenRequest>;
+
+/**
+ * Bytes de uma imagem da arte (precisa estar em Arquivos e pertencer ao mesmo
+ * cliente). Usada como referência de geração e como origem da ampliação.
+ */
+async function loadDesignImage(
+  s: Scope,
+  doc: DesignDocument,
+  objectId: string,
+  design: { clientId: string | null },
+): Promise<{ image: Buffer; mimeType: string; versionId: string; objectId: string; pageId: string }> {
+  const loc = locate(doc, objectId);
+  if (!loc || loc.object.type !== "image") throw new ValidationError("Selecione uma imagem desta arte.");
+  const versionId = versionIdOfSrc(loc.object.src);
+  if (!versionId) {
+    throw new ValidationError(
+      "Esta imagem está embutida na arte (não está em Arquivos). Envie-a para Arquivos e use-a na arte para usá-la com IA.",
+    );
+  }
+  const version = await getVersionForDownload(s, versionId);
+  const [owner] = await s.db.select({ clientId: files.clientId }).from(files).where(eq(files.id, version.fileId));
+  if (design.clientId && owner?.clientId && owner.clientId !== design.clientId) {
+    throw new ValidationError("A imagem pertence a outro cliente.");
+  }
+  if (!loc.pageId) throw new ValidationError("A imagem não está em nenhuma página da arte.");
+  const image = await getStorage().get(version.storageKey);
+  return { image, mimeType: version.mimeType || "image/png", versionId, objectId: loc.object.id, pageId: loc.pageId };
+}
 
 async function loadEditable(s: Scope, designId: string) {
   assertInternal(s.actor);
@@ -276,6 +319,10 @@ export type PreparedDesignImageGen = {
   source: string;
   reason: string;
   warnings: string[];
+  /** Imagem da arte enviada como referência (quando houve). */
+  referenceObjectId: string | null;
+  /** De quem era a credencial usada (pessoal, organização, servidor). */
+  keySource: string | null;
   run: (signal?: AbortSignal) => Promise<ImageResult>;
 };
 
@@ -298,7 +345,7 @@ export async function prepareDesignImageGeneration(
   const def = resolved.def;
   const providerLabel = PROVIDER_LABEL[def.id] ?? def.label;
   const generate = def.image;
-  const options = imageProviderOptions(def.id);
+  const options = imageProviderOptions(def.id, resolved.model.id);
   if (!generate || !options) {
     throw new ModelSelectionError(
       `${providerLabel} não gera imagens nesta versão. Escolha um modelo de geração de imagens (ex.: OpenAI gpt-image).`,
@@ -320,11 +367,17 @@ export async function prepareDesignImageGeneration(
       negativePrompt: ["Não suportado"],
     });
   }
+  if (data.reference && !options.references) {
+    throw new ValidationError(`${resolved.model.label} (${providerLabel}) não aceita imagem de referência.`, {
+      reference: ["Não suportado"],
+    });
+  }
   // Política de dados: o conteúdo de uma arte de cliente só vai ao provedor com autorização.
   const demo = def.id === "demo";
-  if (data.context !== "none" && d.clientId && !demo && !settings.allowClientContext) {
+  if ((data.context !== "none" || data.reference) && d.clientId && !demo && !settings.allowClientContext) {
     throw new ValidationError(POLICY_MESSAGE, { context: ["Não autorizado"] });
   }
+  const reference = data.reference ? await loadDesignImage(s, doc, data.reference.objectId, d) : null;
   let context: string | null = null;
   if (data.context !== "none") {
     context = describeImageContext({
@@ -340,7 +393,13 @@ export async function prepareDesignImageGeneration(
   // A Images API não informa preço: com aviso de custo configurado, pedimos confirmação.
   if (!demo && settings.confirmAboveMicros > 0 && !data.confirmCost) throw new CostConfirmationError(null);
 
-  const size = providerSizeFor(ratio, options.sizes);
+  // Proporção nomeada (Magnific) ou tamanho em pixels (OpenAI); o recorte final usa a imagem real.
+  const aspectRatio = options.aspectRatios ? nearestNamedRatio(ratio, options.aspectRatios) : null;
+  const longest = quality === "1k" ? 1024 : quality === "4k" ? 4096 : 2048;
+  const size =
+    aspectRatio && options.aspectRatios
+      ? namedRatioSize(options.aspectRatios[aspectRatio]!, options.qualities ? longest : 1024)
+      : providerSizeFor(ratio, options.sizes);
   const crop = cropToRatio(size, ratio);
   const finalPrompt = buildImagePrompt({
     prompt: data.prompt,
@@ -370,16 +429,258 @@ export async function prepareDesignImageGeneration(
     source: resolved.source,
     reason: resolved.reason,
     warnings: resolved.warnings,
+    referenceObjectId: reference?.objectId ?? null,
+    keySource: resolved.keySource,
     run: (signal) =>
       generate(apiKey, {
         model: resolved.model.id,
+        baseUrl: resolved.baseUrl,
         prompt: finalPrompt,
         size: sizeParam(size),
         n,
-        ...(quality ? { quality } : {}),
+        ...(quality && !options.aspectRatios ? { quality } : {}),
+        ...(aspectRatio ? { aspectRatio } : {}),
+        ...(quality && options.aspectRatios ? { resolution: quality } : {}),
+        ...(data.negativePrompt && options.negativePrompt ? { negativePrompt: data.negativePrompt } : {}),
+        ...(reference
+          ? { references: { structure: reference.image, structureStrength: data.reference?.strength } }
+          : {}),
         signal,
       }),
   };
+}
+
+/* ------------------------------------------------------------------ */
+/* Ampliar resolução (upscale) de uma imagem da arte                   */
+/* ------------------------------------------------------------------ */
+
+/** Limite documentado da Magnific para o resultado da ampliação (megapixels). */
+export const UPSCALE_MAX_MEGAPIXELS = 25.3;
+export const UPSCALE_SCALES = [2, 4, 8, 16] as const;
+const UPSCALE_OPERATION = "image_upscale";
+
+export const designImageUpscaleRequest = z.object({
+  designId: z.uuid(),
+  objectId: z.string().min(1).max(64),
+  scale: z.union([z.literal(2), z.literal(4), z.literal(8), z.literal(16)]).default(2),
+  /** Descrição opcional (modelos criativos usam para guiar os detalhes). */
+  prompt: z.string().trim().max(2000).nullish(),
+  document: z.record(z.string(), z.unknown()).optional(),
+  ai: aiSelectionInput.optional(),
+  confirmCost: z.boolean().optional(),
+});
+export type DesignImageUpscaleInput = z.input<typeof designImageUpscaleRequest>;
+
+export type PreparedDesignImageUpscale = {
+  design: { id: string; name: string; clientId: string | null; projectId: string | null };
+  objectId: string;
+  pageId: string;
+  originalVersionId: string;
+  scale: number;
+  input: { width: number; height: number };
+  output: { width: number; height: number };
+  model: AiModelInfo;
+  providerId: string;
+  providerLabel: string;
+  source: string;
+  reason: string;
+  warnings: string[];
+  keySource: string | null;
+  run: (signal?: AbortSignal) => Promise<ImageResult>;
+};
+
+/**
+ * Valida a ampliação: imagem da arte (em Arquivos, do mesmo cliente), modelo
+ * que amplia (tarefa image_upscale), fator e limite de megapixels — tudo
+ * antes de gastar créditos do provedor.
+ */
+export async function prepareDesignImageUpscale(
+  s: Scope,
+  raw: DesignImageUpscaleInput,
+): Promise<PreparedDesignImageUpscale> {
+  const data = designImageUpscaleRequest.parse(raw);
+  const { design: d } = await loadEditable(s, data.designId);
+  if (!can(s.actor, "files.write")) {
+    throw new ForbiddenError(
+      "Você não tem permissão para salvar imagens em Arquivos — necessário para ampliar imagens.",
+    );
+  }
+  const doc = docFrom(data.document, d);
+  const settings = await assertCanGenerate(s);
+  const resolved = await resolveSelection(s, { module: MODULE, task: "image_upscale", selection: data.ai });
+  const def = resolved.def;
+  const providerLabel = PROVIDER_LABEL[def.id] ?? def.label;
+  const upscale = def.imageUpscale;
+  if (!upscale) {
+    throw new ModelSelectionError(
+      `${providerLabel} não amplia imagens nesta versão. Escolha um modelo de ampliação (ex.: Magnific Precision).`,
+      "model_incompatible",
+    );
+  }
+  const demo = def.id === "demo";
+  if (d.clientId && !demo && !settings.allowClientContext) throw new ValidationError(POLICY_MESSAGE);
+  const source = await loadDesignImage(s, doc, data.objectId, d);
+  const meta = await sharp(source.image).metadata();
+  const width = meta.width ?? 0;
+  const height = meta.height ?? 0;
+  if (!width || !height) throw new ValidationError("Não foi possível ler as dimensões da imagem.");
+  const outW = width * data.scale;
+  const outH = height * data.scale;
+  if ((outW * outH) / 1_000_000 > UPSCALE_MAX_MEGAPIXELS) {
+    throw new ValidationError(
+      `A imagem ampliada teria ${outW}×${outH} px (${((outW * outH) / 1_000_000).toFixed(1)} MP), acima do limite de ${UPSCALE_MAX_MEGAPIXELS} MP. Escolha um fator menor.`,
+      { scale: ["Acima do limite"] },
+    );
+  }
+  if (!demo && settings.confirmAboveMicros > 0 && !data.confirmCost) throw new CostConfirmationError(null);
+  const apiKey = resolved.apiKey ?? "";
+  return {
+    design: { id: d.id, name: d.name, clientId: d.clientId, projectId: d.projectId },
+    objectId: source.objectId,
+    pageId: source.pageId,
+    originalVersionId: source.versionId,
+    scale: data.scale,
+    input: { width, height },
+    output: { width: outW, height: outH },
+    model: resolved.model,
+    providerId: def.id,
+    providerLabel,
+    source: resolved.source,
+    reason: resolved.reason,
+    warnings: resolved.warnings,
+    keySource: resolved.keySource,
+    run: (signal) =>
+      upscale(apiKey, {
+        model: resolved.model.id,
+        baseUrl: resolved.baseUrl,
+        image: source.image,
+        mimeType: source.mimeType,
+        scale: data.scale,
+        ...(data.prompt ? { prompt: data.prompt } : {}),
+        signal,
+      }),
+  };
+}
+
+export type DesignImageUpscaleResult = {
+  generationId: string;
+  provider: string;
+  providerLabel: string;
+  model: string;
+  modelLabel: string;
+  objectId: string;
+  pageId: string;
+  originalVersionId: string;
+  scale: number;
+  image: GeneratedImage;
+  warnings: string[];
+  usage: { costMicros: number | null; durationMs: number };
+};
+
+/** Salva a imagem ampliada em Arquivos (origem "ai"), registra uso e histórico; a arte não muda aqui. */
+export async function saveDesignImageUpscale(
+  s: Scope,
+  prepared: PreparedDesignImageUpscale,
+  result: ImageResult,
+  latencyMs: number,
+): Promise<DesignImageUpscaleResult> {
+  const raw = result.images[0];
+  if (!raw) throw new AiProviderError("O provedor não devolveu a imagem ampliada. Tente novamente.", "unavailable");
+  const { design: d } = prepared;
+  const meta = await sharp(raw).metadata();
+  const width = meta.width ?? prepared.output.width;
+  const height = meta.height ?? prepared.output.height;
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
+  const stored = await storeUpload(
+    s,
+    { buffer: raw, originalName: `ia-ampliada-${prepared.scale}x-${stamp}.png` },
+    {
+      clientId: d.clientId,
+      projectId: d.projectId,
+      category: "general",
+      tags: ["ia", "estudio", "upscale"],
+      note: `Ampliada por IA (${result.model}, ${prepared.scale}×) na arte "${d.name}"`.slice(0, 500),
+      source: "ai",
+    },
+  );
+  const image: GeneratedImage = {
+    fileId: stored.fileId,
+    versionId: stored.versionId,
+    src: fileSrc(stored.versionId),
+    width,
+    height,
+  };
+  const usageId = await recordUsage(s, {
+    provider: prepared.providerId,
+    model: result.model,
+    operation: UPSCALE_OPERATION,
+    module: MODULE,
+    task: "image_upscale",
+    selectionSource: prepared.source,
+    keySource: prepared.keySource,
+    clientId: d.clientId,
+    projectId: d.projectId,
+    inputTokens: result.inputTokens,
+    outputTokens: result.outputTokens,
+    costMicros: result.costMicros,
+    status: "success",
+    latencyMs,
+  });
+  const generationId = await saveGeneration(s, {
+    usageId,
+    kind: UPSCALE_OPERATION,
+    title: `Ampliação ${prepared.scale}× em "${d.name}"`.slice(0, 120),
+    input: {
+      designId: d.id,
+      pageId: prepared.pageId,
+      objectId: prepared.objectId,
+      originalVersionId: prepared.originalVersionId,
+      scale: prepared.scale,
+      inputSize: `${prepared.input.width}x${prepared.input.height}`,
+      files: [{ fileId: image.fileId, versionId: image.versionId, width, height }],
+    },
+    output: `Imagem ampliada ${prepared.scale}× (${width}×${height} px) e salva em Arquivos para a arte "${d.name}".`,
+    provider: prepared.providerId,
+    model: result.model,
+    clientId: d.clientId,
+  });
+  return {
+    generationId,
+    provider: prepared.providerId,
+    providerLabel: prepared.providerLabel,
+    model: result.model,
+    modelLabel: prepared.model.label,
+    objectId: prepared.objectId,
+    pageId: prepared.pageId,
+    originalVersionId: prepared.originalVersionId,
+    scale: prepared.scale,
+    image,
+    warnings: prepared.warnings,
+    usage: { costMicros: result.costMicros, durationMs: latencyMs },
+  };
+}
+
+/** Registra a falha da ampliação (uso com erro). */
+export async function recordDesignImageUpscaleError(
+  s: Scope,
+  prepared: PreparedDesignImageUpscale,
+  message: string,
+  latencyMs: number,
+) {
+  await recordUsage(s, {
+    provider: prepared.providerId,
+    model: prepared.model.id,
+    operation: UPSCALE_OPERATION,
+    module: MODULE,
+    task: "image_upscale",
+    selectionSource: prepared.source,
+    keySource: prepared.keySource,
+    clientId: prepared.design.clientId,
+    projectId: prepared.design.projectId,
+    status: "error",
+    errorMessage: message,
+    latencyMs,
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -472,6 +773,7 @@ export async function saveDesignImageGeneration(
     module: MODULE,
     task: "image_generation",
     selectionSource: prepared.source,
+    keySource: prepared.keySource,
     clientId: d.clientId,
     projectId: d.projectId,
     inputTokens: result.inputTokens,
@@ -542,6 +844,7 @@ export async function recordDesignImageGenError(
     module: MODULE,
     task: "image_generation",
     selectionSource: prepared.source,
+    keySource: prepared.keySource,
     clientId: prepared.design.clientId,
     projectId: prepared.design.projectId,
     status: "error",

@@ -25,7 +25,7 @@ import { assertCan, type Scope } from "@/server/authz";
 import { providerDef, type ProviderDef } from "@/server/ai/registry";
 import { aiModelPreferences } from "@/server/db/schema";
 import { AppError } from "@/server/errors";
-import { providerStates, readyProviders } from "./ai-providers";
+import { personalReadyModels, providerStates, readyProviders } from "./ai-providers";
 
 /* ------------------------------------------------------------------ */
 /* Erros com alternativas                                              */
@@ -116,8 +116,11 @@ export async function setPreference(s: Scope, raw: z.input<typeof aiPreferenceIn
     const states = await providerStates(s);
     const state = states.find((p) => p.id === data.provider);
     if (!state) throw new ModelSelectionError("Provedor de IA desconhecido.", "model_unavailable");
+    // Padrão pessoal pode apontar um modelo que só a chave pessoal da pessoa oferece.
+    const personal = data.scope === "user" ? (await personalReadyModels(s)).get(data.provider) : undefined;
+    const models = personal ? [...state.models, ...personal] : state.models;
     if (data.model) {
-      const m = state.models.find((x) => x.id === data.model);
+      const m = models.find((x) => x.id === data.model);
       if (!m)
         throw new ModelSelectionError(
           `O modelo ${data.model} não está disponível em ${state.label}.`,
@@ -178,6 +181,10 @@ export type ResolvedSelection = {
   def: ProviderDef;
   /** Chave da API (somente no servidor). */
   apiKey: string | null;
+  /** Endereço base da credencial pessoal (BYOK), quando houver. */
+  baseUrl: string | null;
+  /** De quem é a credencial: pessoal, da organização, do servidor ou nenhuma. */
+  keySource: "user" | "org" | "env" | "none";
   model: AiModelInfo;
   source: PreferenceLevel | "explicit" | "auto";
   priority: AiPriority;
@@ -278,6 +285,8 @@ export async function resolveSelection(
       return {
         def: p.def,
         apiKey: p.key,
+        baseUrl: p.baseUrl,
+        keySource: p.keySource,
         model: m,
         source,
         priority,
@@ -297,6 +306,8 @@ export async function resolveSelection(
     return {
       def: p.def,
       apiKey: p.key,
+      baseUrl: p.baseUrl,
+      keySource: p.keySource,
       model: choice.model,
       source,
       priority,
@@ -320,6 +331,8 @@ export async function resolveSelection(
   return {
     def: p.def,
     apiKey: p.key,
+    baseUrl: p.baseUrl,
+    keySource: p.keySource,
     model: choice.model,
     source: source === "auto" ? "auto" : source,
     priority,
@@ -343,6 +356,8 @@ export type AiPickerData = {
     status: string;
     reason: string | null;
     models: AiModelInfo[];
+    /** Disponível pela chave pessoal da pessoa (BYOK), com precedência sobre a da organização. */
+    personal?: boolean;
   }[];
   preferences: AiPreference[];
 };
@@ -354,18 +369,36 @@ export type AiPickerData = {
  */
 export async function getPickerData(s: Scope, opts: { refresh?: boolean } = {}): Promise<AiPickerData> {
   if (opts.refresh) await readyProviders(s);
-  const [states, preferences] = [await providerStates(s), await listPreferences(s)];
+  const [states, preferences, personal] = [
+    await providerStates(s),
+    await listPreferences(s),
+    await personalReadyModels(s),
+  ];
   return {
     providers: states
-      .filter((p) => p.enabled || p.keySource !== "none")
-      .map((p) => ({
-        id: p.id,
-        label: p.label,
-        ready: p.ready,
-        status: p.status,
-        reason: !p.enabled ? "desabilitado" : p.ready ? null : (p.lastError ?? "credencial ainda não validada"),
-        models: p.ready ? p.models.filter((m) => !m.deprecated) : [],
-      })),
+      .filter((p) => p.enabled || p.keySource !== "none" || personal.has(p.id))
+      .map((p) => {
+        const mine = personal.get(p.id);
+        if (mine) {
+          return {
+            id: p.id,
+            label: p.label,
+            ready: true,
+            status: "valid",
+            reason: null,
+            models: mine.filter((m) => !m.deprecated),
+            personal: true,
+          };
+        }
+        return {
+          id: p.id,
+          label: p.label,
+          ready: p.ready,
+          status: p.status,
+          reason: !p.enabled ? "desabilitado" : p.ready ? null : (p.lastError ?? "credencial ainda não validada"),
+          models: p.ready ? p.models.filter((m) => !m.deprecated) : [],
+        };
+      }),
     preferences,
   };
 }
