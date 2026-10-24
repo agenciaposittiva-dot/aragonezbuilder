@@ -47,8 +47,12 @@ export function Stat({
   );
 }
 
-export function StatGrid({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn("grid grid-cols-2 gap-3 lg:grid-cols-4", className)}>{children}</div>;
+export function StatGrid({ children, className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div className={cn("grid grid-cols-2 gap-3 lg:grid-cols-4", className)} {...props}>
+      {children}
+    </div>
+  );
 }
 
 export function InfoList({ items }: { items: { label: string; value: React.ReactNode }[] }) {

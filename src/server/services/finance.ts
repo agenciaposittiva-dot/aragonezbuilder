@@ -1,6 +1,7 @@
 import { and, asc, count, desc, eq, gte, ilike, isNull, lte, or, sql, type SQL } from "drizzle-orm";
 import type { z } from "zod";
 import {
+  CONTRACT_EXPIRING_DAYS,
   expenseInput,
   expenseListParams,
   invoiceInput,
@@ -20,6 +21,9 @@ import { diff, recordActivity } from "./activity";
 const TZ = "America/Sao_Paulo";
 const ESC = (q: string) => `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 const todaySql = sql.raw(`(now() at time zone '${TZ}')::date`);
+
+export { CONTRACT_EXPIRING_DAYS };
+const EXPIRING = sql.raw(String(CONTRACT_EXPIRING_DAYS));
 
 /** Próximo número sequencial da organização (atômico, sem lacunas por concorrência). */
 export async function nextCounter(tx: Tx, organizationId: string, key: string): Promise<number> {
@@ -86,6 +90,9 @@ export async function financeOverview(s: Scope) {
       received_month: string;
       expenses_month: string;
       expenses_pending: string;
+      delinquent_clients: number;
+      expiring_contracts: number;
+      expiring_sum: string;
     }>(sql`
       select
         (select coalesce(sum(amount_cents), 0) from client_services
@@ -102,7 +109,12 @@ export async function financeOverview(s: Scope) {
           where ${LIVE_CLIENT} and status = 'paid' and date_trunc('month', paid_at at time zone ${TZ}) = date_trunc('month', now() at time zone ${TZ})) as received_month,
         (select coalesce(sum(amount_cents), 0) from expenses
           where status <> 'cancelled' and date_trunc('month', due_date) = date_trunc('month', ${todaySql})) as expenses_month,
-        (select coalesce(sum(amount_cents), 0) from expenses where status = 'pending') as expenses_pending
+        (select coalesce(sum(amount_cents), 0) from expenses where status = 'pending') as expenses_pending,
+        (select count(distinct client_id)::int from invoices where ${LIVE_CLIENT} and status = 'overdue') as delinquent_clients,
+        (select count(*)::int from client_services
+          where ${LIVE_CLIENT} and status = 'active' and ends_on between ${todaySql} and ${todaySql} + ${EXPIRING}) as expiring_contracts,
+        (select coalesce(sum(amount_cents), 0) from client_services
+          where ${LIVE_CLIENT} and status = 'active' and ends_on between ${todaySql} and ${todaySql} + ${EXPIRING}) as expiring_sum
     `)
   ).rows;
 
@@ -152,6 +164,9 @@ export async function financeOverview(s: Scope) {
     receivedMonthCents: Number(kpis?.received_month ?? 0),
     expensesMonthCents: Number(kpis?.expenses_month ?? 0),
     expensesPendingCents: Number(kpis?.expenses_pending ?? 0),
+    delinquentClients: kpis?.delinquent_clients ?? 0,
+    expiringContracts: kpis?.expiring_contracts ?? 0,
+    expiringCents: Number(kpis?.expiring_sum ?? 0),
     projection,
     monthly,
   };
@@ -173,6 +188,66 @@ export async function currentMrr(s: Scope): Promise<number> {
       ),
     );
   return Number(row?.total ?? 0);
+}
+
+/* ------------------------------------------------------------------ */
+/* Inadimplência e contratos a vencer                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Clientes com faturas vencidas: quantidade, total e o atraso mais antigo.
+ * Ordenado pelo valor em atraso (clientes na lixeira ficam de fora).
+ */
+export async function delinquentClients(s: Scope) {
+  financeRead(s);
+  const rows = await s.db
+    .select({
+      clientId: clients.id,
+      clientName: clients.name,
+      count: sql<number>`count(*)::int`,
+      totalCents: sql<string>`coalesce(sum(${invoices.amountCents}), 0)`,
+      oldestDueDate: sql<string>`min(${invoices.dueDate})::text`,
+      daysOverdue: sql<number>`(${todaySql} - min(${invoices.dueDate}))::int`,
+    })
+    .from(invoices)
+    .innerJoin(clients, eq(clients.id, invoices.clientId))
+    .where(and(eq(invoices.status, "overdue"), isNull(clients.deletedAt)))
+    .groupBy(clients.id, clients.name)
+    .orderBy(sql`sum(${invoices.amountCents}) desc`, asc(clients.name));
+  return rows.map((r) => ({
+    ...r,
+    count: Number(r.count),
+    totalCents: Number(r.totalCents),
+    daysOverdue: Number(r.daysOverdue),
+  }));
+}
+
+/** Contratos (serviços) ativos que terminam entre hoje e `days` dias. */
+export async function expiringContracts(s: Scope, days = CONTRACT_EXPIRING_DAYS) {
+  financeRead(s);
+  const within = Math.max(0, Math.trunc(days));
+  const rows = await s.db
+    .select({
+      id: clientServices.id,
+      name: clientServices.name,
+      billingType: clientServices.billingType,
+      amountCents: clientServices.amountCents,
+      endsOn: clientServices.endsOn,
+      daysLeft: sql<number>`(${clientServices.endsOn} - ${todaySql})::int`,
+      clientId: clients.id,
+      clientName: clients.name,
+    })
+    .from(clientServices)
+    .innerJoin(clients, eq(clients.id, clientServices.clientId))
+    .where(
+      and(
+        isNull(clients.deletedAt),
+        eq(clientServices.status, "active"),
+        sql`${clientServices.endsOn} between ${todaySql} and ${todaySql} + ${within}::int`,
+      ),
+    )
+    .orderBy(asc(clientServices.endsOn), asc(clients.name), asc(clientServices.name));
+  return rows.map((r) => ({ ...r, endsOn: r.endsOn ?? "", daysLeft: Number(r.daysLeft) }));
 }
 
 /* ------------------------------------------------------------------ */
@@ -571,9 +646,10 @@ export async function deleteExpense(s: Scope, id: string) {
 /* Contratos (serviços recorrentes)                                    */
 /* ------------------------------------------------------------------ */
 
-export async function listContracts(s: Scope) {
+export async function listContracts(s: Scope, opts: { expiringWithin?: number } = {}) {
   financeRead(s);
-  return s.db
+  const within = opts.expiringWithin === undefined ? null : Math.max(0, Math.trunc(opts.expiringWithin));
+  const rows = await s.db
     .select({
       id: clientServices.id,
       name: clientServices.name,
@@ -583,6 +659,10 @@ export async function listContracts(s: Scope) {
       startsOn: clientServices.startsOn,
       endsOn: clientServices.endsOn,
       status: clientServices.status,
+      /** Dias até o término (negativo = já terminou; null = sem término). */
+      daysLeft: sql<
+        number | null
+      >`case when ${clientServices.endsOn} is null then null else (${clientServices.endsOn} - ${todaySql})::int end`,
       clientId: clients.id,
       clientName: clients.name,
       lastInvoiceAt: sql<
@@ -591,8 +671,19 @@ export async function listContracts(s: Scope) {
     })
     .from(clientServices)
     .innerJoin(clients, eq(clients.id, clientServices.clientId))
-    .where(isNull(clients.deletedAt))
+    .where(
+      and(
+        isNull(clients.deletedAt),
+        within === null
+          ? undefined
+          : and(
+              eq(clientServices.status, "active"),
+              sql`${clientServices.endsOn} between ${todaySql} and ${todaySql} + ${within}::int`,
+            ),
+      ),
+    )
     .orderBy(asc(clientServices.status), asc(clients.name), asc(clientServices.name));
+  return rows.map((r) => ({ ...r, daysLeft: r.daysLeft === null ? null : Number(r.daysLeft) }));
 }
 
 /* ------------------------------------------------------------------ */

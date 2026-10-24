@@ -15,7 +15,7 @@ export const NOTIFICATION_CATEGORIES = {
   projects: { label: "Projetos", description: "Projetos em aprovação ou concluídos.", internalOnly: false },
   files: { label: "Materiais", description: "Novos materiais, versões e arquivos finais.", internalOnly: false },
   invites: { label: "Convites", description: "Convites aceitos por quem você convidou.", internalOnly: false },
-  finance: { label: "Financeiro", description: "Faturas vencidas.", internalOnly: true },
+  finance: { label: "Financeiro", description: "Faturas vencidas e contratos a vencer.", internalOnly: true },
   automations: { label: "Automações", description: "Avisos enviados por regras de automação.", internalOnly: false },
   chat: {
     label: "Chat da Equipe",
@@ -51,6 +51,7 @@ export function categoryOf(eventType: string): NotificationCategory | null {
     case "member":
       return "invites";
     case "invoice":
+    case "contract":
       return "finance";
     case "chat":
       return "chat";

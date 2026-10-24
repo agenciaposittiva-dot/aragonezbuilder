@@ -397,6 +397,22 @@ export const CHANGELOG: ChangelogEntry[] = [
       'e2e/template-favorites.spec.ts — criar template a partir de uma arte, favoritar na galeria, filtro "Só favoritos", remover (desktop e celular)',
     ],
   },
+  {
+    n: 28,
+    date: "2026-10-24",
+    module: "Financeiro e Dashboard",
+    title: "Inadimplência por cliente, contratos a vencer e carga da equipe",
+    description:
+      'A Visão geral do Financeiro ganhou "Clientes inadimplentes" (faturas vencidas agrupadas por cliente, com atraso mais antigo e total, cada linha abrindo as faturas filtradas) e "Contratos a vencer" (serviços ativos que terminam em até 30 dias). A lista de Contratos tem o filtro "Término" (30/60/90 dias) e marca quanto falta para cada contrato acabar. Uma rotina diária nova (cron-contracts-expiring) emite o evento contract.expiring uma vez por contrato e data de término e avisa quem tem permissão financeira; o evento também está disponível nas automações. No Dashboard, quem gerencia vê "Clientes inadimplentes", "Contratos a vencer", "Pessoas sobrecarregadas" e o bloco "Carga da equipe (7 dias)" (mesma conta dos Relatórios), todos com link para a lista filtrada.',
+    fixed:
+      "O Financeiro só mostrava o total vencido, sem dizer quais clientes estavam devendo nem quais contratos estavam acabando; o Dashboard não tinha inadimplência nem carga da equipe. Ninguém era avisado quando um contrato chegava ao fim.",
+    status: "tested",
+    tests: [
+      "tests/finance.test.ts — inadimplência por cliente (só vencidas, agrupadas, ordenadas, rascunho atrasado não conta), contratos a vencer (janela, só ativos, filtro da lista, indicador e soma), rotina diária idempotente com novo aviso ao prorrogar e notificação só para quem tem finance.write",
+      "tests/dashboard.test.ts — indicadores de inadimplência/contratos/sobrecarga, carga por pessoa com capacidade e estimativa, nada para quem não gerencia",
+      "e2e/finance-alerts.spec.ts — contrato que termina em 10 dias e fatura vencida: visão geral, filtro de contratos, dashboard e notificação (desktop e celular; precisa de CRON_SECRET)",
+    ],
+  },
 ];
 
 export const CHANGELOG_MODULES = [...new Set(CHANGELOG.map((e) => e.module))].sort((a, b) =>

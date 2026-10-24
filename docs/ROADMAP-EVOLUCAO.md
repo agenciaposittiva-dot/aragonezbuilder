@@ -122,7 +122,7 @@ Legenda das colunas: **Prioridade · Dependências · Arquivos** · critérios d
 
 | ID | Problema → resultado esperado | P · Dep. · Arquivos | Aceitação · Testes | Estado |
 | --- | --- | --- | --- | --- |
-| E4-01 | Dashboard sem "projetos em risco", carga da equipe e inadimplência → indicadores reais com link para a lista filtrada. | P2 · E9-01 · `services/dashboard.ts`, `components/app/dashboard*` | Cada indicador abre a lista com os filtros · vitest `dashboard` | Pendente |
+| E4-01 | Dashboard sem "projetos em risco", carga da equipe e inadimplência → indicadores reais com link para a lista filtrada. | P2 · E9-01 · `services/dashboard.ts`, `app/w/[org]/page.tsx` | "Projetos em risco" já existia; novos: clientes inadimplentes, contratos a vencer, pessoas sobrecarregadas e bloco "Carga da equipe (7 dias)", cada um com link filtrado · `tests/dashboard.test.ts`, `e2e/finance-alerts.spec.ts` | Concluído · 2026-10-24 |
 | E4-02 | Recomendações de prioridade por IA separando fato/inferência/sugestão. | P3 · E4-01 · `services/task-ai.ts` | Rótulos distintos; nada é alterado sem confirmação | Pendente |
 
 ### Etapa Cinco — Clientes e portal
@@ -159,7 +159,7 @@ Legenda das colunas: **Prioridade · Dependências · Arquivos** · critérios d
 
 | ID | Problema → resultado esperado | P · Dep. · Arquivos | Aceitação · Testes | Estado |
 | --- | --- | --- | --- | --- |
-| E9-01 | Sem inadimplência nem contratos a vencer → indicadores com listas filtradas e alertas (rotina diária). | P2 · — · `services/finance.ts`, `events/schedules.ts` | Fatura vencida e contrato a 30 dias aparecem · vitest `finance` | Pendente |
+| E9-01 | Sem inadimplência nem contratos a vencer → indicadores com listas filtradas e alertas (rotina diária). | P2 · — · `services/finance.ts`, `events/schedules.ts`, `events/notifications.ts`, `lib/events.ts`, `finance/page.tsx`, `finance/contracts/page.tsx` | Inadimplência por cliente, contratos a vencer (30/60/90), rotina `cron-contracts-expiring` + evento `contract.expiring` + notificação a quem tem `finance.write` · `tests/finance.test.ts`, `e2e/finance-alerts.spec.ts` | Concluído · 2026-10-24 |
 | E9-02 | Previsão de receitas/despesas (contratos recorrentes + faturas emitidas + despesas pendentes). | P3 · E9-01 · `finance.ts` | Projeção de 3 meses com dados reais · vitest | Pendente |
 | E9-03 | Horas previstas × realizadas por projeto. | P3 · — · `finance.ts`, `reports.ts` | Coluna na rentabilidade · vitest | Pendente |
 
@@ -214,6 +214,7 @@ Legenda das colunas: **Prioridade · Dependências · Arquivos** · critérios d
 | 0 | Auditoria, linha de base, roadmap | este documento | typecheck, lint, vitest (504), backup-check, build | e2e ampla (em execução) | ver resumo |
 | 1 | E0-01, E0-02, E0-03, E0-04 (#25) | `lib/ai-select.ts`, `services/search.ts`, `shell/command-menu.tsx`, `files/folder-tree.tsx`, `shell/theme-toggle.tsx` | typecheck 0, lint 0, vitest completo 61 arquivos / 509 testes | e2e `cloud` da suíte ampla (confirma a exclusão de pasta) | 37 pendentes, 6 bloqueados |
 | 2 | E3-01, E3-02, E3-03 (#26) | `ai/ai-studio.tsx`, `tasks/task-form-dialog.tsx`, `app/w/[org]/ai/page.tsx` | typecheck 0, lint 0 | e2e `ai-studio.spec.ts` (em execução após a suíte ampla) | 34 pendentes |
+| 4 | E9-01, E4-01 (#28) | `services/finance.ts`, `services/dashboard.ts`, `events/schedules.ts`, `events/notifications.ts`, `lib/events.ts`, `lib/notification-prefs.ts`, `finance/page.tsx`, `finance/contracts/page.tsx`, `app/w/[org]/page.tsx` | typecheck 0, lint 0, vitest `finance` + `dashboard` + `notifications` + `automations` (33 testes), e2e `finance-alerts` ✓ (desktop e celular) | — | 31 pendentes |
 | 3 | E2-04 (#27) | migração 0020, `services/designs.ts`, `actions/designs.ts`, `template-gallery.tsx`, `studio/page.tsx` | typecheck 0, lint 0, vitest `design-favorites` + `design-server` + `template-library` (16 testes) | e2e `template-favorites.spec.ts` | 33 pendentes |
 
 ## 3. Resumo de pendências
@@ -222,9 +223,9 @@ Atualizado ao fim de cada ciclo.
 
 | Estado | Itens |
 | --- | --- |
-| Concluído | E0-01, E0-02, E0-04, E0-08, E2-02 |
+| Concluído | E0-01, E0-02, E0-04, E0-08, E2-02, E4-01, E9-01 |
 | Em validação | E0-03, E0-07, E1-03, E2-01, E2-04, E2-08, E3-01, E3-02, E3-03, E7-01 |
 | Bloqueado | E3-06, E8-01, E8-02, E11-01, E11-02, E11-05 |
-| Pendente | E0-05, E0-06, E1-01, E1-02, E1-04, E2-03, E2-05, E2-06, E2-07, E3-04, E3-05, E4-01, E4-02, E5-01, E5-02, E5-03, E6-01, E6-02, E7-02, E8-03, E9-01, E9-02, E9-03, E10-01, E10-02, E10-03, E10-04, E11-03, E11-04, E12-01, E12-02, E13-01, E13-02 |
+| Pendente | E0-05, E0-06, E1-01, E1-02, E1-04, E2-03, E2-05, E2-06, E2-07, E3-04, E3-05, E4-02, E5-01, E5-02, E5-03, E6-01, E6-02, E7-02, E8-03, E9-02, E9-03, E10-01, E10-02, E10-03, E10-04, E11-03, E11-04, E12-01, E12-02, E13-01, E13-02 |
 
 Próxima ação exata: fechar as validações e2e dos ciclos 1–3 (`cloud`, `ai-studio`, `template-favorites`), investigar as falhas da suíte ampla (`chat-dock` desktop, `cloud` desktop — classificar regressão × instabilidade) e seguir para E9-01 (inadimplência e contratos a vencer) e E4-01 (centro de comando).

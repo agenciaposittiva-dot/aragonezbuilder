@@ -1,7 +1,7 @@
 import { sql, type SQL } from "drizzle-orm";
 import { withSystem } from "@/server/db";
 import { auditLogs, domainEvents, invoices } from "@/server/db/schema";
-import { nextCounter } from "@/server/services/finance";
+import { CONTRACT_EXPIRING_DAYS, nextCounter } from "@/server/services/finance";
 import { cleanupPendingChatAttachments } from "@/server/services/chat-attachments";
 import { generateRoutineTasks } from "@/server/services/task-routines";
 import { purgeExpiredTrash } from "@/server/services/trash";
@@ -117,6 +117,39 @@ export async function markOverdueInvoices(): Promise<number> {
       select organization_id, 'invoice.overdue', 'invoice', id,
         jsonb_build_object('invoiceId', id, 'clientId', client_id, 'number', number, 'amountCents', amount_cents, 'dueDate', due_date)
       from upd
+      returning id
+    `),
+  );
+  return res.rowCount ?? res.rows.length;
+}
+
+/**
+ * Emite `contract.expiring` para serviços ativos que terminam entre hoje e os
+ * próximos CONTRACT_EXPIRING_DAYS dias. Um aviso por serviço e data de
+ * término: se a vigência for prorrogada, um novo aviso pode sair para a nova data.
+ */
+export async function scanExpiringContracts(): Promise<number> {
+  const res = await withSystem((tx) =>
+    tx.execute<{ id: string }>(sql`
+      insert into domain_events (organization_id, type, entity_type, entity_id, payload)
+      select s.organization_id, 'contract.expiring', 'client_service', s.id,
+        jsonb_build_object(
+          'serviceId', s.id, 'clientId', s.client_id, 'clientName', c.name, 'name', s.name,
+          'billingType', s.billing_type, 'amountCents', s.amount_cents, 'endsOn', s.ends_on,
+          'daysLeft', s.ends_on - ${todaySql}
+        )
+      from client_services s
+      join clients c on c.id = s.client_id and c.organization_id = s.organization_id
+      where s.status = 'active'
+        and c.deleted_at is null
+        and c.archived_at is null
+        and ${orgAlive(sql`s.organization_id`)}
+        and s.ends_on between ${todaySql} and ${todaySql} + ${sql.raw(String(CONTRACT_EXPIRING_DAYS))}
+        and not exists (
+          select 1 from domain_events e
+          where e.organization_id = s.organization_id and e.type = 'contract.expiring' and e.entity_id = s.id
+            and e.payload->>'endsOn' = s.ends_on::text
+        )
       returning id
     `),
   );
@@ -257,6 +290,7 @@ export async function runDueSchedules() {
     dueSoonTasks: await scanDueSoonTasks(),
     overdueInvoices: await markOverdueInvoices(),
     recurringInvoices: await generateRecurringInvoices(),
+    expiringContracts: await scanExpiringContracts(),
     approvalReminders: await remindPendingApprovals(),
     routines: await generateRoutineTasks(),
     trash: await purgeExpiredTrash(),
@@ -278,6 +312,7 @@ export const SCHEDULES = [
     run: () => generateRecurringInvoices(),
     label: "Faturas recorrentes",
   },
+  { name: "cron-contracts-expiring", cron: "35 6 * * *", run: scanExpiringContracts, label: "Contratos a vencer" },
   {
     name: "cron-task-routines",
     cron: "45 5 * * *",

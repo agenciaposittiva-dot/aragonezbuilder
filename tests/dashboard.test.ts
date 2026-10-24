@@ -2,11 +2,13 @@ import { eq } from "drizzle-orm";
 import sharp from "sharp";
 import { beforeAll, describe, expect, it } from "vitest";
 import { todayISO } from "@/lib/format";
-import { withOrg } from "@/server/db";
-import { aiGenerations, designs } from "@/server/db/schema";
-import { createClient } from "@/server/services/clients";
+import { withOrg, withSystem } from "@/server/db";
+import { aiGenerations, designs, memberships } from "@/server/db/schema";
+import { markOverdueInvoices } from "@/server/events/schedules";
+import { createClient, saveService } from "@/server/services/clients";
 import { getDashboard } from "@/server/services/dashboard";
 import { createDesign } from "@/server/services/designs";
+import { createInvoice } from "@/server/services/finance";
 import { storeUpload } from "@/server/services/files";
 import { createProject } from "@/server/services/projects";
 import { createTask } from "@/server/services/tasks";
@@ -114,5 +116,57 @@ describe("dashboard: estúdio, projetos recentes, agenda e IA com dados reais", 
       ]),
     );
     expect((await as(ctx.actor, getDashboard)).ai).toEqual({ total: 2, images: 1 });
+  });
+});
+
+describe("dashboard: inadimplência, contratos a vencer e carga da equipe", () => {
+  let ctx: Ctx;
+  let clientId: string;
+
+  beforeAll(async () => {
+    ctx = await createOrgWithOwner("Agência Alertas Painel");
+    clientId = (await as(ctx.actor, (s) => createClient(s, { name: "Cliente Alertas" }))).id;
+  });
+
+  it("indicadores financeiros só com permissão; carga por pessoa marca sobrecarga", async () => {
+    const before = await as(ctx.actor, getDashboard);
+    expect(before.kpis).toMatchObject({ delinquentClients: 0, expiringContracts: 0, overloaded: 0, teamLoad: [] });
+
+    await as(ctx.actor, (s) =>
+      createInvoice(s, {
+        clientId,
+        description: "Vencida",
+        amount: "10",
+        issueDate: "2026-01-01",
+        dueDate: plusDays(-2),
+      }),
+    );
+    await markOverdueInvoices();
+    await as(ctx.actor, (s) =>
+      saveService(s, { clientId, name: "Contrato curto", amount: "100", billingType: "one_time", endsOn: plusDays(7) }),
+    );
+    const designer = await addMember(ctx.org.slug, ctx.org.id, "designer");
+    await withSystem((tx) =>
+      tx.update(memberships).set({ weeklyCapacityMinutes: 60 }).where(eq(memberships.id, designer.membershipId)),
+    );
+    const project = await as(ctx.actor, (s) => createProject(s, { clientId, name: "Projeto carga" }));
+    await as(ctx.actor, (s) =>
+      createTask(s, {
+        projectId: project.id,
+        title: "Tarefa grande",
+        assigneeMembershipId: designer.membershipId,
+        dueDate: plusDays(2),
+        estimateMinutes: 120,
+      }),
+    );
+
+    const d = await as(ctx.actor, getDashboard);
+    expect(d.kpis).toMatchObject({ delinquentClients: 1, expiringContracts: 1, overloaded: 1 });
+    const row = d.kpis!.teamLoad.find((m) => m.membershipId === designer.membershipId);
+    expect(row).toMatchObject({ open: 1, overdue: 0, upcomingMinutes: 120, capacity: 60, load: 2 });
+
+    // Sem papel de gestão (colaborador vê só o próprio escopo): nenhum indicador.
+    const collaborator = await addMember(ctx.org.slug, ctx.org.id, "collaborator");
+    expect((await as(collaborator, getDashboard)).kpis).toBeNull();
   });
 });

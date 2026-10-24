@@ -1,12 +1,18 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
+import { todayISO } from "@/lib/format";
 import { withOrg } from "@/server/db";
-import { domainEvents, invoices, tasks, timeEntries } from "@/server/db/schema";
-import { generateRecurringInvoices, markOverdueInvoices } from "@/server/events/schedules";
+import { domainEvents, invoices, notifications, tasks, timeEntries } from "@/server/db/schema";
+import { dispatchPendingEvents } from "@/server/events/dispatcher";
+import { generateRecurringInvoices, markOverdueInvoices, scanExpiringContracts } from "@/server/events/schedules";
 import { createClient, saveService } from "@/server/services/clients";
 import {
   createInvoice,
   deleteInvoice,
+  delinquentClients,
+  expiringContracts,
+  financeOverview,
+  listContracts,
   listInvoices,
   markInvoicePaid,
   profitability,
@@ -272,5 +278,136 @@ describe("relatórios e painel inicial", () => {
     const collabDash = await as(collaborator, (s) => getDashboard(s));
     expect(collabDash.projectsAtRisk).toHaveLength(0);
     expect(collabDash.kpis).toBeNull();
+  });
+});
+
+/*
+ * Inadimplência por cliente, contratos a vencer e a rotina diária que avisa a
+ * equipe financeira (um aviso por contrato e data de término).
+ */
+describe("inadimplência e contratos a vencer", () => {
+  let ctx: Awaited<ReturnType<typeof createOrgWithOwner>>;
+  let clientId: string;
+  let otherClientId: string;
+  let soonId: string;
+
+  const plusDays = (days: number) => {
+    const d = new Date(`${todayISO()}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+  };
+
+  beforeAll(async () => {
+    ctx = await createOrgWithOwner("Agência Alertas");
+    clientId = (await as(ctx.actor, (s) => createClient(s, { name: "Cliente Devedor" }))).id;
+    otherClientId = (await as(ctx.actor, (s) => createClient(s, { name: "Cliente em Dia" }))).id;
+  });
+
+  it("inadimplência por cliente: só faturas vencidas, agrupadas e ordenadas pelo valor", async () => {
+    const mk = (cid: string, amount: string, dueDate: string, description: string, status?: "draft" | "open") =>
+      as(ctx.actor, (s) =>
+        createInvoice(s, { clientId: cid, description, amount, issueDate: "2026-01-01", dueDate, status }),
+      );
+    await mk(clientId, "100", plusDays(-40), "Antiga");
+    await mk(clientId, "250", plusDays(-5), "Recente");
+    await mk(otherClientId, "999", plusDays(10), "Futura");
+    await mk(otherClientId, "50", plusDays(-3), "Rascunho atrasado", "draft");
+    expect(await markOverdueInvoices()).toBeGreaterThanOrEqual(2);
+
+    const rows = await as(ctx.actor, (s) => delinquentClients(s));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      clientId,
+      clientName: "Cliente Devedor",
+      count: 2,
+      totalCents: 35000,
+      oldestDueDate: plusDays(-40),
+      daysOverdue: 40,
+    });
+    const overview = await as(ctx.actor, (s) => financeOverview(s));
+    expect(overview.delinquentClients).toBe(1);
+    expect(overview.overdueCount).toBe(2);
+  });
+
+  it("contratos a vencer: janela de dias, só ativos, filtro da lista e indicador", async () => {
+    const svc = (name: string, extra: Record<string, unknown> = {}) =>
+      as(ctx.actor, (s) => saveService(s, { clientId, name, amount: "1.000,00", billingType: "one_time", ...extra }));
+    soonId = (await svc("Termina em 10 dias", { endsOn: plusDays(10) })).id;
+    await svc("Termina em 45 dias", { endsOn: plusDays(45) });
+    await svc("Sem término");
+    await svc("Pausado", { endsOn: plusDays(5), status: "paused" });
+    await svc("Já terminou", { startsOn: plusDays(-30), endsOn: plusDays(-1) });
+
+    const rows = await as(ctx.actor, (s) => expiringContracts(s));
+    expect(rows.map((r) => r.name)).toEqual(["Termina em 10 dias"]);
+    expect(rows[0]).toMatchObject({ id: soonId, clientName: "Cliente Devedor", daysLeft: 10, endsOn: plusDays(10) });
+    expect((await as(ctx.actor, (s) => expiringContracts(s, 60))).map((r) => r.name)).toEqual([
+      "Termina em 10 dias",
+      "Termina em 45 dias",
+    ]);
+
+    const filtered = await as(ctx.actor, (s) => listContracts(s, { expiringWithin: 30 }));
+    expect(filtered.map((r) => r.name)).toEqual(["Termina em 10 dias"]);
+    const all = await as(ctx.actor, (s) => listContracts(s));
+    expect(all.find((r) => r.name === "Sem término")?.daysLeft).toBeNull();
+    expect(all.find((r) => r.name === "Já terminou")?.daysLeft).toBe(-1);
+
+    const overview = await as(ctx.actor, (s) => financeOverview(s));
+    expect(overview.expiringContracts).toBe(1);
+    expect(overview.expiringCents).toBe(100000);
+  });
+
+  it("rotina diária: um aviso por contrato e data de término; só quem tem finance.write é notificado", async () => {
+    const designer = await addMember(ctx.org.slug, ctx.org.id, "designer");
+    expect(await scanExpiringContracts()).toBeGreaterThanOrEqual(1);
+    const events = await withOrg(ctx.org.id, (tx) =>
+      tx.select().from(domainEvents).where(eq(domainEvents.type, "contract.expiring")),
+    );
+    expect(events).toHaveLength(1);
+    expect(events[0]!.payload).toMatchObject({
+      serviceId: soonId,
+      clientId,
+      clientName: "Cliente Devedor",
+      name: "Termina em 10 dias",
+      billingType: "one_time",
+      amountCents: 100000,
+      endsOn: plusDays(10),
+      daysLeft: 10,
+    });
+    // Idempotente no mesmo dia.
+    expect(await scanExpiringContracts()).toBe(0);
+
+    await dispatchPendingEvents(100);
+    const mine = await withOrg(ctx.org.id, (tx) =>
+      tx
+        .select()
+        .from(notifications)
+        .where(and(eq(notifications.userId, ctx.owner.id), eq(notifications.type, "contract.expiring"))),
+    );
+    expect(mine).toHaveLength(1);
+    expect(mine[0]!.title).toBe("Contrato a vencer: Termina em 10 dias · Cliente Devedor");
+    expect(mine[0]!.body).toContain("termina em 10 dias");
+    expect(mine[0]!.link).toContain("/finance/contracts?vencendo=30");
+    const theirs = await withOrg(ctx.org.id, (tx) =>
+      tx
+        .select()
+        .from(notifications)
+        .where(and(eq(notifications.userId, designer.userId), eq(notifications.type, "contract.expiring"))),
+    );
+    expect(theirs).toEqual([]);
+
+    // Prorrogação: nova data de término gera um novo aviso.
+    await as(ctx.actor, (s) =>
+      saveService(s, {
+        id: soonId,
+        clientId,
+        name: "Termina em 10 dias",
+        amount: "1.000,00",
+        billingType: "one_time",
+        endsOn: plusDays(20),
+      }),
+    );
+    expect(await scanExpiringContracts()).toBe(1);
+    expect(await scanExpiringContracts()).toBe(0);
   });
 });

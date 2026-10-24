@@ -13,6 +13,7 @@ import {
   Plus,
   Share2,
   Sparkles,
+  Users,
 } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -22,11 +23,12 @@ import { PriorityIcon } from "@/components/app/priority";
 import { Stat, StatGrid } from "@/components/app/stat";
 import { TaskFormDialog } from "@/components/tasks/task-form-dialog";
 import { Avatar } from "@/components/ui/avatar";
-import { StatusDot } from "@/components/ui/badge";
+import { Badge, StatusDot } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { formatMoney, formatPercent, relativeFromNow, todayISO } from "@/lib/format";
+import { formatMinutes, formatMoney, formatPercent, relativeFromNow, todayISO } from "@/lib/format";
+import { CONTRACT_EXPIRING_DAYS } from "@/lib/validators/finance";
 import { cn } from "@/lib/utils";
 import { can, inOrg } from "@/server/authz";
 import { requireActor } from "@/server/auth/session";
@@ -458,6 +460,37 @@ export default async function DashboardPage({ params, searchParams }: PageProps<
         </StatGrid>
       ) : null}
 
+      {d.kpis ? (
+        <StatGrid data-testid="dashboard-alerts">
+          {d.kpis.delinquentClients !== null ? (
+            <Stat
+              label="Clientes inadimplentes"
+              value={d.kpis.delinquentClients}
+              tone={d.kpis.delinquentClients ? "danger" : undefined}
+              hint="Com fatura vencida"
+              href={`${base}/finance/invoices?status=overdue`}
+            />
+          ) : null}
+          {d.kpis.expiringContracts !== null ? (
+            <Stat
+              label="Contratos a vencer"
+              value={d.kpis.expiringContracts}
+              tone={d.kpis.expiringContracts ? "warning" : undefined}
+              hint={`Terminam em até ${CONTRACT_EXPIRING_DAYS} dias`}
+              href={`${base}/finance/contracts?vencendo=${CONTRACT_EXPIRING_DAYS}`}
+            />
+          ) : null}
+          <Stat
+            label="Pessoas sobrecarregadas"
+            value={d.kpis.overloaded}
+            tone={d.kpis.overloaded ? "warning" : undefined}
+            hint="Carga da semana acima da capacidade"
+            href={`${base}/reports`}
+          />
+          {d.kpis.mrrCents !== null ? <Stat label="Equipe ativa" value={d.kpis.members} href={`${base}/team`} /> : null}
+        </StatGrid>
+      ) : null}
+
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <div className="grid grid-cols-1 content-start gap-6">
           {canTasks ? (
@@ -551,6 +584,56 @@ export default async function DashboardPage({ params, searchParams }: PageProps<
                           <DueDate date={p.dueDate} />
                         </span>
                       </Link>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {d.kpis?.teamLoad.length ? (
+            <Card data-testid="dashboard-team-load">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="size-4 text-fg-subtle" aria-hidden="true" /> Carga da equipe (7 dias)
+                </CardTitle>
+                <Link href={`${base}/reports`} className="text-xs text-fg-muted hover:text-fg">
+                  Relatórios
+                </Link>
+              </CardHeader>
+              <CardContent>
+                <ul className="grid grid-cols-1 divide-y divide-border">
+                  {d.kpis.teamLoad.map((m) => (
+                    <li key={m.membershipId} className="flex items-center gap-3 py-2.5">
+                      <Avatar name={m.name} src={m.image} size="sm" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{m.name}</span>
+                        <span className="block truncate text-xs text-fg-muted">
+                          {m.open} aberta(s)
+                          {m.overdue ? ` · ${m.overdue} atrasada(s)` : ""}
+                          {m.capacity > 0
+                            ? ` · ${formatMinutes(m.upcomingMinutes)} de ${formatMinutes(m.capacity)} na semana`
+                            : ` · ${formatMinutes(m.upcomingMinutes)} previstas (sem capacidade cadastrada)`}
+                        </span>
+                      </span>
+                      {m.load !== null ? (
+                        <span className="hidden w-28 sm:block">
+                          <span className="flex justify-between text-[11px] text-fg-subtle">
+                            <span>Carga</span>
+                            <span className="tabular">{formatPercent(m.load)}</span>
+                          </span>
+                          <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-surface-3">
+                            <span
+                              className={cn(
+                                "block h-full rounded-full",
+                                m.load > 1 ? "bg-danger" : m.load > 0.8 ? "bg-warning" : "bg-accent",
+                              )}
+                              style={{ width: `${Math.min(100, Math.round(m.load * 100))}%` }}
+                            />
+                          </span>
+                        </span>
+                      ) : null}
+                      {m.load !== null && m.load > 1 ? <Badge tone="danger">Sobrecarga</Badge> : null}
                     </li>
                   ))}
                 </ul>

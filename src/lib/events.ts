@@ -28,6 +28,11 @@ const CATEGORY = [
   { value: "done", label: "Concluído" },
   { value: "cancelled", label: "Cancelado" },
 ];
+const BILLING = [
+  { value: "monthly", label: "Mensal" },
+  { value: "one_time", label: "Pontual" },
+  { value: "hourly", label: "Por hora" },
+];
 const STAGE = [
   { value: "internal", label: "Revisão interna" },
   { value: "client", label: "Aprovação do cliente" },
@@ -231,6 +236,14 @@ export const EVENT_CATALOG = {
   "invoice.created": { label: "Fatura criada", fields: [{ key: "clientId", label: "Cliente", type: "uuid" }] },
   "invoice.paid": { label: "Fatura paga", fields: [{ key: "clientId", label: "Cliente", type: "uuid" }] },
   "invoice.overdue": { label: "Fatura vencida", fields: [{ key: "clientId", label: "Cliente", type: "uuid" }] },
+  "contract.expiring": {
+    label: "Contrato a vencer (verificação diária)",
+    fields: [
+      { key: "clientId", label: "Cliente", type: "uuid" },
+      { key: "daysLeft", label: "Dias até o término (0 = hoje)", type: "number" },
+      { key: "billingType", label: "Cobrança", type: "enum", options: BILLING },
+    ],
+  },
   "design.exported": {
     label: "Arte exportada do editor",
     fields: [{ key: "clientId", label: "Cliente", type: "uuid" }],
@@ -263,6 +276,7 @@ export type EventType = keyof typeof EVENT_CATALOG;
  * approval.requested    { approvalId, fileId, versionId, stage, clientId, projectId, taskId, fileName, dueDate }
  * approval.decided      { approvalId, fileId, versionId, stage, decision, clientId, projectId, taskId, fileName, requestedByUserId }
  * invoice.*             { invoiceId, clientId, number, amountCents, dueDate }
+ * contract.expiring     { serviceId, clientId, clientName, name, billingType, amountCents, endsOn, daysLeft }
  * design.exported       { designId, fileId, versionId, clientId, projectId, taskId }
  * member.invited        { invitationId, email, roleKey }
  * member.joined         { membershipId, userId, roleKey }

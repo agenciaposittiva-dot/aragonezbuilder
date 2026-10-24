@@ -2,6 +2,11 @@ import { z } from "zod";
 import { moneyCents, optionalText, optionalUuid, requiredText, uuid } from "./common";
 
 export const INVOICE_STATUS = ["draft", "open", "paid", "overdue", "cancelled"] as const;
+
+/** Janela (dias) dos avisos e indicadores de contrato a vencer. */
+export const CONTRACT_EXPIRING_DAYS = 30;
+/** Opções do filtro "Término" na lista de contratos. */
+export const CONTRACT_EXPIRING_OPTIONS = [30, 60, 90] as const;
 export type InvoiceStatus = (typeof INVOICE_STATUS)[number];
 export const INVOICE_STATUS_LABEL: Record<InvoiceStatus, string> = {
   draft: "Rascunho",

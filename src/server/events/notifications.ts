@@ -5,7 +5,9 @@ import { env } from "@/server/env";
 import { renderEmail } from "@/server/mail";
 import { preferencesFor } from "@/server/services/notification-preferences";
 import { APP_NAME } from "@/lib/constants";
+import { formatDate, formatMoney } from "@/lib/format";
 import { categoryOf, prefEnabled } from "@/lib/notification-prefs";
+import { CONTRACT_EXPIRING_DAYS } from "@/lib/validators/finance";
 import { REQUEST_STATUS_LABEL, type RequestStatus } from "@/lib/validators/requests";
 import {
   clientTeam,
@@ -332,6 +334,27 @@ async function draftsFor(tx: Tx, ev: DomainEvent): Promise<Draft[]> {
           title: `Fatura #${str(p.number)} vencida`,
           body: null,
           internalPath: `/finance/invoices?status=overdue`,
+        },
+      ];
+    }
+
+    case "contract.expiring": {
+      const days = Number(p.daysLeft);
+      const when =
+        !Number.isFinite(days) || days < 0
+          ? `termina em ${formatDate(str(p.endsOn))}`
+          : days === 0
+            ? "termina hoje"
+            : days === 1
+              ? "termina amanhã"
+              : `termina em ${days} dias (${formatDate(str(p.endsOn))})`;
+      const amount = Number(p.amountCents);
+      return [
+        {
+          recipients: await internalMembersWithPermission(tx, org, "finance.write"),
+          title: `Contrato a vencer: ${str(p.name)} · ${str(p.clientName)}`,
+          body: Number.isFinite(amount) && amount > 0 ? `${when} · ${formatMoney(amount)}` : when,
+          internalPath: `/finance/contracts?vencendo=${CONTRACT_EXPIRING_DAYS}`,
         },
       ];
     }

@@ -16,7 +16,8 @@ import {
 } from "@/server/db/schema";
 import { assertInternal, can, fileScope, projectScope, taskScope, type Scope } from "@/server/authz";
 import { designScope, listDesigns } from "./designs";
-import { currentMrr } from "./finance";
+import { currentMrr, delinquentClients, expiringContracts } from "./finance";
+import { workload } from "./reports";
 
 const TZ = "America/Sao_Paulo";
 
@@ -237,7 +238,30 @@ async function managerKpis(s: Scope) {
         .innerJoin(files, eq(files.id, approvals.fileId))
         .where(and(eq(approvals.status, "pending"), fileScope(s.actor))),
   );
-  const mrr = can(s.actor, "finance.read") ? await currentMrr(s) : null;
+  const finance = can(s.actor, "finance.read")
+    ? {
+        mrr: await currentMrr(s),
+        delinquent: (await delinquentClients(s)).length,
+        expiring: (await expiringContracts(s)).length,
+      }
+    : null;
+  // Carga da semana por pessoa (mesma conta dos Relatórios): quem está acima da capacidade.
+  const load = await workload(s, { clientId: undefined });
+  // Só quem tem tarefa aberta entra na lista (as 6 pessoas mais carregadas).
+  const teamLoad = load
+    .filter((r) => r.open > 0)
+    .slice(0, 6)
+    .map((r) => ({
+      membershipId: r.membershipId,
+      name: r.name,
+      image: r.image,
+      roleName: r.roleName,
+      open: r.open,
+      overdue: r.overdue,
+      upcomingMinutes: r.upcomingMinutes,
+      capacity: r.capacity,
+      load: r.load,
+    }));
   const [{ n: team } = { n: 0 }] = await s.db
     .select({ n: sql<number>`count(*)::int` })
     .from(memberships)
@@ -247,8 +271,13 @@ async function managerKpis(s: Scope) {
     overdueTasks: overdueTasks?.n ?? 0,
     pendingInternal: pendingApprovals?.internal ?? 0,
     pendingClient: pendingApprovals?.client ?? 0,
-    mrrCents: mrr,
+    mrrCents: finance?.mrr ?? null,
+    /** null = sem permissão financeira. */
+    delinquentClients: finance?.delinquent ?? null,
+    expiringContracts: finance?.expiring ?? null,
     members: team,
+    teamLoad,
+    overloaded: load.filter((r) => r.load !== null && r.load > 1).length,
   };
 }
 
@@ -309,7 +338,9 @@ async function recentProjects(s: Scope) {
       lastActivity,
       openTasks: sql<number>`(select count(*)::int from ${tasks} t where t.project_id = ${projects.id} and t.completed_at is null and t.archived_at is null and t.deleted_at is null)`,
       designCount: sql<number>`(select count(*)::int from ${designs} d where d.project_id = ${projects.id} and d.deleted_at is null and d.archived_at is null and d.is_template = false)`,
-      thumbnail: sql<string | null>`(select d.thumbnail from ${designs} d where d.project_id = ${projects.id} and d.deleted_at is null and d.archived_at is null and d.thumbnail is not null order by d.updated_at desc limit 1)`,
+      thumbnail: sql<
+        string | null
+      >`(select d.thumbnail from ${designs} d where d.project_id = ${projects.id} and d.deleted_at is null and d.archived_at is null and d.thumbnail is not null order by d.updated_at desc limit 1)`,
     })
     .from(projects)
     .innerJoin(clients, eq(clients.id, projects.clientId))
