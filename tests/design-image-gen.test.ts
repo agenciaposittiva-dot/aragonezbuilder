@@ -558,6 +558,29 @@ describe("gerar imagem no editor — serviço", () => {
       tx.select().from(aiGenerations).where(eq(aiGenerations.kind, "image_prompt")),
     );
     expect(gens.map((g) => g.provider).sort()).toEqual(["anthropic", "demo"]);
+
+    // A pessoa escolhe o modelo de texto do "Melhorar com IA": a escolha explícita é respeitada.
+    mock.reset();
+    const chosen = await enhanceImagePrompt(real.actor, {
+      designId,
+      prompt: PROMPT,
+      ai: { mode: "manual", provider: "openai", model: "gpt-5.1" },
+    });
+    expect(chosen.model).toBe("gpt-5.1");
+    expect(chosen.providerLabel).toBe("OpenAI (ChatGPT)");
+    expect(mock.generationCalls().some((c) => c.url.endsWith("/v1/chat/completions"))).toBe(true);
+    expect(mock.generationCalls().some((c) => c.url.includes("/v1/messages"))).toBe(false);
+
+    // Modelo de imagem escolhido para uma tarefa de texto: erro com alternativas, nunca troca em silêncio.
+    const wrong = await enhanceImagePrompt(real.actor, {
+      designId,
+      prompt: PROMPT,
+      ai: { mode: "manual", provider: "openai", model: "gpt-image-1" },
+    }).catch((e: unknown) => e);
+    expect(wrong).toBeInstanceOf(ModelSelectionError);
+    expect((wrong as ModelSelectionError).alternatives.map((a) => a.model)).toEqual(
+      expect.arrayContaining(["claude-sonnet-5-5", "gpt-5.1"]),
+    );
   });
 
   it("imagens de outra origem não entram na biblioteca de geradas", async () => {

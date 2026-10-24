@@ -92,8 +92,12 @@ export type ImageGenState = {
   variations: number;
   negativePrompt: string;
   context: ImageContextMode;
+  /** Modelo de imagem (gerar). */
   selection: AiSelection;
   showModel: boolean;
+  /** Modelo de texto do "Melhorar com IA" (independente do modelo de imagem). */
+  enhanceSelection: AiSelection;
+  showEnhanceModel: boolean;
   setup: DesignAiSetup | null;
   setupError: string | null;
   status: "idle" | "running" | "done" | "error";
@@ -101,6 +105,7 @@ export type ImageGenState = {
   costPrompt: string | null;
   enhancing: boolean;
   enhanceCost: string | null;
+  enhanceError: { message: string; alternatives: Alternative[] } | null;
   result: DesignImageGenResult | null;
   picked: PickedImage | null;
   inserting: boolean;
@@ -119,6 +124,8 @@ const initialState = (): ImageGenState => ({
   context: "none",
   selection: { mode: "default" },
   showModel: false,
+  enhanceSelection: { mode: "default" },
+  showEnhanceModel: false,
   setup: null,
   setupError: null,
   status: "idle",
@@ -126,6 +133,7 @@ const initialState = (): ImageGenState => ({
   costPrompt: null,
   enhancing: false,
   enhanceCost: null,
+  enhanceError: null,
   result: null,
   picked: null,
   inserting: false,
@@ -172,6 +180,7 @@ export function useImageGen(gen: ImageGenStore) {
 
 const MODULE = "editor";
 const TASK = "image_generation" as const;
+const ENHANCE_TASK = "image_prompt" as const;
 const FORMAT_ORDER: ImageFormatKey[] = ["square", "portrait", "story", "landscape", "page", "custom"];
 const PROMPT_EXAMPLE =
   "Ex.: Fotografia publicitária hiper-realista de um frasco de perfume premium sobre uma superfície de mármore preto, iluminação cinematográfica, reflexos controlados, composição sofisticada e acabamento de campanha de luxo.";
@@ -238,6 +247,19 @@ export function ImageGeneratorPanel({
         : null,
     [setup, st.selection],
   );
+  // Modelo de texto que o "Melhorar com IA" vai usar (mesmas regras do servidor, que revalida).
+  const enhancePreview = useMemo(
+    () =>
+      setup
+        ? previewSelection(setup.picker.providers, setup.picker.preferences, {
+            module: MODULE,
+            task: ENHANCE_TASK,
+            selection: st.enhanceSelection,
+          })
+        : null,
+    [setup, st.enhanceSelection],
+  );
+  const providerLabel = (id: string) => setup?.picker.providers.find((p) => p.id === id)?.label ?? id;
   const options = imageProviderOptions(preview && !preview.problem ? preview.model?.provider : null);
   const ratio = ratioOf(st.format, page, st.customRatio);
   const output = ratio && options ? outputSizeFor(ratio, options.sizes) : null;
@@ -333,9 +355,10 @@ export function ImageGeneratorPanel({
     }
   }
 
-  async function enhance(confirmCost = false) {
+  async function enhance(opts: { confirmCost?: boolean; sel?: AiSelection } = {}) {
     if (st.enhancing || !promptOk || !setup) return;
-    gen.set({ enhancing: true, enhanceCost: null });
+    const sel = opts.sel ?? gen.state.enhanceSelection;
+    gen.set({ enhancing: true, enhanceCost: null, enhanceError: null, enhanceSelection: sel });
     const original = gen.state.prompt;
     try {
       const res = await enhanceImagePromptAction(orgSlug, {
@@ -345,10 +368,15 @@ export function ImageGeneratorPanel({
         context: gen.state.context,
         document: store.doc as unknown as Record<string, unknown>,
         pageId: store.activePageId,
-        confirmCost,
+        ai: sel,
+        confirmCost: opts.confirmCost,
       });
       if (needsConfirm(res)) return gen.set({ enhanceCost: (res as { error: string }).error });
-      if (!res.ok) return void toast.error(res.error);
+      if (!res.ok) {
+        // Modelo escolhido indisponível ou sem texto: mostra o motivo e as alternativas compatíveis.
+        const alternatives = "alternatives" in res ? res.alternatives : [];
+        return gen.set({ enhanceError: { message: res.error, alternatives } });
+      }
       gen.set({ prompt: res.data.prompt, originalPrompt: original });
       if (res.data.notice) toast.warning(res.data.notice);
       toast.success(
@@ -537,17 +565,79 @@ export function ImageGeneratorPanel({
             <Eraser /> Limpar
           </Button>
         </div>
+        {setup ? (
+          <div className="mt-1.5 flex items-start gap-1.5 text-[11px]" data-testid="image-generator-enhance-model">
+            {enhancePreview?.problem ? (
+              <AlertTriangle className="mt-0.5 size-3 shrink-0 text-danger" />
+            ) : (
+              <Sparkles className="mt-0.5 size-3 shrink-0 text-fg-subtle" />
+            )}
+            <span className={cn("min-w-0 flex-1", enhancePreview?.problem ? "text-danger" : "text-fg-subtle")}>
+              Melhorar com IA usa:{" "}
+              {enhancePreview
+                ? enhancePreview.problem
+                  ? enhancePreview.reason
+                  : `${enhancePreview.model!.label} · ${providerLabel(enhancePreview.model!.provider)}`
+                : "—"}
+            </span>
+            <button
+              type="button"
+              className="shrink-0 text-accent-text underline"
+              onClick={() => gen.set({ showEnhanceModel: !st.showEnhanceModel })}
+              data-testid="image-generator-enhance-model-toggle"
+            >
+              {st.showEnhanceModel ? "Ocultar" : "Alterar"}
+            </button>
+          </div>
+        ) : null}
+        {st.showEnhanceModel && setup ? (
+          <AiModelPicker
+            providers={setup.picker.providers}
+            preferences={setup.picker.preferences}
+            task={ENHANCE_TASK}
+            module={MODULE}
+            value={st.enhanceSelection}
+            onChange={(enhanceSelection) => gen.set({ enhanceSelection, enhanceError: null })}
+            disabled={st.enhancing}
+            className="mt-2"
+          />
+        ) : null}
         {st.enhanceCost ? (
           <div role="alert" className="mt-2 grid gap-1.5 rounded-md bg-warning-soft/60 p-2 text-xs">
             <span>{st.enhanceCost}</span>
             <span className="flex gap-1.5">
-              <Button size="xs" variant="primary" onClick={() => void enhance(true)}>
+              <Button size="xs" variant="primary" onClick={() => void enhance({ confirmCost: true })}>
                 Confirmar
               </Button>
               <Button size="xs" variant="ghost" onClick={() => gen.set({ enhanceCost: null })}>
                 Cancelar
               </Button>
             </span>
+          </div>
+        ) : null}
+        {st.enhanceError ? (
+          <div
+            role="alert"
+            className="mt-2 grid gap-1.5 rounded-md bg-danger-soft p-2 text-xs text-danger"
+            data-testid="image-generator-enhance-error"
+          >
+            <span className="flex items-start gap-1.5">
+              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" /> {st.enhanceError.message}
+            </span>
+            {st.enhanceError.alternatives.length ? (
+              <span className="flex flex-wrap gap-1.5">
+                {st.enhanceError.alternatives.map((a) => (
+                  <Button
+                    key={`${a.provider}:${a.model}`}
+                    size="xs"
+                    variant="secondary"
+                    onClick={() => void enhance({ sel: { mode: "manual", provider: a.provider, model: a.model } })}
+                  >
+                    Usar {a.label} ({a.providerLabel})
+                  </Button>
+                ))}
+              </span>
+            ) : null}
           </div>
         ) : null}
       </section>

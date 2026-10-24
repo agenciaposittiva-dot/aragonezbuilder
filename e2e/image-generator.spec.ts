@@ -160,6 +160,20 @@ test.describe("gerar imagem no editor", () => {
     await gen.getByTestId("image-generator-undo-enhance").click();
     await expect(prompt).toHaveValue(PROMPT);
 
+    // A pessoa escolhe o modelo do "Melhorar com IA" (seletor próprio, separado do modelo de imagem).
+    await expect(gen.getByTestId("image-generator-enhance-model")).toContainText("Melhorar com IA usa:");
+    await gen.getByTestId("image-generator-enhance-model-toggle").click();
+    const enhancePicker = gen.getByRole("radiogroup", { name: "Como escolher o modelo" });
+    await expect(enhancePicker).toBeVisible();
+    await enhancePicker.getByRole("radio", { name: "Escolher modelo" }).click();
+    await expect(gen.getByLabel("Provedor")).toContainText("Demonstração");
+    await gen.getByTestId("image-generator-enhance").click();
+    await expect(prompt).toHaveValue(/Exemplo da demonstração/, { timeout: 30_000 });
+    await gen.getByTestId("image-generator-enhance-model-toggle").click();
+    await expect(enhancePicker).toHaveCount(0);
+    await gen.getByTestId("image-generator-undo-enhance").click();
+    await expect(prompt).toHaveValue(PROMPT);
+
     // Formato claramente exibido (com as medidas finais só quando há provedor de imagem).
     await gen.getByRole("radio", { name: "Formato Retrato para feed 4:5" }).click();
     await expect(gen.getByTestId("image-generator-format")).toContainText("Retrato para feed 4:5");
