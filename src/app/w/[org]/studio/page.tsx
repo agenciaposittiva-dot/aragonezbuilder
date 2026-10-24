@@ -46,7 +46,11 @@ export default async function StudioPage({ params, searchParams }: PageProps<"/w
   const data = await inOrg(actor, async (s) => ({
     items: tab === "templates" ? [] : await listDesigns(s, { q, clientId, archived: tab === "archived" }),
     // Modelos da agência: alimentam a galeria e o seletor de "Nova arte".
-    templates: await listDesigns(s, { templates: true, q: tab === "templates" ? q : undefined }),
+    templates: await listDesigns(s, {
+      templates: true,
+      q: tab === "templates" ? q : undefined,
+      favorites: tab === "templates" && sp.favoritos === "1",
+    }),
     clients: await clientOptions(s),
     projects: await projectOptions(s),
     picker: canAi && canWrite ? await getPickerData(s) : null,
@@ -121,6 +125,7 @@ export default async function StudioPage({ params, searchParams }: PageProps<"/w
                   label="Formato"
                   options={FORMAT_FILTERS.map((f) => ({ value: f.key, label: f.label }))}
                 />
+                <SelectFilter param="favoritos" label="Favoritos" options={[{ value: "1", label: "Só favoritos" }]} />
               </>
             ) : (
               <SelectFilter

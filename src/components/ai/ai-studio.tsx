@@ -5,6 +5,7 @@ import {
   Check,
   Copy,
   ImageIcon,
+  ListPlus,
   Pin,
   PinOff,
   RotateCcw,
@@ -19,6 +20,8 @@ import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AiModelPicker } from "@/components/ai/ai-model-picker";
 import { Markdown } from "@/components/app/markdown";
+import type { MemberLite } from "@/components/app/member-picker";
+import { TaskFormDialog, type ProjectOption } from "@/components/tasks/task-form-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -85,6 +88,7 @@ export function AiStudio({
   picker,
   clients,
   projects,
+  members,
   history,
   canConfigure,
   canCreateTasks,
@@ -103,7 +107,9 @@ export function AiStudio({
   };
   picker: { providers: PickerProvider[]; preferences: AiPreference[] };
   clients: { id: string; name: string }[];
-  projects: { id: string; name: string; clientName: string }[];
+  projects: ProjectOption[];
+  /** Responsáveis para "Criar demanda com este texto" (vazio sem permissão de criar tarefas). */
+  members: MemberLite[];
   history: Generation[];
   canConfigure: boolean;
   canCreateTasks: boolean;
@@ -137,6 +143,8 @@ export function AiStudio({
   const [costPrompt, setCostPrompt] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [copied, setCopied] = useState(false);
+  // "Criar demanda com este texto": formulário completo de demanda pré-preenchido com o resultado.
+  const [taskOpen, setTaskOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const pin = useOrgAction(togglePinGenerationAction);
   const remove = useOrgAction(deleteGenerationAction, { success: "Geração excluída" });
@@ -297,6 +305,8 @@ export function AiStudio({
           size: imageSize,
           module: "assistant",
           clientId: clientId || null,
+          // Com projeto, a imagem é salva nele (e no cliente dele) em Arquivos.
+          projectId: projectId || null,
           saveToFiles: saveImage,
           selection: sel,
           confirmCost,
@@ -494,6 +504,30 @@ export function AiStudio({
                     </NativeSelect>
                   </Field>
                 )}
+                {isImage ? (
+                  <Field
+                    label="Projeto (opcional)"
+                    htmlFor="ai-image-project"
+                    hint="A imagem fica em Arquivos do projeto (e do cliente dele)."
+                    error={errors.projectId}
+                    className="sm:col-span-2"
+                  >
+                    <NativeSelect
+                      id="ai-image-project"
+                      value={projectId}
+                      onChange={(e) => setProjectId(e.target.value)}
+                    >
+                      <option value="">Nenhum</option>
+                      {projects
+                        .filter((p) => !clientId || clients.find((c) => c.id === clientId)?.name === p.clientName)
+                        .map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.clientName} · {p.name}
+                          </option>
+                        ))}
+                    </NativeSelect>
+                  </Field>
+                ) : null}
                 {isImage ? (
                   <>
                     <Field
@@ -711,17 +745,25 @@ export function AiStudio({
                   ) : null}
                 </div>
                 {output && !failure?.partial ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={async () => {
-                      await navigator.clipboard.writeText(output);
-                      setCopied(true);
-                      setTimeout(() => setCopied(false), 1500);
-                    }}
-                  >
-                    {copied ? <Check /> : <Copy />} {copied ? "Copiado" : "Copiar"}
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(output);
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 1500);
+                      }}
+                      data-testid="ai-copy"
+                    >
+                      {copied ? <Check /> : <Copy />} {copied ? "Copiado" : "Copiar"}
+                    </Button>
+                    {canCreateTasks && projects.length ? (
+                      <Button variant="secondary" size="sm" onClick={() => setTaskOpen(true)} data-testid="ai-to-task">
+                        <ListPlus /> Criar demanda com este texto
+                      </Button>
+                    ) : null}
+                  </div>
                 ) : null}
               </CardHeader>
               <CardContent className="grid gap-4">
@@ -759,7 +801,7 @@ export function AiStudio({
                 ) : tasks ? (
                   <div className="grid gap-3">
                     <p className="text-sm text-fg-muted">Revise as sugestões. Nada é criado sem a sua confirmação.</p>
-                    <ul className="grid gap-2">
+                    <ul className="grid gap-2" data-testid="ai-tasks">
                       {tasks.map((t, i) => (
                         <li key={i} className="flex items-start gap-3 rounded-lg border border-border p-3">
                           <Checkbox
@@ -840,6 +882,19 @@ export function AiStudio({
             </Card>
           ) : null}
 
+          {canCreateTasks && projects.length ? (
+            <TaskFormDialog
+              open={taskOpen}
+              onOpenChange={setTaskOpen}
+              projects={projects}
+              members={members}
+              noun="demanda"
+              defaultProjectId={projectId || undefined}
+              defaultTitle={`${op?.label ?? "Conteúdo"}${values.topic ? `: ${values.topic}` : ""}`.slice(0, 160)}
+              defaultDescription={output}
+            />
+          ) : null}
+
           <Card>
             <CardHeader>
               <CardTitle>Histórico</CardTitle>
@@ -861,6 +916,21 @@ export function AiStudio({
                         className="min-w-0 flex-1 text-left"
                         onClick={() => {
                           reset();
+                          // Resultado estruturado (sugestão de tarefas) reabre como lista revisável, não como JSON.
+                          const structuredOp = getOperation(g.kind);
+                          if (structuredOp?.structured) {
+                            try {
+                              const data = JSON.parse(g.output) as { tasks?: Omit<SuggestedTask, "selected">[] };
+                              if (Array.isArray(data.tasks) && data.tasks.length) {
+                                setOpKey(g.kind);
+                                setTasks(data.tasks.map((t) => ({ ...t, selected: true })));
+                                window.scrollTo({ top: 0, behavior: "smooth" });
+                                return;
+                              }
+                            } catch {
+                              // Saída antiga fora do formato: mostra como texto.
+                            }
+                          }
                           setOutput(g.output);
                           window.scrollTo({ top: 0, behavior: "smooth" });
                         }}

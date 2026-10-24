@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, Eye, Layers, LayoutTemplate, PencilLine } from "lucide-react";
+import { ChevronRight, Eye, Star, Layers, LayoutTemplate, PencilLine } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +27,7 @@ import {
 } from "@/lib/design-doc/template-categories";
 import { relativeFromNow } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { updateDesignMetaAction } from "@/server/actions/designs";
+import { toggleDesignFavoriteAction, updateDesignMetaAction } from "@/server/actions/designs";
 import { DesignCardActions } from "./design-card-actions";
 import { NewDesignDialog } from "./new-design-dialog";
 
@@ -44,6 +44,8 @@ export type GalleryTemplate = {
   projectId: string | null;
   taskId: string | null;
   updatedAt: Date | string;
+  /** Favorito da pessoa que vê a galeria (aparece primeiro e no filtro "Favoritos"). */
+  favorite?: boolean;
 };
 
 type DialogData = Pick<
@@ -65,7 +67,9 @@ const CHECKER = "bg-[repeating-conic-gradient(var(--surface-2)_0_25%,var(--surfa
 
 function groupByCategory(items: GalleryTemplate[]) {
   const map = new Map<string, GalleryTemplate[]>();
-  for (const t of items) {
+  // Favoritos primeiro em cada categoria (ordem estável no resto).
+  const ordered = [...items].sort((a, b) => Number(!!b.favorite) - Number(!!a.favorite));
+  for (const t of ordered) {
     const g = categoryGroup(t.templateCategory);
     map.set(g, [...(map.get(g) ?? []), t]);
   }
@@ -188,6 +192,33 @@ export function TemplateGallery({
   );
 }
 
+/** Estrela de favorito (por pessoa). A página é atualizada pela ação; o estado local evita o atraso visual. */
+function FavoriteButton({ id, name, favorite }: { id: string; name: string; favorite: boolean }) {
+  const [optimistic, setOptimistic] = useState<boolean | null>(null);
+  const toggle = useOrgAction(toggleDesignFavoriteAction, {
+    success: (d) => (d.favorite ? "Modelo adicionado aos favoritos" : "Modelo removido dos favoritos"),
+    onSuccess: () => setOptimistic(null),
+  });
+  const on = optimistic ?? favorite;
+  return (
+    <Button
+      variant="ghost"
+      size="icon-xs"
+      aria-label={on ? `Remover ${name} dos favoritos` : `Favoritar ${name}`}
+      aria-pressed={on}
+      loading={toggle.pending}
+      onClick={() => {
+        setOptimistic(!on);
+        toggle.run({ id });
+      }}
+      data-testid="template-favorite"
+      className={cn(on && "text-accent-text")}
+    >
+      <Star className={cn(on && "fill-current")} />
+    </Button>
+  );
+}
+
 function TemplateCard({
   t,
   onPreview,
@@ -252,6 +283,7 @@ function TemplateCard({
           </p>
         </div>
         <div className="mt-auto flex items-center gap-1.5">
+          <FavoriteButton id={t.id} name={t.name} favorite={!!t.favorite} />
           <Button variant="ghost" size="xs" onClick={onPreview}>
             <Eye /> Prévia
           </Button>

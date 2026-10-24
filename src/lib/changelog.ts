@@ -351,6 +351,52 @@ export const CHANGELOG: ChangelogEntry[] = [
     notes:
       "A geração real exige um provedor com modelos gpt-image (OpenAI) configurado em Configurações → Inteligência artificial; a demonstração local não gera imagens.",
   },
+  {
+    n: 25,
+    date: "2026-10-24",
+    module: "Plataforma",
+    title: "IA real antes da demonstração, artes na busca global, confirmação ao excluir pasta e tema ao vivo",
+    description:
+      'A escolha automática de modelo nunca prefere a demonstração local quando há um provedor real compatível (a demonstração continua disponível por escolha explícita). A busca global (⌘K) passa a encontrar artes e templates do Estúdio Criador, abrindo o editor, dentro do escopo de clientes de quem busca. Excluir uma pasta da Biblioteca pede confirmação e explica que só pastas vazias são excluídas. Com o tema "Sistema", trocar o esquema do sistema operacional muda a aparência na hora, sem recarregar.',
+    fixed:
+      'Com OpenAI e demonstração ligadas juntas, tarefas estruturadas (como sugestão de tarefas) podiam receber uma resposta de exemplo em vez de IA real; artes não apareciam na busca; uma pasta podia ser excluída por um clique errado; o tema "Sistema" só acompanhava o sistema operacional depois de recarregar.',
+    status: "tested",
+    tests: [
+      "tests/ai-select.test.ts — provedor real (capacidade não confirmada) vence a demonstração em tarefas estruturadas, inclusive na prioridade de custo; demonstração sozinha continua escolhida; escolha explícita respeitada; prévia da interface igual ao servidor",
+      "tests/search.test.ts — artes com cliente, internas e templates nos resultados com link do editor; colaborador sem acesso ao cliente não vê a arte dele",
+      "e2e/cloud.spec.ts — Biblioteca (pastas, envio, versões) continua aprovada",
+    ],
+  },
+  {
+    n: 26,
+    date: "2026-10-24",
+    module: "Criação com IA",
+    title: "Texto do assistente vira demanda, histórico revisável e projeto na imagem",
+    description:
+      'No Assistente IA, todo texto gerado ganha o botão "Criar demanda com este texto": abre o formulário completo de demanda com título e descrição pré-preenchidos (projeto, responsável, prazo e prioridade à escolha; nada é criado sem confirmar). Reabrir uma sugestão de tarefas pelo histórico mostra a lista revisável (marcar, editar, criar no projeto) em vez do JSON bruto. Gerar imagem aceita um projeto opcional: a imagem é salva em Arquivos do projeto e do cliente dele.',
+    fixed:
+      "Um texto aprovado precisava ser copiado e colado numa nova tarefa; o histórico de sugestões de tarefas reabria como código; imagens do assistente só podiam ficar vinculadas ao cliente, não ao projeto.",
+    status: "tested",
+    tests: [
+      "e2e/ai-studio.spec.ts — sugestão de tarefas (demonstração) com 4 itens revisáveis; histórico reabre a lista sem JSON; Legendas → Criar demanda com este texto → formulário com título e descrição → demanda criada e aberta; seletor de projeto na geração de imagem",
+      "tests/ai.test.ts — geração de imagem com projeto (prepareImage resolve cliente e projeto) continua aprovada",
+    ],
+  },
+  {
+    n: 27,
+    date: "2026-10-24",
+    module: "Estúdio Criador",
+    title: "Favoritos de modelos",
+    description:
+      'Cada pessoa pode marcar modelos como favoritos na galeria (estrela no cartão). Os favoritos aparecem primeiro em cada categoria e o filtro "Só favoritos" na aba Modelos mostra apenas eles. A marcação é por pessoa e vale só para modelos que ela pode ver. Migração aditiva 0020 (tabela design_favorites, com isolamento por organização).',
+    fixed:
+      "Agências com muitos modelos não tinham como destacar os que usam todo dia; cada pessoa precisava procurar o modelo pelo nome a cada arte.",
+    status: "tested",
+    tests: [
+      "tests/design-favorites.test.ts — marcar/desmarcar, sinal na listagem, filtro só da pessoa (outra pessoa não herda), modelo de cliente fora do escopo recusado, modelo da agência aceito",
+      'e2e/template-favorites.spec.ts — criar template a partir de uma arte, favoritar na galeria, filtro "Só favoritos", remover (desktop e celular)',
+    ],
+  },
 ];
 
 export const CHANGELOG_MODULES = [...new Set(CHANGELOG.map((e) => e.module))].sort((a, b) =>

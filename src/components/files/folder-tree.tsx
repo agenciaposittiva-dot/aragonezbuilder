@@ -35,6 +35,8 @@ export function FolderTree({
   const active = params.get("folderId");
   const [editing, setEditing] = useState<Editing>(null);
   const [name, setName] = useState("");
+  // Excluir pede confirmação (a pasta precisa estar vazia; nada é apagado por engano).
+  const [toDelete, setToDelete] = useState<FolderNode | null>(null);
   const save = useOrgAction(saveFolderAction, { success: "Pasta salva", onSuccess: () => setEditing(null) });
   const remove = useOrgAction(deleteFolderAction, {
     success: "Pasta excluída",
@@ -98,7 +100,7 @@ export function FolderTree({
               setName(node.name);
               setEditing({ mode: "rename", id: node.id, name: node.name });
             }}
-            onDelete={(id) => remove.run({ folderId: id })}
+            onDelete={(id) => setToDelete(folders.find((f) => f.id === id) ?? null)}
           />
         ))}
       </ul>
@@ -146,6 +148,38 @@ export function FolderTree({
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle>Excluir a pasta “{toDelete?.name}”?</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <p className="text-sm text-fg-muted">
+              Só pastas vazias podem ser excluídas: arquivos e subpastas dentro dela continuam onde estão e a exclusão é
+              recusada. Esta ação não apaga nenhum arquivo.
+            </p>
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={() => setToDelete(null)} disabled={remove.pending}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              loading={remove.pending}
+              onClick={async () => {
+                if (!toDelete) return;
+                await remove.run({ folderId: toDelete.id });
+                setToDelete(null);
+              }}
+              data-testid="confirm-delete-folder"
+            >
+              Excluir pasta
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </nav>

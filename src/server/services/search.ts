@@ -1,5 +1,5 @@
 import { and, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
-import { clients, files, projects, requests, tasks } from "@/server/db/schema";
+import { clients, designs, files, projects, requests, tasks } from "@/server/db/schema";
 import {
   can,
   canReadRequests,
@@ -10,9 +10,10 @@ import {
   taskScope,
   type Scope,
 } from "@/server/authz";
+import { designScope } from "./designs";
 
 export type SearchHit = {
-  type: "client" | "project" | "task" | "file" | "request";
+  type: "client" | "project" | "task" | "file" | "request" | "design";
   id: string;
   title: string;
   subtitle?: string | null;
@@ -142,6 +143,26 @@ export async function globalSearch(s: Scope, rawQuery: string): Promise<SearchHi
         title: r.name,
         subtitle: r.client,
         href: `${base}/files/${r.id}`,
+      })),
+    );
+  }
+
+  // Artes do Estúdio Criador (e templates): só para a equipe, dentro do escopo de clientes do ator.
+  if (internal && can(s.actor, "designs.read")) {
+    const rows = await s.db
+      .select({ id: designs.id, name: designs.name, isTemplate: designs.isTemplate, client: clients.name })
+      .from(designs)
+      .leftJoin(clients, eq(clients.id, designs.clientId))
+      .where(and(ilike(designs.name, like), designScope(s)))
+      .orderBy(desc(designs.updatedAt))
+      .limit(5);
+    hits.push(
+      ...rows.map((r) => ({
+        type: "design" as const,
+        id: r.id,
+        title: r.name,
+        subtitle: [r.isTemplate ? "Template" : null, r.client].filter(Boolean).join(" · ") || null,
+        href: `${base}/studio/${r.id}`,
       })),
     );
   }

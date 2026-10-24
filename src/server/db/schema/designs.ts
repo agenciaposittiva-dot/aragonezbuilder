@@ -1,5 +1,17 @@
 import { sql } from "drizzle-orm";
-import { boolean, foreignKey, index, integer, jsonb, pgEnum, pgTable, text, unique, uuid } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  foreignKey,
+  index,
+  integer,
+  jsonb,
+  pgEnum,
+  pgTable,
+  primaryKey,
+  text,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { createdAt, id, timestamps, tstz } from "./_helpers";
 import { user } from "./auth";
 import { clients } from "./clients";
@@ -106,5 +118,25 @@ export const designVersions = pgTable(
       foreignColumns: [designs.organizationId, designs.id],
     }).onDelete("cascade"),
     index().on(t.organizationId, t.designId, t.createdAt.desc()),
+  ],
+);
+
+/** Modelos (templates) e artes favoritos por pessoa — só organização e lista, nada de conteúdo. */
+export const designFavorites = pgTable(
+  "design_favorites",
+  {
+    organizationId: uuid().notNull(),
+    designId: uuid().notNull(),
+    userId: text()
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.designId, t.userId] }),
+    foreignKey({
+      columns: [t.organizationId, t.designId],
+      foreignColumns: [designs.organizationId, designs.id],
+    }).onDelete("cascade"),
   ],
 );

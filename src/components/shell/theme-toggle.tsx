@@ -24,6 +24,13 @@ function read(): Theme {
   }
 }
 
+// Com "Sistema", a troca de esquema do sistema operacional vale na hora (sem recarregar).
+if (typeof window !== "undefined" && "matchMedia" in window) {
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    if (read() === "system") apply("system");
+  });
+}
+
 export function setTheme(theme: Theme) {
   try {
     localStorage.setItem("theme", theme);

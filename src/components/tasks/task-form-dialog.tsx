@@ -37,6 +37,8 @@ export function TaskFormDialog({
   noun = "tarefa",
   defaultAssigneeId,
   defaultDueDate,
+  defaultTitle,
+  defaultDescription,
   open: controlledOpen,
   onOpenChange,
 }: {
@@ -52,6 +54,9 @@ export function TaskFormDialog({
   noun?: "tarefa" | "demanda";
   defaultAssigneeId?: string;
   defaultDueDate?: string;
+  /** Título e descrição pré-preenchidos (ex.: demanda criada a partir de um texto do Assistente IA). */
+  defaultTitle?: string;
+  defaultDescription?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
@@ -118,12 +123,21 @@ export function TaskFormDialog({
             <DialogTitle>{parentTaskId ? "Nova subtarefa" : `Nova ${noun}`}</DialogTitle>
             <DialogDescription>
               Defina responsável, prazo e estimativa para organizar a carga da equipe.
-              {openAfterCreate && !parentTaskId ? " Checklist, anexos e comentários ficam na página que abre ao criar." : null}
+              {openAfterCreate && !parentTaskId
+                ? " Checklist, anexos e comentários ficam na página que abre ao criar."
+                : null}
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="grid gap-4 sm:grid-cols-2">
             <Field label="Título" htmlFor="t-title" required error={fe.title} className="sm:col-span-2">
-              <Input id="t-title" name="title" required autoFocus placeholder="Ex.: Criar 3 posts para o feed" />
+              <Input
+                id="t-title"
+                name="title"
+                required
+                autoFocus
+                defaultValue={defaultTitle}
+                placeholder="Ex.: Criar 3 posts para o feed"
+              />
             </Field>
             {projects.length === 0 && !parentTaskId ? (
               <p className="rounded-lg bg-warning-soft p-3 text-sm sm:col-span-2">
@@ -169,7 +183,12 @@ export function TaskFormDialog({
               {parentTaskId ? <input type="hidden" name="projectId" value={defaultProjectId} /> : null}
             </Field>
             <Field label="Descrição" htmlFor="t-desc" className="sm:col-span-2">
-              <Textarea id="t-desc" name="description" rows={3} />
+              <Textarea
+                id="t-desc"
+                name="description"
+                rows={defaultDescription ? 8 : 3}
+                defaultValue={defaultDescription}
+              />
             </Field>
             <Field
               label="Responsável"

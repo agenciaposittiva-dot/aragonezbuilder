@@ -15,7 +15,16 @@ import {
   type DesignOp,
 } from "@/lib/design-doc";
 import { optionalText, optionalUuid, uuid } from "@/lib/validators/common";
-import { clients, designs, designVersions, files, fileVersions, projects, user } from "@/server/db/schema";
+import {
+  clients,
+  designFavorites,
+  designs,
+  designVersions,
+  files,
+  fileVersions,
+  projects,
+  user,
+} from "@/server/db/schema";
 import {
   assertCan,
   assertClientAccess,
@@ -111,6 +120,10 @@ async function assertLinks(
   return { clientId, projectId: d.projectId ?? null, taskId: d.taskId ?? null };
 }
 
+/** Favorito da pessoa que consulta (modelos e artes). */
+const favoriteExpr = (s: Scope) =>
+  sql<boolean>`exists (select 1 from ${designFavorites} where ${designFavorites.designId} = ${designs.id} and ${designFavorites.userId} = ${s.actor.userId})`;
+
 export async function listDesigns(
   s: Scope,
   opts: {
@@ -121,6 +134,8 @@ export async function listDesigns(
     /** Artes de um projeto ou de uma demanda (tarefa). */
     projectId?: string;
     taskId?: string;
+    /** Só os favoritos da pessoa. */
+    favorites?: boolean;
     limit?: number;
   } = {},
 ) {
@@ -135,6 +150,7 @@ export async function listDesigns(
       thumbnail: designs.thumbnail,
       isTemplate: designs.isTemplate,
       templateCategory: designs.templateCategory,
+      favorite: favoriteExpr(s),
       updatedAt: designs.updatedAt,
       clientId: designs.clientId,
       clientName: clients.name,
@@ -158,11 +174,25 @@ export async function listDesigns(
         opts.clientId ? eq(designs.clientId, opts.clientId) : undefined,
         opts.projectId ? eq(designs.projectId, opts.projectId) : undefined,
         opts.taskId ? eq(designs.taskId, opts.taskId) : undefined,
+        opts.favorites ? favoriteExpr(s) : undefined,
         opts.q ? ilike(designs.name, `%${opts.q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`) : undefined,
       ),
     )
     .orderBy(desc(designs.updatedAt))
     .limit(Math.min(200, Math.max(1, opts.limit ?? 200)));
+}
+
+/** Marca/desmarca um modelo ou arte como favorito da pessoa (só o que ela pode ver). */
+export async function toggleDesignFavorite(s: Scope, designId: string) {
+  assertInternal(s.actor);
+  await getDesign(s, designId);
+  const deleted = await s.db
+    .delete(designFavorites)
+    .where(and(eq(designFavorites.designId, designId), eq(designFavorites.userId, s.actor.userId)))
+    .returning({ id: designFavorites.designId });
+  if (deleted.length) return { favorite: false };
+  await s.db.insert(designFavorites).values({ organizationId: s.actor.orgId, designId, userId: s.actor.userId });
+  return { favorite: true };
 }
 
 export async function getDesign(s: Scope, id: string) {

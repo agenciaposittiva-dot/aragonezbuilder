@@ -22,6 +22,7 @@ import {
   saveDesign,
   templatePagesForDesign,
   templatesForDesign,
+  toggleDesignFavorite,
   unarchiveDesign,
   updateDesignMeta,
 } from "@/server/services/designs";
@@ -36,6 +37,10 @@ export const duplicateDesignAction = orgAction(z.object({ id: z.uuid(), asTempla
   duplicateDesign(s, i.id, i.asTemplate),
 );
 export const archiveDesignAction = orgAction(z.object({ id: z.uuid() }), (s, { id }) => archiveDesign(s, id));
+/** Favorito da pessoa (modelos e artes): a página é atualizada para refletir filtros e ordem. */
+export const toggleDesignFavoriteAction = orgAction(z.object({ id: z.uuid() }), (s, { id }) =>
+  toggleDesignFavorite(s, id),
+);
 export const unarchiveDesignAction = orgAction(z.object({ id: z.uuid() }), (s, { id }) => unarchiveDesign(s, id));
 export const linkDesignOutputAction = orgAction(
   z.object({

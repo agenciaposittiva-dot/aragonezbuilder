@@ -113,8 +113,12 @@ export function autoSelect(models: AiModelInfo[], task: AiTask, priority: AiPrio
 
   const prices = candidates.map((x) => blendedPrice(x.m)).filter((p): p is number => p !== null);
   const maxPrice = prices.length ? Math.max(...prices) : 0;
+  // A demonstração local (sem IA real) só é escolhida sozinha quando não há provedor real compatível:
+  // uma capacidade "confirmada" do modelo de exemplo nunca vence um modelo real "não confirmado".
+  const realAvailable = candidates.some((x) => x.m.provider !== "demo");
   const scored = candidates.map(({ m, c }) => {
     let score = c.unconfirmed.length === 0 ? 100 : 0;
+    if (realAvailable && m.provider === "demo") score -= 1000;
     const price = blendedPrice(m);
     if (priority === "cost" && price !== null && maxPrice > 0) score += 3 * (1 - price / maxPrice) + 0.5;
     else score += TIER_SCORE[priority][m.tier];

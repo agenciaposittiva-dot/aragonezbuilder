@@ -1,7 +1,7 @@
 "use client";
 
 import { Command } from "cmdk";
-import { CornerDownLeft, FileText, FolderKanban, Inbox, ListChecks, Search, Users2 } from "lucide-react";
+import { CornerDownLeft, FileText, FolderKanban, Inbox, ListChecks, Palette, Search, Users2 } from "lucide-react";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
@@ -19,8 +19,16 @@ const TYPE_LABEL: Record<SearchHit["type"], string> = {
   task: "Tarefas",
   request: "Solicitações",
   file: "Arquivos",
+  design: "Artes do Estúdio",
 };
-const TYPE_ICON = { client: Users2, project: FolderKanban, task: ListChecks, request: Inbox, file: FileText };
+const TYPE_ICON = {
+  client: Users2,
+  project: FolderKanban,
+  task: ListChecks,
+  request: Inbox,
+  file: FileText,
+  design: Palette,
+};
 
 export function CommandMenu({ nav, base }: { nav: NavKey; base: string }) {
   const groups = getNav(nav);

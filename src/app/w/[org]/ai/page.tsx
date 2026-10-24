@@ -11,6 +11,7 @@ import { listGenerations, usageCounters } from "@/server/services/ai";
 import { getPickerData } from "@/server/services/ai-models";
 import { clientOptions } from "@/server/services/clients";
 import { designAiTargets } from "@/server/services/design-ai";
+import { listInternalMembers } from "@/server/services/members";
 import { getSettings } from "@/server/services/organizations";
 import { projectOptions } from "@/server/services/projects";
 
@@ -33,6 +34,8 @@ export default async function AiPage({ params, searchParams }: PageProps<"/w/[or
       counters: await usageCounters(s),
       clients: await clientOptions(s),
       projects: await projectOptions(s),
+      // "Criar demanda com este texto": responsáveis do formulário de demanda.
+      members: can(actor, "tasks.write") ? await listInternalMembers(s) : [],
       history: await listGenerations(s, { limit: 30 }),
       // Chat de edição de artes existentes: só para quem pode editar artes.
       designs: can(actor, "designs.write") ? await designAiTargets(s) : null,
@@ -68,6 +71,13 @@ export default async function AiPage({ params, searchParams }: PageProps<"/w/[or
         }}
         picker={data.picker}
         clients={data.clients}
+        members={data.members.map((m) => ({
+          membershipId: m.membershipId,
+          name: m.name,
+          image: m.image,
+          jobTitle: m.jobTitle,
+          roleName: m.roleName,
+        }))}
         projects={data.projects.map((p) => ({ id: p.id, name: p.name, clientName: p.clientName }))}
         history={data.history}
         canConfigure={can(actor, "ai.settings")}
