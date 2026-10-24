@@ -256,7 +256,7 @@ export function MachineWizard({
   const current = MACHINE_STEPS[step - 1]!;
 
   return (
-    <div className="grid gap-5">
+    <div className="grid grid-cols-1 gap-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
           <Link
@@ -398,6 +398,7 @@ function Stepper({ step, reachable, onSelect }: { step: number; reachable: numbe
                 disabled={!enabled}
                 aria-current={active ? "step" : undefined}
                 onClick={() => onSelect(s.n)}
+                title={s.label}
                 className={cn(
                   "flex w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-xs transition-colors",
                   active
@@ -415,7 +416,7 @@ function Stepper({ step, reachable, onSelect }: { step: number; reachable: numbe
                 >
                   {done ? <Check className="size-3" /> : s.n}
                 </span>
-                <span className="truncate font-medium">{s.label}</span>
+                <span className="truncate font-medium">{s.short}</span>
               </button>
             </li>
           );

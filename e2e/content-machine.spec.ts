@@ -81,7 +81,10 @@ test.describe("Máquina de Conteúdo", () => {
     await next(page).click();
     await expect(page.getByTestId("machine-open-editor")).toHaveAttribute("href", /\/studio\/[0-9a-f-]{36}$/);
     await next(page).click();
-    await expect(page.getByTestId("machine-open-preview")).toHaveAttribute("href", /\/content\/[0-9a-f-]{36}\/preview$/);
+    await expect(page.getByTestId("machine-open-preview")).toHaveAttribute(
+      "href",
+      /\/content\/[0-9a-f-]{36}\/preview$/,
+    );
 
     // 9. Calendário.
     await next(page).click();

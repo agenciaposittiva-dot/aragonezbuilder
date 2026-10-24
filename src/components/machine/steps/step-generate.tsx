@@ -111,7 +111,7 @@ export function StepGenerate({ view, state, can, readOnly, flush }: StepProps & 
   }
 
   return (
-    <div className="grid gap-5">
+    <div className="grid grid-cols-1 gap-5">
       <dl className="grid gap-3 rounded-lg border border-border bg-surface-2/30 p-4 text-sm sm:grid-cols-2">
         <Item label="Marca" value={view.brand.client.name} />
         <Item
@@ -180,7 +180,7 @@ export function StepGenerate({ view, state, can, readOnly, flush }: StepProps & 
               {meta.demo ? <Badge tone="info">Demonstração</Badge> : null}
             </div>
           ) : null}
-          <ol className="grid gap-2">
+          <ol className="grid grid-cols-1 gap-2">
             {STEPS.map((s) => {
               const st = steps[s.key];
               return (

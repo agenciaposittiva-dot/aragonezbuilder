@@ -22,7 +22,7 @@ function DesignPages({ view }: { view: StepProps["view"] }) {
   const rendered = useRenderedPages(designs);
   if (!d) return null;
   return (
-    <div className="grid gap-2">
+    <div className="grid grid-cols-1 gap-2">
       <ul
         className="flex snap-x scrollbar-thin gap-3 overflow-x-auto pb-2"
         aria-label="Páginas do carrossel"
@@ -44,7 +44,7 @@ function DesignPages({ view }: { view: StepProps["view"] }) {
                 )}
               </div>
               <p className="mt-1 text-center text-[11px] text-fg-muted">
-                {String(i + 1).padStart(2, "0")} · {p.name}
+                {/^\d/.test(p.name) ? p.name : `${String(i + 1).padStart(2, "0")} · ${p.name}`}
               </p>
             </li>
           );
@@ -118,7 +118,7 @@ export function StepVisual({ view, state, can, readOnly }: StepProps) {
   };
 
   return (
-    <div className="grid gap-5">
+    <div className="grid grid-cols-1 gap-5">
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <Palette className="size-4 text-accent-text" />
         <span>
@@ -152,7 +152,7 @@ export function StepReview({ view }: StepProps) {
   const d = view.design;
   if (!d) return <p className="text-sm text-fg-muted">Gere o conteúdo para revisar no editor.</p>;
   return (
-    <div className="grid gap-5">
+    <div className="grid grid-cols-1 gap-5">
       <ul className="grid gap-2 text-sm sm:grid-cols-2">
         {[
           "Editar textos direto nos slides",
@@ -187,7 +187,7 @@ export function StepPreview({ view }: StepProps) {
   if (!view.design || !view.content)
     return <p className="text-sm text-fg-muted">Gere o conteúdo para visualizar a publicação.</p>;
   return (
-    <div className="grid gap-5">
+    <div className="grid grid-cols-1 gap-5">
       <DesignPages view={view} />
       <p className="text-sm text-fg-muted">
         A Central de pré-visualização mostra o carrossel como no Instagram (feed e navegação entre slides), com legenda,

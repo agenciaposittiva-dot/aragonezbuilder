@@ -46,7 +46,7 @@ export function StepAngle({ view, state, update, server, can, picker, readOnly }
     update((s) => ({ ...s, angles: s.angles.map((a) => (a.id === id ? { ...a, ...patch } : a)) }));
 
   return (
-    <div className="grid gap-5">
+    <div className="grid grid-cols-1 gap-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <p className="max-w-2xl text-sm text-fg-muted">
           Cada ângulo é um jeito diferente de contar o assunto: gancho, ideia central, público, objetivo, diferencial,
@@ -125,7 +125,7 @@ export function StepAngle({ view, state, update, server, can, picker, readOnly }
                     </button>
                   </div>
                   {selected && !readOnly ? (
-                    <div className="grid gap-2">
+                    <div className="grid grid-cols-1 gap-2">
                       <Field label="Gancho" htmlFor={`hook-${a.id}`}>
                         <Input
                           id={`hook-${a.id}`}

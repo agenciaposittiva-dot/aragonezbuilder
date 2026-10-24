@@ -12,7 +12,7 @@ import type { StepProps } from "../machine-wizard";
 /** Etapa 4: formato, objetivo, público, tom, quantidade de slides, proporção, imagens e as IAs da geração. */
 export function StepFormat({ state, update, picker, can, readOnly }: StepProps) {
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <div>
         <p className="mb-2 text-sm font-medium">Formato</p>
         <div className="grid gap-2 sm:grid-cols-3">

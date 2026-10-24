@@ -99,7 +99,7 @@ export function StepTopic(props: StepProps) {
   };
 
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <div role="tablist" aria-label="Origem do assunto" className="flex flex-wrap gap-2">
         {kinds.map((k) => (
           <button
@@ -143,7 +143,7 @@ export function StepTopic(props: StepProps) {
         ) : null}
 
         {kind === "link" ? (
-          <div className="grid gap-2">
+          <div className="grid grid-cols-1 gap-2">
             <Field
               label="Link do artigo ou página"
               htmlFor="machine-source-url"
@@ -281,7 +281,7 @@ function TrendSource({
     setBusy(null);
   };
   return (
-    <div className="grid gap-3">
+    <div className="grid grid-cols-1 gap-3">
       <div className="relative">
         <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-fg-subtle" />
         <Input
@@ -369,7 +369,7 @@ function FileSource({
     }
   };
   return (
-    <div className="grid gap-2">
+    <div className="grid grid-cols-1 gap-2">
       <p className="text-sm text-fg-muted">
         Envie um arquivo de texto (.txt, .md ou .csv). Ele fica em Arquivos, junto do cliente. Para PDF ou Word, cole o
         texto na opção &quot;Texto colado&quot;.

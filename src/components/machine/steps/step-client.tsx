@@ -14,7 +14,7 @@ export function StepClient({ view, clientId, setClientId, clients, readOnly }: S
   const changed = clientId !== view.project.clientId;
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      <div className="grid content-start gap-4">
+      <div className="grid grid-cols-1 content-start gap-4">
         <Field
           label="Cliente (marca)"
           htmlFor="machine-step-client"

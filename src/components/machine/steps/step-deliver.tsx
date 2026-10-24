@@ -50,7 +50,7 @@ export function StepDeliver({ view, can, readOnly }: StepProps) {
   const writable = can.write && !readOnly;
 
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span>Situação da peça:</span>
         <Badge tone="neutral">{CONTENT_STATUS[content.status as keyof typeof CONTENT_STATUS] ?? content.status}</Badge>

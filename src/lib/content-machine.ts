@@ -8,15 +8,15 @@ import { z } from "zod";
  */
 
 export const MACHINE_STEPS = [
-  { n: 1, key: "client", label: "Cliente" },
-  { n: 2, key: "topic", label: "Assunto" },
-  { n: 3, key: "angle", label: "Ângulo" },
-  { n: 4, key: "format", label: "Formato e objetivo" },
-  { n: 5, key: "generate", label: "Gerar conteúdo" },
-  { n: 6, key: "visual", label: "Identidade visual" },
-  { n: 7, key: "editor", label: "Revisar no editor" },
-  { n: 8, key: "preview", label: "Visualizar" },
-  { n: 9, key: "deliver", label: "Aprovar e planejar" },
+  { n: 1, key: "client", label: "Cliente", short: "Cliente" },
+  { n: 2, key: "topic", label: "Assunto", short: "Assunto" },
+  { n: 3, key: "angle", label: "Ângulo", short: "Ângulo" },
+  { n: 4, key: "format", label: "Formato e objetivo", short: "Formato" },
+  { n: 5, key: "generate", label: "Gerar conteúdo", short: "Gerar" },
+  { n: 6, key: "visual", label: "Identidade visual", short: "Visual" },
+  { n: 7, key: "editor", label: "Revisar no editor", short: "Editor" },
+  { n: 8, key: "preview", label: "Visualizar", short: "Prévia" },
+  { n: 9, key: "deliver", label: "Aprovar e planejar", short: "Aprovar" },
 ] as const;
 export type MachineStepKey = (typeof MACHINE_STEPS)[number]["key"];
 export const stepLabel = (n: number) => MACHINE_STEPS.find((s) => s.n === n)?.label ?? "";
