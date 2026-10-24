@@ -113,6 +113,7 @@ export const AI_MODULES = {
   chat: "Chat da equipe",
   preview: "Pré-visualização",
   brand: "Radar de Marca",
+  machine: "Máquina de Conteúdo",
 } as const;
 export type AiModule = keyof typeof AI_MODULES;
 

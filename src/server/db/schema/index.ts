@@ -17,3 +17,4 @@ export * from "./chat";
 export * from "./trends";
 export * from "./content";
 export * from "./brand";
+export * from "./machine";

@@ -113,6 +113,13 @@
       "when": 1792358331322,
       "tag": "0015_radar_marca",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1792843677340,
+      "tag": "0016_maquina_conteudo",
+      "breakpoints": true
     }
   ]
 }

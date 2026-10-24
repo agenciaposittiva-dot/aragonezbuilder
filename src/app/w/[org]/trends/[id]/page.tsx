@@ -1,10 +1,12 @@
-import { ExternalLink, Info, Sparkles } from "lucide-react";
+import { ExternalLink, Info, Sparkles, WandSparkles } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
+import { NewMachineProjectDialog } from "@/components/machine/new-project-dialog";
 import { CreateContentDialog } from "@/components/trends/create-content-dialog";
+import { Button } from "@/components/ui/button";
 import { CollectionMenu, ObservedMetrics, TrendStateButtons } from "@/components/trends/trend-card";
 import { formatDate, formatDateTime, relativeFromNow } from "@/lib/format";
 import {
@@ -99,6 +101,18 @@ export default async function TrendPage({ params, searchParams }: PageProps<"/w/
                 }}
                 defaultOpen={sp.create === "1"}
                 defaultClientId={typeof sp.clientId === "string" ? sp.clientId : undefined}
+              />
+            ) : null}
+            {canContent && can(actor, "ai.use") ? (
+              <NewMachineProjectDialog
+                clients={data.clients}
+                trendId={t.id}
+                defaultTitle={t.title.slice(0, 160)}
+                trigger={
+                  <Button variant="secondary">
+                    <WandSparkles /> Criar na Máquina
+                  </Button>
+                }
               />
             ) : null}
           </>

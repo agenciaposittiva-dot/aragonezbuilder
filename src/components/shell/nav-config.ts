@@ -1,13 +1,13 @@
 import {
   BarChart3,
-  CalendarDays,
   Bot,
+  Brush,
+  CalendarDays,
   CheckCheck,
   Cloud,
   FolderKanban,
   FolderOpen,
   Home,
-  Brush,
   Inbox,
   ListChecks,
   MessagesSquare,
@@ -16,11 +16,12 @@ import {
   Settings,
   Trash2,
   TrendingUp,
+  type LucideIcon,
   Users,
   Users2,
   Wallet,
+  WandSparkles,
   Workflow,
-  type LucideIcon,
 } from "lucide-react";
 import type { Permission } from "@/lib/permissions";
 
@@ -83,6 +84,13 @@ export const WORKSPACE_NAV: NavGroup[] = [
       { key: "ai", label: "Assistente IA", path: "/ai", icon: Bot, permission: "ai.use" },
       { key: "trends", label: "Radar de Tendências", path: "/trends", icon: TrendingUp, permission: "trends.read" },
       { key: "brand", label: "Radar de Marca", path: "/brand-radar", icon: ScanSearch, permission: "brand.read" },
+      {
+        key: "machine",
+        label: "Máquina de Conteúdo",
+        path: "/maquina",
+        icon: WandSparkles,
+        permission: "content.read",
+      },
       { key: "content", label: "Conteúdos", path: "/content", icon: CalendarDays, permission: "content.read" },
     ],
   },

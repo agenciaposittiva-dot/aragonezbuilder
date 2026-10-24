@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import { demoCarouselJson } from "../demo-carousel";
+import { demoMachineJson } from "../demo-machine";
 import { demoDesignEditJson } from "../demo-design";
 import { demoPreviewJson } from "../demo-preview";
 import { demoBrandJson } from "../demo-brand";
@@ -138,7 +139,8 @@ function demoFormatJson(prompt: string) {
     ? (demoTrendJson(format, prompt) ??
         demoPreviewJson(format, prompt) ??
         demoBrandJson(format, prompt) ??
-        demoCarouselJson(format, prompt))
+        demoCarouselJson(format, prompt) ??
+        demoMachineJson(format, prompt))
     : null;
 }
 
