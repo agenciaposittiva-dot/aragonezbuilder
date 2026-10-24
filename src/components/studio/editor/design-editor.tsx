@@ -80,6 +80,7 @@ import { CarouselAiDialog, type CarouselAiMode } from "./carousel-ai";
 import { downloadExport, sendExportToFiles, type ExportOptions } from "./export";
 import { ExportDialog } from "./export-dialog";
 import { ensureFonts, whenFontLoads } from "./fonts";
+import { ImageGenStore } from "./image-generator";
 import { LeftPanel, PanelBody, type LeftTab } from "./left-panel";
 import { loadImage } from "./media";
 import { PropertiesPanel } from "./properties";
@@ -102,7 +103,8 @@ export type EditorDesign = {
   clientName: string | null;
 };
 
-type MobileSheet = null | "add" | "brand" | "layers" | "props" | "media" | "components" | "templates" | "ai";
+type MobileSheet =
+  null | "add" | "brand" | "layers" | "props" | "media" | "generate" | "components" | "templates" | "ai";
 
 /** Ponto de restauração criado antes de cada alteração aplicada pelo chat de IA. */
 const AI_CHECKPOINT = "Antes da edição pelo chat de IA";
@@ -129,6 +131,8 @@ export function DesignEditor({
   const ws = useWorkspace();
   const initial = useMemo(() => readDesignDocument(design.document, design), [design]);
   const [store] = useState(() => new EditorStore(initial.doc));
+  // Gerar imagem: estado próprio que sobrevive ao fechar/abrir do painel.
+  const [gen] = useState(() => new ImageGenStore());
   const [scene, setScene] = useState<Scene | null>(null);
   const sceneRef = useRef<Scene | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -283,8 +287,9 @@ export function DesignEditor({
       sceneRef.current?.dispose();
       sceneRef.current = null;
       store.attachScene(null);
+      gen.cancel();
     };
-  }, [store]);
+  }, [store, gen]);
 
   // Tema claro/escuro: a cor da área de trabalho acompanha.
   useEffect(() => {
@@ -540,6 +545,8 @@ export function DesignEditor({
     design: { id: design.id, clientId: design.clientId, clientName: design.clientName, isTemplate: design.isTemplate },
     canManageTemplates,
     onPickImage: pickImage,
+    gen,
+    onOpenGenerator: () => openPanel("generate"),
   };
 
   const zoomPct = useSyncExternalStore(
@@ -944,7 +951,13 @@ export function DesignEditor({
             className="hidden w-[288px] shrink-0 scrollbar-thin overflow-y-auto border-l border-border bg-surface xl:block"
             data-testid="properties-panel"
           >
-            <PropertiesPanel store={store} actions={actions} brand={brand} onReplaceImage={pickImage} />
+            <PropertiesPanel
+              store={store}
+              actions={actions}
+              brand={brand}
+              onReplaceImage={pickImage}
+              onGenerateImage={() => openPanel("generate")}
+            />
           </aside>
         ) : null}
       </div>
@@ -1005,6 +1018,7 @@ export function DesignEditor({
                 layers: "Camadas",
                 props: "Editar",
                 media: "Fotos",
+                generate: "Gerar imagem",
                 components: "Componentes",
                 templates: "Modelos",
                 ai: "Chat de edição com IA",
@@ -1018,7 +1032,13 @@ export function DesignEditor({
           ) : null}
           <div className={cn("min-h-0 flex-1 overflow-y-auto", mobileSheet === "ai" && "hidden")}>
             {mobileSheet === "ai" ? null : mobileSheet === "props" ? (
-              <PropertiesPanel store={store} actions={actions} brand={brand} onReplaceImage={pickImage} />
+              <PropertiesPanel
+                store={store}
+                actions={actions}
+                brand={brand}
+                onReplaceImage={pickImage}
+                onGenerateImage={() => setMobileSheet("generate")}
+              />
             ) : mobileSheet ? (
               <div className="p-4">
                 <PanelBody

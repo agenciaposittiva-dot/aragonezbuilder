@@ -138,8 +138,31 @@ function demoFormatJson(prompt: string) {
     ? (demoTrendJson(format, prompt) ??
         demoPreviewJson(format, prompt) ??
         demoBrandJson(format, prompt) ??
-        demoCarouselJson(format, prompt))
+        demoCarouselJson(format, prompt) ??
+        demoImagePromptJson(format, prompt))
     : null;
+}
+
+/**
+ * "Melhorar descrição" do Gerar imagem (editor): mantém o texto original da
+ * pessoa e acrescenta detalhes genéricos de composição, luz e enquadramento —
+ * identificado como exemplo. Não gera imagens.
+ */
+function demoImagePromptJson(format: string, prompt: string): string | null {
+  if (format !== "image_prompt") return null;
+  const original = prompt.match(/<<<\n([\s\S]*?)\n>>>/)?.[1]?.trim() ?? "";
+  const style = prompt.match(/^Estilo escolhido: (.+)$/m)?.[1]?.trim();
+  const context = /^Contexto:/m.test(prompt);
+  const improved = [
+    original,
+    style ? `Estilo ${style.toLowerCase()}.` : "",
+    "Composição centrada com respiro, iluminação suave e direcional, enquadramento fechado no assunto principal, fundo limpo e cores harmoniosas.",
+    context ? "Sem texto escrito nem logotipos, para os textos do slide ficarem por cima." : "",
+    "(Exemplo da demonstração local.)",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return JSON.stringify({ prompt: improved });
 }
 
 function demoJson(prompt: string) {

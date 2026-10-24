@@ -1,3 +1,4 @@
+import sharp from "sharp";
 import { vi } from "vitest";
 
 /*
@@ -57,7 +58,20 @@ export type AiMockState = {
   reply: string;
   /** Status HTTP forçado para as chamadas de geração (texto e imagem). */
   failStatus: number | null;
+  /** Imagens geradas: PNG 1×1 ("tiny") ou no tamanho pedido em `size` ("request"), uma por `n`. */
+  imageSize: "tiny" | "request";
 };
+
+/** PNG sólido no tamanho pedido pela Images API (ex.: "1024x1536"). */
+async function requestedPng(size: string) {
+  const m = /^(\d+)x(\d+)$/.exec(size);
+  const width = m ? Number(m[1]) : 1024;
+  const height = m ? Number(m[2]) : 1024;
+  const buf = await sharp({ create: { width, height, channels: 3, background: { r: 210, g: 140, b: 60 } } })
+    .png()
+    .toBuffer();
+  return buf.toString("base64");
+}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -114,6 +128,7 @@ export function installAiMock() {
     ],
     reply: "Legenda de teste gerada pelo modelo.",
     failStatus: null,
+    imageSize: "tiny",
   };
 
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -180,10 +195,12 @@ export function installAiMock() {
         });
       }
       if (u.pathname === "/v1/images/generations") {
+        const n = Math.max(1, Math.min(10, Number(body?.n ?? 1) || 1));
+        const b64 = state.imageSize === "request" ? await requestedPng(String(body?.size ?? "1024x1024")) : TINY_PNG;
         return json({
           created: 1_760_000_000,
-          data: [{ b64_json: TINY_PNG }],
-          usage: { input_tokens: 15, output_tokens: 272 },
+          data: Array.from({ length: n }, () => ({ b64_json: b64 })),
+          usage: { input_tokens: 15, output_tokens: 272 * n },
         });
       }
     }
@@ -207,6 +224,7 @@ export function installAiMock() {
     reset() {
       calls.length = 0;
       state.failStatus = null;
+      state.imageSize = "tiny";
     },
   };
 }

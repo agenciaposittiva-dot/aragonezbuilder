@@ -69,6 +69,11 @@ export const AI_TASKS = {
     needs: { text: "required", imageInput: "required" },
   },
   image_generation: { label: "Gerar imagens", kind: "image", needs: { imageOutput: "required" } },
+  image_prompt: {
+    label: "Melhorar descrições de imagens (Gerar imagem)",
+    kind: "text",
+    needs: { text: "required", structured: "preferred" },
+  },
   design_edit: {
     label: "Editar artes (textos e layout)",
     kind: "text",
@@ -149,6 +154,9 @@ const OPERATION_TASK: Record<string, AiTask> = {
   // Chat de edição de artes (src/server/services/design-ai.ts).
   design_edit: "design_edit",
   image_edit: "image_edit",
+  // Gerar imagem no editor (src/server/services/design-image-gen.ts).
+  image_generate: "image_generation",
+  image_prompt: "image_prompt",
   // Central de pré-visualização (src/server/services/preview-ai.ts).
   preview_review: "copy",
   preview_convert: "copy",

@@ -54,6 +54,10 @@ export type ImageRequest = {
   prompt: string;
   /** Ex.: "1024x1024". */
   size: string;
+  /** Quantidade de imagens (só enviado quando informado; padrão da API: 1). */
+  n?: number;
+  /** Nível de qualidade no vocabulário do provedor (ex.: OpenAI: auto, low, medium, high); só enviado quando informado. */
+  quality?: string;
   signal?: AbortSignal;
 };
 

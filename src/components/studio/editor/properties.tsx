@@ -26,6 +26,7 @@ import {
   FlipVertical2,
   Group,
   ImageUp,
+  WandSparkles,
   Italic,
   Lock,
   Plus,
@@ -77,11 +78,14 @@ export function PropertiesPanel({
   actions,
   brand,
   onReplaceImage,
+  onGenerateImage,
 }: {
   store: EditorStore;
   actions: EditorActions;
   brand: EditorBrand;
   onReplaceImage: () => void;
+  /** Abre o painel Gerar imagem (a imagem selecionada pode ser substituída pela gerada). */
+  onGenerateImage?: () => void;
 }) {
   const selection = useEditor(store, (s) => s.selection);
   const doc = useEditor(store, (s) => s.doc);
@@ -99,6 +103,7 @@ export function PropertiesPanel({
       brand={brand}
       swatches={swatches}
       onReplaceImage={onReplaceImage}
+      onGenerateImage={onGenerateImage}
     />
   );
 }
@@ -215,6 +220,7 @@ function ObjectProperties({
   brand,
   swatches,
   onReplaceImage,
+  onGenerateImage,
 }: {
   o: DesignObject;
   store: EditorStore;
@@ -222,6 +228,7 @@ function ObjectProperties({
   brand: EditorBrand;
   swatches: string[];
   onReplaceImage: () => void;
+  onGenerateImage?: () => void;
 }) {
   const nameRef = useRef<HTMLInputElement>(null);
   const isGroup = o.type === "group";
@@ -418,7 +425,13 @@ function ObjectProperties({
       ) : null}
 
       {o.type === "image" ? (
-        <ImageSection o={o} actions={actions} swatches={swatches} onReplace={onReplaceImage} />
+        <ImageSection
+          o={o}
+          actions={actions}
+          swatches={swatches}
+          onReplace={onReplaceImage}
+          onGenerate={onGenerateImage}
+        />
       ) : null}
 
       {o.type === "instance" ? <InstanceSection o={o} store={store} actions={actions} /> : null}
@@ -735,11 +748,13 @@ function ImageSection({
   actions,
   swatches,
   onReplace,
+  onGenerate,
 }: {
   o: ImageObject;
   actions: EditorActions;
   swatches: string[];
   onReplace: () => void;
+  onGenerate?: () => void;
 }) {
   const known = !!o.naturalWidth && !!o.naturalHeight;
   // Zoom e foco aproximados a partir do recorte atual (para os controles deslizantes).
@@ -761,9 +776,16 @@ function ImageSection({
     });
   return (
     <Section title="Imagem">
-      <Button size="sm" variant="secondary" onClick={onReplace}>
-        <ImageUp /> Trocar imagem
-      </Button>
+      <div className="flex flex-wrap gap-1.5">
+        <Button size="sm" variant="secondary" onClick={onReplace}>
+          <ImageUp /> Trocar imagem
+        </Button>
+        {onGenerate ? (
+          <Button size="sm" variant="secondary" onClick={onGenerate} data-testid="props-generate-image">
+            <WandSparkles /> Gerar com IA
+          </Button>
+        ) : null}
+      </div>
       <div className="flex gap-1 text-[11px]">
         <Button
           size="xs"

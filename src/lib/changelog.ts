@@ -333,6 +333,23 @@ export const CHANGELOG: ChangelogEntry[] = [
       "e2e/portal-banner.spec.ts — dois banners na personalização viram carrossel na prévia (setas, pontos, rolagem automática, celular) e voltam a banner simples ao remover",
     ],
   },
+  {
+    n: 24,
+    date: "2026-10-24",
+    module: "Estúdio Criador",
+    title: "Gerar imagem com IA dentro do editor",
+    description:
+      "Novo painel Gerar imagem no editor (ícone na barra lateral, botão na seção Imagens de Fotos e Adicionar, \"Gerar com IA\" nas propriedades de uma imagem; gaveta no celular). Descrição com \"Melhorar com IA\" e \"Voltar ao texto original\", contexto opcional do slide atual ou do carrossel inteiro (textos, sequência, imagens anteriores e identidade visual, respeitando a política de dados de clientes), seletor universal com só os modelos de imagem listados pela conta do provedor (padrão salvável), formatos 1:1, 4:5, 9:16, 16:9, formato do slide e personalizado, qualidade e variações conforme o provedor, oito estilos, resultados em grade com prévia ampliada e inserção no slide ativo como novo elemento, como fundo ou substituindo a imagem selecionada. Cada imagem gerada é recortada para a proporção pedida e salva em Arquivos (cliente e projeto da arte, origem IA, com descrição e modelo), e fica em \"Geradas anteriormente\" para reutilizar sem gerar de novo. Fechar o painel não perde a descrição nem os resultados.",
+    fixed:
+      "Para usar uma imagem gerada por IA numa arte era preciso sair do editor (Assistente IA ou ferramenta externa), baixar e enviar o arquivo; agora tudo acontece dentro do Estúdio Criador, com a imagem salva na nuvem e inserida no slide certo.",
+    status: "tested",
+    tests: [
+      "tests/design-image-gen.test.ts — proporções, tamanho do provedor e recorte, prompt com estilo e contexto; preparação com o modelo real da conta (opções do provedor, política de contexto, confirmação de custo); geração com a Images API simulada (n, quality, size), recorte 4:5, arquivos em Arquivos, uso e histórico; inserção como elemento, fundo e substituição com persistência ao salvar e reabrir; biblioteca de geradas; erros (provedor fora do ar, sem modelo de imagem, demonstração, permissão); melhorar descrição (demonstração e modelo real)",
+      "e2e/image-generator.spec.ts — painel no editor (computador e celular): vazio, descrição, melhorar com IA (demonstração), formato, modelo indisponível, fechar e reabrir mantendo os dados; com a rota de geração simulada no navegador: inserir no slide atual, como fundo, substituir, cancelar, erro, descartar, salvar e reabrir",
+    ],
+    notes:
+      "A geração real exige um provedor com modelos gpt-image (OpenAI) configurado em Configurações → Inteligência artificial; a demonstração local não gera imagens.",
+  },
 ];
 
 export const CHANGELOG_MODULES = [...new Set(CHANGELOG.map((e) => e.module))].sort((a, b) =>

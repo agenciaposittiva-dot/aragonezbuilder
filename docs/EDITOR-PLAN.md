@@ -194,7 +194,28 @@ textos sem cache de bitmap e pranchetas sem sombra desfocada. Medido em
 navegador sem aceleração de vídeo, 1.500 objetos em 3 páginas: montar 0,9 s,
 cada alteração ~65 ms, quadro completo ~30 ms.
 
-## 7. Limitações conhecidas
+## 7. Gerar imagem (IA dentro do editor)
+
+Painel **Gerar imagem** (trilho da barra lateral; botões na seção Imagens de
+Fotos e Adicionar; "Gerar com IA" nas propriedades de uma imagem; gaveta no
+celular). Estado em `ImageGenStore` (`editor/image-generator.tsx`), criado
+junto com o editor: fechar o painel não perde descrição, opções nem
+resultados, e uma geração em andamento continua.
+
+| Camada | Onde | O que faz |
+|---|---|---|
+| Regras puras | `src/lib/image-gen.ts` | Formatos (1:1, 4:5, 9:16, 16:9, slide, personalizado), estilos (texto no prompt), opções por provedor (**só** o que a API oficial aceita: OpenAI `size`, `quality`, `n`; sem prompt negativo), tamanho pedido ao provedor e recorte central para a proporção exata, `buildImagePrompt`, `insertImageOps` (elemento centralizado em 80 % da página, fundo cobrindo a página com recorte "preencher", ou `replaceImage` mantendo a caixa). |
+| Serviço | `src/server/services/design-image-gen.ts` | `prepareDesignImageGeneration` (permissões `designs.write` + `files.write`, seletor universal módulo `editor` / tarefa `image_generation`, opções validadas contra o provedor, contexto do slide ou do carrossel só com a política de dados de clientes, confirmação de custo), `saveDesignImageGeneration` (recorte com sharp, `storeUpload` com cliente/projeto da arte, origem `ai`, tags `ia`/`estudio`, nota com descrição e modelo; `ai_usage` + `ai_generations` kind `image_generate` com `designId`), `enhanceImagePrompt` (modelo de texto, tarefa `image_prompt`, preserva a intenção; demonstração local determinística), `listGeneratedImages` (biblioteca de geradas do cliente da arte). |
+| Rota | `POST /api/designs/ai/generate-image` | Mesmo contrato de erros do chat: `409 cost_confirmation`, `422 model_selection` (com alternativas), `4xx` de domínio, `502/429 provider_error` (com `retryable`); cancelável pelo `AbortSignal`. |
+| Ações | `src/server/actions/design-image-gen.ts` | `enhanceImagePromptAction`, `generatedImagesAction` (o painel reaproveita `designAiSetupAction` para o seletor de modelos). |
+
+Inserção: sempre na **página ativa no momento do clique** (nunca na página de
+quando a imagem foi gerada), por `store.dispatch` — entra no desfazer e no
+salvamento automático como qualquer imagem; `src` é `/api/files/<versão>`.
+Nenhum modelo é inventado: a lista vem de `GET /v1/models` da conta (os
+`gpt-image-*` que a chave tiver). A demonstração local não gera imagens.
+
+## 8. Limitações conhecidas
 
 - PDF com páginas em imagem (JPEG), sem texto selecionável.
 - Estilos por caractere (negrito em parte do texto) não são editáveis; os de

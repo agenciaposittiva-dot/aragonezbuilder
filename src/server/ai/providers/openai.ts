@@ -140,13 +140,22 @@ export function createOpenAiProvider(apiKey: string): AiProvider {
  * Geração de imagem pela Images API oficial (POST /v1/images/generations).
  * Os modelos gpt-image sempre devolvem a imagem em base64; o uso de tokens só
  * vem para alguns modelos. Custo não estimado (sem tabela de preços).
+ * `n` (1–10) e `quality` (auto, low, medium, high) são parâmetros documentados
+ * da API para os gpt-image e só vão quando informados.
  */
 export async function generateOpenAiImage(apiKey: string, req: ImageRequest): Promise<ImageResult> {
   const res = await fetch("https://api.openai.com/v1/images/generations", {
     method: "POST",
     signal: req.signal,
     headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model: req.model, prompt: req.prompt, size: req.size, n: 1, output_format: "png" }),
+    body: JSON.stringify({
+      model: req.model,
+      prompt: req.prompt,
+      size: req.size,
+      n: Math.min(10, Math.max(1, Math.round(req.n ?? 1))),
+      output_format: "png",
+      ...(req.quality ? { quality: req.quality } : {}),
+    }),
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: { code?: string; message?: string } };

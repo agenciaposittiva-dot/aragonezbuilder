@@ -55,6 +55,7 @@ import {
   Truck,
   User,
   Users,
+  WandSparkles,
   X,
   Zap,
 } from "lucide-react";
@@ -76,16 +77,18 @@ import {
 import type { EditorActions, EditorBrand, ShapeKind } from "./actions";
 import { pagesFromTemplate } from "./clone";
 import { ensureFont } from "./fonts";
+import { ImageGeneratorPanel, type ImageGenStore } from "./image-generator";
 import { PagesAndLayers } from "./layers";
 import { useEditor, type EditorStore } from "./store";
 
-export type LeftTab = "add" | "layers" | "brand" | "media" | "components" | "templates";
+export type LeftTab = "add" | "layers" | "brand" | "media" | "generate" | "components" | "templates";
 
 // Ordem da referência (modelos primeiro, camadas por último); "Adicionar" reúne texto, elementos e ícones.
 export const LEFT_TABS: { key: LeftTab; label: string; icon: typeof Plus }[] = [
   { key: "templates", label: "Modelos", icon: LayoutTemplate },
   { key: "add", label: "Adicionar", icon: Plus },
   { key: "media", label: "Fotos", icon: Images },
+  { key: "generate", label: "Gerar imagem", icon: WandSparkles },
   { key: "brand", label: "Marca", icon: Palette },
   { key: "components", label: "Componentes", icon: Component },
   { key: "layers", label: "Camadas", icon: Layers },
@@ -99,6 +102,10 @@ export type PanelProps = {
   design: { id: string; clientId: string | null; clientName: string | null; isTemplate: boolean };
   canManageTemplates: boolean;
   onPickImage: () => void;
+  /** Estado do Gerar imagem (vive com o editor: fechar o painel não perde nada). */
+  gen: ImageGenStore;
+  /** Abre o painel Gerar imagem (barra lateral no computador, gaveta no celular). */
+  onOpenGenerator: () => void;
   /** Fecha o painel (no celular) depois de inserir algo. */
   onDone?: () => void;
   /** No celular: abre outro painel (componentes, modelos) a partir do painel Adicionar. */
@@ -185,6 +192,16 @@ export function PanelBody(props: PanelProps & { tab: LeftTab }) {
       return <BrandPanel {...props} />;
     case "media":
       return <MediaPanel {...props} />;
+    case "generate":
+      return (
+        <ImageGeneratorPanel
+          store={props.store}
+          gen={props.gen}
+          design={props.design}
+          canWrite={props.canWrite}
+          onDone={props.onDone}
+        />
+      );
     case "components":
       return <ComponentsPanel {...props} />;
     case "templates":
@@ -253,7 +270,7 @@ const ICONS: [string, typeof Heart][] = [
   ["Play", Play],
 ];
 
-function AddPanel({ actions, onPickImage, onDone, onNavigate }: PanelProps) {
+function AddPanel({ actions, onPickImage, onOpenGenerator, onDone, onNavigate }: PanelProps) {
   const done = () => onDone?.();
   return (
     <div className="grid gap-5">
@@ -334,16 +351,21 @@ function AddPanel({ actions, onPickImage, onDone, onNavigate }: PanelProps) {
         </div>
       </section>
       <section>
-        <H>Imagem</H>
-        <Button
-          variant="secondary"
-          className="w-full"
-          onClick={() => {
-            onPickImage();
-          }}
-        >
-          <ImagePlus /> Enviar imagem
-        </Button>
+        <H>Imagens</H>
+        <div className="grid gap-1.5">
+          <Button
+            variant="secondary"
+            className="w-full"
+            onClick={() => {
+              onPickImage();
+            }}
+          >
+            <ImagePlus /> Enviar imagem
+          </Button>
+          <Button variant="secondary" className="w-full" onClick={onOpenGenerator} data-testid="open-image-generator">
+            <WandSparkles /> Gerar imagem com IA
+          </Button>
+        </div>
         <p className="mt-1.5 text-[11px] text-fg-subtle">
           A imagem vai para Arquivos (do cliente da arte). Imagens grandes são reduzidas para até 2048 px.
         </p>
@@ -633,7 +655,7 @@ type ImageRow = {
   clientName: string | null;
 };
 
-function MediaPanel({ actions, design, onPickImage, onDone }: PanelProps) {
+function MediaPanel({ actions, design, onPickImage, onOpenGenerator, onDone }: PanelProps) {
   const { orgSlug } = useWorkspace();
   const [scope, setScope] = useState<"client" | "all">(design.clientId ? "client" : "all");
   const [q, setQ] = useState("");
@@ -667,9 +689,18 @@ function MediaPanel({ actions, design, onPickImage, onDone }: PanelProps) {
   }, [load, q, scope]);
   return (
     <div className="grid gap-3">
-      <Button variant="secondary" className="w-full" onClick={onPickImage}>
-        <ImagePlus /> Enviar imagem
-      </Button>
+      <section>
+        <H>Imagens</H>
+        <div className="grid gap-1.5">
+          <Button variant="secondary" className="w-full" onClick={onPickImage}>
+            <ImagePlus /> Enviar imagem
+          </Button>
+          <Button variant="secondary" className="w-full" onClick={onOpenGenerator} data-testid="open-image-generator">
+            <WandSparkles /> Gerar imagem
+          </Button>
+        </div>
+      </section>
+      <H>Arquivos</H>
       <div className="relative">
         <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-fg-subtle" />
         <Input
